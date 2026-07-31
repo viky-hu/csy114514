@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@fontsource/noto-sans-sc";
+@import "@fontsource/michroma";
 
 :root {
   color-scheme: light;

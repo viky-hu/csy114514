@@ -5,8 +5,9 @@
 Main Next.js App Router frontend. It owns routing, app layout, first-party CSS, and same-origin BFF route handlers.
 
 - `app/layout.tsx`: root HTML shell and global style imports.
-- `app/page.tsx`: current workbench entry screen.
+- `app/page.tsx`: initial login entry screen.
 - `app/api/**/route.ts`: BFF layer for frontend-to-server boundaries.
+- `app/windows/login/LoginIntroWindow.tsx`: Window 1 login surface copied from `C:\Users\Admin\final-main\final-main`, including the mouse-following band, inverted text overlay, CTA animation, Escape close behavior, and sign-in/register form.
 - `app/windows/**`: feature-owned window modules aligned with the final repository shape.
 - `app/styles/**`: app-level and feature-level CSS.
 

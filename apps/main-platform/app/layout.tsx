@@ -1,11 +1,12 @@
 import "./globals.css";
-import "./styles/app-shell.css";
+import "./styles/window-1-login.css";
+import "cn-fontsource-ding-talk-jin-bu-ti-regular/font.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "CSY Main Platform",
-  description: "Main frontend workspace for the CSY monorepo"
+  title: "AegisTrace | Agent 安全评估平台",
+  description: "可观察、可解释、可复现、可修复的 Agent 安全评估平台"
 };
 
 type RootLayoutProps = {
