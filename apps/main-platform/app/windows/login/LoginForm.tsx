@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { authLogin, authRegister } from "@/app/lib/client/auth-adapter";
 
 interface LoginFormProps {
   onSignIn: (isAdmin: boolean, account: string, nodeType?: string) => void;
@@ -80,15 +79,10 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
 
   const [loginAccount, setLoginAccount] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const [registerAccount, setRegisterAccount] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
-  const [registerError, setRegisterError] = useState("");
-  const [isApplyingRegister, setIsApplyingRegister] = useState(false);
-  const [registerSuccess, setRegisterSuccess] = useState(false);
 
   const [showPwd, setShowPwd] = useState(false);
   const [showRegisterPwd, setShowRegisterPwd] = useState(false);
@@ -96,15 +90,11 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
 
   const handleSwitchToRegister = () => {
     setActiveMode("register");
-    setLoginError("");
     setShowPwd(false);
   };
 
   const handleBackToLogin = () => {
     setActiveMode("login");
-    setRegisterError("");
-    setRegisterSuccess(false);
-    setIsApplyingRegister(false);
     setShowRegisterPwd(false);
     setShowRegisterConfirmPwd(false);
     setRegisterAccount("");
@@ -112,72 +102,14 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
     setRegisterConfirmPassword("");
   };
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     const account = loginAccount.trim();
-    const password = loginPassword;
-
-    if (!account) {
-      setLoginError("请输入账号");
-      return;
-    }
-
-    if (!password) {
-      setLoginError("请输入密码");
-      return;
-    }
-
-    setLoginError("");
-    setIsLoggingIn(true);
-
-    try {
-      const result = await authLogin({ account, password });
-      if (result.ok) {
-        onSignIn(result.isAdmin, account, result.nodeType);
-      } else {
-        setLoginError(result.errorMessage ?? "身份验证失败");
-      }
-    } catch {
-      setLoginError("网络错误，请重试");
-    } finally {
-      setIsLoggingIn(false);
-    }
+    onSignIn(false, account || "mock-evaluator");
   };
 
-  const handleApplyRegister = async () => {
+  const handleApplyRegister = () => {
     const account = registerAccount.trim();
-    const password = registerPassword;
-    const confirm = registerConfirmPassword;
-
-    if (!account) {
-      setRegisterError("请输入账号");
-      return;
-    }
-
-    if (!password) {
-      setRegisterError("请输入密码");
-      return;
-    }
-
-    if (password !== confirm) {
-      setRegisterError("两次输入的密码不一致");
-      return;
-    }
-
-    setRegisterError("");
-    setIsApplyingRegister(true);
-
-    try {
-      const result = await authRegister({ account, password });
-      if (result.ok) {
-        setRegisterSuccess(true);
-      } else {
-        setRegisterError(result.errorMessage ?? "申请失败，请重试");
-        setIsApplyingRegister(false);
-      }
-    } catch {
-      setRegisterError("网络错误，请重试");
-      setIsApplyingRegister(false);
-    }
+    onSignIn(false, account || "mock-evaluator");
   };
 
   return (
@@ -186,6 +118,7 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
       className="svg-login-form"
       autoComplete="off"
       onClick={(event) => event.stopPropagation()}
+      onSubmit={(event) => event.preventDefault()}
     >
       <div className="svg-form-switcher">
         <section className={`svg-form-panel ${activeMode === "register" ? "is-active" : "is-inactive"}`}>
@@ -197,7 +130,6 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
               autoComplete="off"
               value={registerAccount}
               onChange={(event) => setRegisterAccount(event.target.value)}
-              required
             />
             <label htmlFor="sv-register-account">评估账号</label>
           </div>
@@ -210,7 +142,6 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
               autoComplete="new-password"
               value={registerPassword}
               onChange={(event) => setRegisterPassword(event.target.value)}
-              required
             />
             <label htmlFor="sv-register-pwd">访问密码</label>
             <PasswordToggleButton
@@ -227,7 +158,6 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
               autoComplete="new-password"
               value={registerConfirmPassword}
               onChange={(event) => setRegisterConfirmPassword(event.target.value)}
-              required
             />
             <label htmlFor="sv-register-confirm-pwd">确认访问密码</label>
             <PasswordToggleButton
@@ -236,26 +166,12 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
             />
           </div>
 
-          {registerError && (
-            <p className="svg-form-error" role="alert">
-              {registerError}
-            </p>
-          )}
-
           <div className="svg-form-actions">
-            {registerSuccess ? (
-              <p className="svg-form-pending" role="status">
-                正在申请接入，请等待管理员审核
-              </p>
-            ) : (
-              <BracketActionButton
-                className="svg-bracket-action--primary"
-                onClick={handleApplyRegister}
-                disabled={isApplyingRegister}
-                ariaBusy={isApplyingRegister}
-                label={isApplyingRegister ? "申请中…" : "申请接入"}
-              />
-            )}
+            <BracketActionButton
+              className="svg-bracket-action--primary"
+              onClick={handleApplyRegister}
+              label="申请接入"
+            />
 
             <BracketActionButton
               className="svg-bracket-action--secondary"
@@ -273,12 +189,8 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
               id="sv-account"
               autoComplete="off"
               value={loginAccount}
-              onChange={(event) => {
-                setLoginAccount(event.target.value);
-                setLoginError("");
-              }}
-              onKeyDown={(event) => event.key === "Enter" && !isLoggingIn && void handleLogin()}
-              required
+              onChange={(event) => setLoginAccount(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && handleLogin()}
             />
             <label htmlFor="sv-account">评估账号</label>
           </div>
@@ -290,30 +202,18 @@ export function LoginForm({ onSignIn }: LoginFormProps) {
               id="sv-pwd"
               autoComplete="new-password"
               value={loginPassword}
-              onChange={(event) => {
-                setLoginPassword(event.target.value);
-                setLoginError("");
-              }}
-              onKeyDown={(event) => event.key === "Enter" && !isLoggingIn && void handleLogin()}
-              required
+              onChange={(event) => setLoginPassword(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && handleLogin()}
             />
             <label htmlFor="sv-pwd">访问密码</label>
             <PasswordToggleButton visible={showPwd} onToggle={() => setShowPwd((value) => !value)} />
           </div>
 
-          {loginError && (
-            <p className="svg-form-error" role="alert">
-              {loginError}
-            </p>
-          )}
-
           <div className="svg-primary-action-slot">
             <BracketActionButton
               className="svg-bracket-action--primary"
-              onClick={() => void handleLogin()}
-              disabled={isLoggingIn}
-              ariaBusy={isLoggingIn}
-              label={isLoggingIn ? "验证中…" : "进入平台"}
+              onClick={handleLogin}
+              label="进入平台"
             />
           </div>
 

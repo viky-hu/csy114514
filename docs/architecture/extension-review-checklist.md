@@ -15,3 +15,11 @@
 - Extensibility: this step copies only the login window and its direct frontend dependencies, without bringing over main/database/macro post-login windows.
 - Styling: Window 1 styles live in `app/styles/window-1-login.css` and preserve the source DingTalk/Michroma typography, mouse-following band, inverted overlay, CTA animation, and Escape close behavior.
 - Validation: run `pnpm type-check` and `pnpm build` after the visual entry change.
+
+## 2026-08-01 Login Mock Scroll Expansion
+
+- Ownership: `app/windows/login/LoginIntroWindow.tsx`, `app/windows/login/LoginForm.tsx`, and `app/styles/window-1-login.css`.
+- Boundary: MVP auth is intentionally local mock state only; real credential exchange remains outside this login surface until the BFF/auth contract is restored.
+- Extensibility: successful mock login reuses the existing Escape close timeline, then unlocks a second viewport and ScrollTrigger-driven SVG band expansion without introducing another animation library.
+- Styling: error and pending prompt boxes are removed; the post-login scroll hint is icon-only and the existing clipPath text inversion remains the core visual rule.
+- Validation: run `pnpm type-check` and `pnpm build`; manually verify manual Escape does not unlock scroll while successful login does.

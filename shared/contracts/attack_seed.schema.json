@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attack_seed.schema.json",
+  "title": "AttackSeed",
+  "description": "Security Line Contract: 定义具体攻击从哪里开始。每个 AttackSeed 是一个可执行的攻击载荷。",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "description",
+    "risk_type",
+    "risk_pattern_id",
+    "attack_type",
+    "payload",
+    "difficulty"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^seed_[a-z]+_[0-9]+$",
+      "description": "全项目唯一标识, 格式 seed_{type}_{n}"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "人读名称"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Seed 描述"
+    },
+    "risk_type": {
+      "type": "string",
+      "enum": [
+        "indirect_prompt_injection",
+        "unauthorized_tool_action",
+        "memory_poisoning",
+        "privacy_leakage",
+        "data_exfiltration",
+        "persistent_indirect_prompt_injection"
+      ],
+      "description": "风险类型, 全局冻结枚举, 应与所引用 RiskPattern 一致"
+    },
+    "risk_pattern_id": {
+      "type": "string",
+      "pattern": "^R[0-9]+$",
+      "description": "关联的 RiskPattern ID"
+    },
+    "attack_type": {
+      "type": "string",
+      "enum": [
+        "authority_framing",
+        "context_embedding",
+        "instruction_rephrasing",
+        "task_framing",
+        "obfuscation"
+      ],
+      "description": "攻击手法分类, Security Line 内部枚举"
+    },
+    "payload": {
+      "type": "object",
+      "required": ["content", "delivery_method"],
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "description": "实际攻击内容"
+        },
+        "delivery_method": {
+          "type": "string",
+          "enum": [
+            "web_page_hidden_text",
+            "email_body",
+            "memory_injection",
+            "file_content"
+          ],
+          "description": "攻击载荷投放方式, Security Line 内部枚举"
+        },
+        "target_tool": {
+          "type": ["string", "null"],
+          "description": "期望 Agent 最终调用的目标工具名称"
+        },
+        "target_node_id": {
+          "type": ["string", "null"],
+          "description": "期望命中的图节点 ID(可选)"
+        }
+      },
+      "description": "攻击载荷"
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "description": "攻击难度"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "分类标签"
+    }
+  }
+}

@@ -12,12 +12,17 @@
   --w1-rule: rgba(17, 17, 17, 0.28);
   --w1-font-family: "DingTalk JinBuTi", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   overflow: hidden;
   position: relative;
   isolation: isolate;
   background: var(--w1-surface);
   font-family: var(--w1-font-family);
+}
+
+.login-placeholder-page[data-scroll-ready="true"] {
+  height: 200dvh;
 }
 
 .login-placeholder-page,
@@ -28,13 +33,17 @@
 }
 
 .login-hover-band-svg {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 2;
   width: 100%;
-  height: 100%;
+  height: 100dvh;
   pointer-events: none;
   overflow: hidden;
+}
+
+.login-scroll-scene {
+  will-change: transform;
 }
 
 .login-placeholder-top-rule {
@@ -149,7 +158,7 @@
 }
 
 .login-panel-dim {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 3;
   background:
@@ -163,7 +172,7 @@
 }
 
 .login-panel-shell {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: var(--login-panel-left, 50vw);
   width: var(--login-panel-width, 1px);
@@ -215,7 +224,7 @@
 }
 
 .login-placeholder-hitarea {
-  position: absolute;
+  position: fixed;
   z-index: 7;
   padding: 0;
   border: 0;
@@ -228,8 +237,62 @@
   outline: none;
 }
 
-.login-placeholder-page[data-panel-stage="idle"] .login-placeholder-hitarea {
+.login-placeholder-page[data-panel-stage="idle"][data-authenticated="false"] .login-placeholder-hitarea {
   pointer-events: auto;
+}
+
+.login-scroll-hint {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(18px, 3.2vh, 34px);
+  z-index: 5;
+  width: 46px;
+  height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--w1-band);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-50%);
+  will-change: transform, opacity;
+}
+
+.login-placeholder-page[data-scroll-ready="true"] .login-scroll-hint {
+  opacity: 1;
+  visibility: visible;
+}
+
+.login-scroll-hint-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.login-scroll-hint::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  width: 3px;
+  height: 9px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: translateX(-50%);
+  animation: login-scroll-wheel 1.18s ease-in-out infinite;
+}
+
+@keyframes login-scroll-wheel {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translate(-50%, -3px);
+  }
+
+  48% {
+    opacity: 1;
+    transform: translate(-50%, 4px);
+  }
 }
 
 @media (max-width: 720px) {
@@ -637,29 +700,6 @@
 
 .svg-inline-link:focus-visible {
   outline: none;
-}
-
-.svg-form-error {
-  margin: -0.1rem 0 0.3rem;
-  padding: 5px 8px;
-  border-radius: 6px;
-  background: rgba(239, 68, 68, 0.18);
-  border: 1px solid rgba(239, 68, 68, 0.42);
-  color: #ffc2c2;
-  font-size: 0.72rem;
-  line-height: 1.45;
-}
-
-.svg-form-pending {
-  margin: 0;
-  padding: 5px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.72rem;
-  line-height: 1.45;
-  text-align: center;
 }
 
 .svg-scroll-hint {

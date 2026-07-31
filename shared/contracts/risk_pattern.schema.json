@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "risk_pattern.schema.json",
+  "title": "RiskPattern",
+  "description": "Security Line Contract: 定义什么结构值得攻击。每个 RiskPattern 描述一种攻击图模式。",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "description",
+    "risk_type",
+    "severity",
+    "node_pattern",
+    "attack_goal",
+    "success_condition",
+    "judge_strategy"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^R[0-9]+$",
+      "description": "全项目唯一标识, 格式 R1/R2/R3/R4"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "人读名称"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "风险描述"
+    },
+    "risk_type": {
+      "type": "string",
+      "enum": [
+        "indirect_prompt_injection",
+        "unauthorized_tool_action",
+        "memory_poisoning",
+        "privacy_leakage",
+        "data_exfiltration",
+        "persistent_indirect_prompt_injection"
+      ],
+      "description": "风险类型, 全局冻结枚举"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "description": "默认严重等级, 全局冻结枚举"
+    },
+    "node_pattern": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["SOURCE", "AGENT", "TOOL", "MEMORY", "DATA"]
+      },
+      "minItems": 2,
+      "maxItems": 5,
+      "description": "攻击路径的节点类型序列, 长度 2-5"
+    },
+    "label_requirements": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["UNTRUSTED", "TRUSTED", "SENSITIVE", "DANGEROUS", "PERSISTENT"]
+        },
+        "minItems": 1
+      },
+      "propertyNames": {
+        "type": "string",
+        "enum": ["SOURCE", "AGENT", "TOOL", "MEMORY", "DATA"]
+      },
+      "description": "各节点必须携带的安全标签, key 必须在 node_pattern 中出现"
+    },
+    "attack_goal": {
+      "type": "string",
+      "minLength": 1,
+      "description": "攻击者目标"
+    },
+    "success_condition": {
+      "type": "string",
+      "minLength": 1,
+      "description": "攻击成功的判定条件"
+    },
+    "judge_strategy": {
+      "type": "string",
+      "enum": ["rule", "llm", "composite"],
+      "description": "推荐的判定策略"
+    },
+    "judge_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "description": "规则类型标识"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "规则的人读描述"
+          }
+        }
+      },
+      "description": "规则判定的具体条目, judge_strategy=rule 时必填"
+    }
+  }
+}

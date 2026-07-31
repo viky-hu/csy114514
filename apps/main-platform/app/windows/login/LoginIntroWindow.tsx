@@ -3,10 +3,12 @@
 import { useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Mouse } from "lucide-react";
 import { LINE_DRAW_EASE } from "../shared/animation";
 import { LoginForm } from "./LoginForm";
 
-gsap.registerPlugin(useGSAP);
+gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 type PanelStage = "idle" | "opening" | "open" | "closing";
 
@@ -28,10 +30,19 @@ interface LoginIntroWindowProps {
 
 export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
   const [panelStage, setPanelStage] = useState<PanelStage>("idle");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isScrollReady, setIsScrollReady] = useState(false);
 
   const panelStageRef = useRef<PanelStage>("idle");
+  const isAuthenticatedRef = useRef(false);
+  const isScrollReadyRef = useRef(false);
+  const pendingAuthenticatedCloseRef = useRef(false);
+  const requestAuthenticatedCloseRef = useRef<() => void>(() => undefined);
   const pageRef = useRef<HTMLElement>(null);
   const ctaRef = useRef<HTMLButtonElement>(null);
+  const scrollHintRef = useRef<HTMLDivElement>(null);
+  const baseSceneRef = useRef<SVGGElement>(null);
+  const invertedSceneRef = useRef<SVGGElement>(null);
   const panelDimRef = useRef<HTMLDivElement>(null);
   const panelShellRef = useRef<HTMLDivElement>(null);
   const panelFormWrapRef = useRef<HTMLDivElement>(null);
@@ -66,10 +77,18 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
   const pointerXRef = useRef<number | null>(null);
   const pointerInsideRef = useRef(false);
 
+  const handleMockSignIn = (isAdmin: boolean, account: string, nodeType?: string) => {
+    onSignIn(isAdmin, account, nodeType);
+    requestAuthenticatedCloseRef.current();
+  };
+
   useGSAP(
     (_, contextSafe) => {
       const page = pageRef.current;
       const cta = ctaRef.current;
+      const scrollHint = scrollHintRef.current;
+      const baseScene = baseSceneRef.current;
+      const invertedScene = invertedSceneRef.current;
       const panelDim = panelDimRef.current;
       const panelShell = panelShellRef.current;
       const panelFormWrap = panelFormWrapRef.current;
@@ -110,6 +129,9 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       if (
         !page ||
         !cta ||
+        !scrollHint ||
+        !baseScene ||
+        !invertedScene ||
         !panelDim ||
         !panelShell ||
         !panelFormWrap ||
@@ -155,6 +177,13 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       let pointerWidthTween: gsap.core.Tween | null = null;
       let bandTween: gsap.core.Tween | null = null;
       let closeTimeline: gsap.core.Timeline | null = null;
+      let scrollTrigger: ScrollTrigger | null = null;
+      const scrollSceneNodes = [baseScene, invertedScene];
+      const scrollState = {
+        anchorX: initialX,
+        progress: 0,
+        locked: false,
+      };
 
       const renderBand = () => {
         const width = snapToDevicePixel(visualState.width);
@@ -174,6 +203,83 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           rect.setAttribute("width", String(width));
           rect.setAttribute("height", String(window.innerHeight));
         }
+      };
+
+      const resetScrollScene = () => {
+        scrollState.progress = 0;
+        scrollState.locked = false;
+        scrollState.anchorX = getTrackedPointerX();
+        gsap.set(scrollSceneNodes, { y: 0 });
+        gsap.set(scrollHint, { autoAlpha: isScrollReadyRef.current ? 1 : 0, y: 0 });
+      };
+
+      const renderScrollProgress = (progress: number) => {
+        const nextProgress = clamp(progress, 0, 1);
+
+        if (!isScrollReadyRef.current) {
+          return;
+        }
+
+        if (nextProgress > 0 && !scrollState.locked) {
+          clearIdleTimer();
+          clearPointerTweens();
+          clearBandTween();
+          clearCloseTimeline();
+          syncVisualStateFromRenderedBand();
+          scrollState.anchorX = getTrackedPointerX();
+          scrollState.locked = true;
+        }
+
+        const anchorX = snapToDevicePixel(clampX(scrollState.anchorX));
+        const leftEdge = snapToDevicePixel(anchorX * (1 - nextProgress));
+        const rightEdge = snapToDevicePixel(
+          anchorX + (window.innerWidth - anchorX) * nextProgress,
+        );
+        const width = Math.max(snapToDevicePixel(rightEdge - leftEdge), lineWidth);
+
+        scrollState.progress = nextProgress;
+        visualState.width = width;
+        visualState.centerX = snapToDevicePixel(leftEdge + width / 2);
+        renderBand();
+
+        gsap.set(scrollSceneNodes, {
+          y: snapToDevicePixel(-window.innerHeight * nextProgress),
+        });
+        gsap.set(scrollHint, {
+          autoAlpha: nextProgress > 0.035 ? 0 : 1,
+          y: nextProgress > 0.035 ? 8 : 0,
+        });
+      };
+
+      const destroyScrollTrigger = () => {
+        scrollTrigger?.kill();
+        scrollTrigger = null;
+      };
+
+      const createScrollTrigger = () => {
+        destroyScrollTrigger();
+        scrollTrigger = ScrollTrigger.create({
+          id: "login-auth-scroll-band",
+          trigger: page,
+          start: "top top",
+          end: () => `+=${window.innerHeight}`,
+          onUpdate: (self) => renderScrollProgress(self.progress),
+          onRefresh: (self) => renderScrollProgress(self.progress),
+        });
+        ScrollTrigger.refresh();
+      };
+
+      const enableAuthenticatedScroll = () => {
+        isAuthenticatedRef.current = true;
+        isScrollReadyRef.current = true;
+        setIsAuthenticated(true);
+        setIsScrollReady(true);
+        page.setAttribute("data-authenticated", "true");
+        page.setAttribute("data-scroll-ready", "true");
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        resetScrollScene();
+        renderBand();
+        window.requestAnimationFrame(createScrollTrigger);
       };
 
       const syncVisualStateFromRenderedBand = () => {
@@ -504,7 +610,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       });
 
       const openPanel = withContextSafe(() => {
-        if (panelStageRef.current !== "idle") {
+        if (panelStageRef.current !== "idle" || isAuthenticatedRef.current) {
           return;
         }
 
@@ -567,6 +673,10 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
             renderBand();
             resetClosedPanelVisuals();
             closeTimeline = null;
+            if (pendingAuthenticatedCloseRef.current) {
+              pendingAuthenticatedCloseRef.current = false;
+              enableAuthenticatedScroll();
+            }
             setStage("idle");
           },
         });
@@ -613,6 +723,10 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
 
       const followPointer = (event: PointerEvent) => {
         const nextX = rememberPointerX(event.clientX);
+
+        if (isScrollReadyRef.current && scrollState.locked) {
+          return;
+        }
 
         if (panelStageRef.current !== "idle") {
           return;
@@ -666,6 +780,13 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const syncOnResize = () => {
         renderStaticLayout();
 
+        if (isScrollReadyRef.current) {
+          scrollState.anchorX = snapToDevicePixel(clampX(scrollState.anchorX));
+          renderScrollProgress(scrollState.progress);
+          ScrollTrigger.refresh();
+          return;
+        }
+
         if (panelStageRef.current === "idle") {
           if (lastXRef.current !== null) {
             const nextX = snapToDevicePixel(clampX(lastXRef.current));
@@ -695,6 +816,25 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         closePanel();
       };
 
+      requestAuthenticatedCloseRef.current = withContextSafe(() => {
+        if (isAuthenticatedRef.current && isScrollReadyRef.current) {
+          return;
+        }
+
+        isAuthenticatedRef.current = true;
+        pendingAuthenticatedCloseRef.current = true;
+        setIsAuthenticated(true);
+        page.setAttribute("data-authenticated", "true");
+
+        if (panelStageRef.current === "idle") {
+          pendingAuthenticatedCloseRef.current = false;
+          enableAuthenticatedScroll();
+          return;
+        }
+
+        closePanel();
+      });
+
       page.addEventListener("pointerenter", followPointer);
       page.addEventListener("pointerleave", leavePage);
       page.addEventListener("pointercancel", leavePage);
@@ -711,10 +851,14 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       lastXRef.current = initialX;
       pointerXRef.current = initialX;
       setStage("idle");
+      setIsAuthenticated(false);
+      setIsScrollReady(false);
+      resetScrollScene();
       renderStaticLayout();
       renderBand();
 
       return () => {
+        requestAuthenticatedCloseRef.current = () => undefined;
         clearIdleTimer();
         page.removeEventListener("pointerenter", followPointer);
         page.removeEventListener("pointerleave", leavePage);
@@ -731,8 +875,11 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         clearPointerTweens();
         clearBandTween();
         clearCloseTimeline();
+        destroyScrollTrigger();
         openTimeline.kill();
         gsap.killTweensOf(visualState);
+        gsap.killTweensOf(scrollSceneNodes);
+        gsap.killTweensOf(scrollHint);
         gsap.killTweensOf([...ctaLeftBrackets, ...ctaRightBrackets]);
       };
     },
@@ -744,6 +891,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       ref={pageRef}
       className="login-placeholder-page"
       data-panel-stage={panelStage}
+      data-authenticated={isAuthenticated ? "true" : "false"}
+      data-scroll-ready={isScrollReady ? "true" : "false"}
     >
       <svg className="login-hover-band-svg" aria-hidden="true">
         <defs>
@@ -759,61 +908,63 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           </clipPath>
         </defs>
 
-        <line
-          ref={topRuleRef}
-          className="login-placeholder-top-rule"
-          x1={0}
-          x2={0}
-          y1={0}
-          y2={0}
-        />
+        <g ref={baseSceneRef} className="login-scroll-scene">
+          <line
+            ref={topRuleRef}
+            className="login-placeholder-top-rule"
+            x1={0}
+            x2={0}
+            y1={0}
+            y2={0}
+          />
 
-        <g className="login-brand-mark">
-          <text ref={brandRef} className="login-brand-mark-word">
-            {BRAND_WORD}
-          </text>
-        </g>
+          <g className="login-brand-mark">
+            <text ref={brandRef} className="login-brand-mark-word">
+              {BRAND_WORD}
+            </text>
+          </g>
 
-        <g className="login-system-title">
-          <text ref={titlePrimaryRef} className="login-system-title-line">
-            {SYSTEM_TITLE_PRIMARY}
-          </text>
-          <text ref={titleSecondaryRef} className="login-system-title-line">
-            {SYSTEM_TITLE_SECONDARY}
-          </text>
-        </g>
+          <g className="login-system-title">
+            <text ref={titlePrimaryRef} className="login-system-title-line">
+              {SYSTEM_TITLE_PRIMARY}
+            </text>
+            <text ref={titleSecondaryRef} className="login-system-title-line">
+              {SYSTEM_TITLE_SECONDARY}
+            </text>
+          </g>
 
-        <g className="login-support-copy">
-          <text ref={infoLineOneRef} className="login-support-copy-line">
-            {INFO_COPY_LINES[0]}
-          </text>
-          <text ref={infoLineTwoRef} className="login-support-copy-line">
-            {INFO_COPY_LINES[1]}
-          </text>
-          <text ref={infoLineThreeRef} className="login-support-copy-line">
-            {INFO_COPY_LINES[2]}
-          </text>
-        </g>
+          <g className="login-support-copy">
+            <text ref={infoLineOneRef} className="login-support-copy-line">
+              {INFO_COPY_LINES[0]}
+            </text>
+            <text ref={infoLineTwoRef} className="login-support-copy-line">
+              {INFO_COPY_LINES[1]}
+            </text>
+            <text ref={infoLineThreeRef} className="login-support-copy-line">
+              {INFO_COPY_LINES[2]}
+            </text>
+          </g>
 
-        <g className="login-micro-copy">
-          <text ref={microCopyRef} className="login-micro-copy-line">
-            {MICRO_COPY}
-          </text>
-        </g>
+          <g className="login-micro-copy">
+            <text ref={microCopyRef} className="login-micro-copy-line">
+              {MICRO_COPY}
+            </text>
+          </g>
 
-        <g className="login-cta-title">
-          <text ref={ctaLeftBracketRef} className="login-cta-bracket">
-            [
-          </text>
-          <text ref={ctaPrimaryRef} className="login-cta-line">
-            {CTA_PRIMARY}
-          </text>
-          <text ref={ctaSecondaryRef} className="login-cta-line">
-            {CTA_SECONDARY}
-          </text>
-          <text ref={ctaRightBracketRef} className="login-cta-bracket">
-            ]
-          </text>
+          <g className="login-cta-title">
+            <text ref={ctaLeftBracketRef} className="login-cta-bracket">
+              [
+            </text>
+            <text ref={ctaPrimaryRef} className="login-cta-line">
+              {CTA_PRIMARY}
+            </text>
+            <text ref={ctaSecondaryRef} className="login-cta-line">
+              {CTA_SECONDARY}
+            </text>
+            <text ref={ctaRightBracketRef} className="login-cta-bracket">
+              ]
+            </text>
+          </g>
         </g>
 
         <rect
@@ -826,62 +977,64 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           shapeRendering="crispEdges"
         />
 
-        <line
-          ref={topRuleInvertedRef}
-          className="login-placeholder-top-rule is-inverted"
-          clipPath="url(#login-band-text-clip)"
-          x1={0}
-          x2={0}
-          y1={0}
-          y2={0}
-        />
+        <g ref={invertedSceneRef} className="login-scroll-scene">
+          <line
+            ref={topRuleInvertedRef}
+            className="login-placeholder-top-rule is-inverted"
+            clipPath="url(#login-band-text-clip)"
+            x1={0}
+            x2={0}
+            y1={0}
+            y2={0}
+          />
 
-        <g className="login-brand-mark is-inverted" clipPath="url(#login-band-text-clip)">
-          <text ref={invertedBrandRef} className="login-brand-mark-word">
-            {BRAND_WORD}
-          </text>
-        </g>
+          <g className="login-brand-mark is-inverted" clipPath="url(#login-band-text-clip)">
+            <text ref={invertedBrandRef} className="login-brand-mark-word">
+              {BRAND_WORD}
+            </text>
+          </g>
 
-        <g className="login-system-title is-inverted" clipPath="url(#login-band-text-clip)">
-          <text ref={invertedTitlePrimaryRef} className="login-system-title-line">
-            {SYSTEM_TITLE_PRIMARY}
-          </text>
-          <text ref={invertedTitleSecondaryRef} className="login-system-title-line">
-            {SYSTEM_TITLE_SECONDARY}
-          </text>
-        </g>
+          <g className="login-system-title is-inverted" clipPath="url(#login-band-text-clip)">
+            <text ref={invertedTitlePrimaryRef} className="login-system-title-line">
+              {SYSTEM_TITLE_PRIMARY}
+            </text>
+            <text ref={invertedTitleSecondaryRef} className="login-system-title-line">
+              {SYSTEM_TITLE_SECONDARY}
+            </text>
+          </g>
 
-        <g className="login-support-copy is-inverted" clipPath="url(#login-band-text-clip)">
-          <text ref={invertedInfoLineOneRef} className="login-support-copy-line">
-            {INFO_COPY_LINES[0]}
-          </text>
-          <text ref={invertedInfoLineTwoRef} className="login-support-copy-line">
-            {INFO_COPY_LINES[1]}
-          </text>
-          <text ref={invertedInfoLineThreeRef} className="login-support-copy-line">
-            {INFO_COPY_LINES[2]}
-          </text>
-        </g>
+          <g className="login-support-copy is-inverted" clipPath="url(#login-band-text-clip)">
+            <text ref={invertedInfoLineOneRef} className="login-support-copy-line">
+              {INFO_COPY_LINES[0]}
+            </text>
+            <text ref={invertedInfoLineTwoRef} className="login-support-copy-line">
+              {INFO_COPY_LINES[1]}
+            </text>
+            <text ref={invertedInfoLineThreeRef} className="login-support-copy-line">
+              {INFO_COPY_LINES[2]}
+            </text>
+          </g>
 
-        <g className="login-micro-copy is-inverted" clipPath="url(#login-band-text-clip)">
-          <text ref={invertedMicroCopyRef} className="login-micro-copy-line">
-            {MICRO_COPY}
-          </text>
-        </g>
+          <g className="login-micro-copy is-inverted" clipPath="url(#login-band-text-clip)">
+            <text ref={invertedMicroCopyRef} className="login-micro-copy-line">
+              {MICRO_COPY}
+            </text>
+          </g>
 
-        <g className="login-cta-title is-inverted" clipPath="url(#login-band-text-clip)">
-          <text ref={invertedCtaLeftBracketRef} className="login-cta-bracket">
-            [
-          </text>
-          <text ref={invertedCtaPrimaryRef} className="login-cta-line">
-            {CTA_PRIMARY}
-          </text>
-          <text ref={invertedCtaSecondaryRef} className="login-cta-line">
-            {CTA_SECONDARY}
-          </text>
-          <text ref={invertedCtaRightBracketRef} className="login-cta-bracket">
-            ]
-          </text>
+          <g className="login-cta-title is-inverted" clipPath="url(#login-band-text-clip)">
+            <text ref={invertedCtaLeftBracketRef} className="login-cta-bracket">
+              [
+            </text>
+            <text ref={invertedCtaPrimaryRef} className="login-cta-line">
+              {CTA_PRIMARY}
+            </text>
+            <text ref={invertedCtaSecondaryRef} className="login-cta-line">
+              {CTA_SECONDARY}
+            </text>
+            <text ref={invertedCtaRightBracketRef} className="login-cta-bracket">
+              ]
+            </text>
+          </g>
         </g>
       </svg>
 
@@ -890,7 +1043,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       <div ref={panelShellRef} className="login-panel-shell" aria-hidden={panelStage === "idle"}>
         <div className="svg-text-content login-panel-text">
           <div ref={panelFormWrapRef} className="login-panel-form-wrap">
-            <LoginForm onSignIn={onSignIn} />
+            <LoginForm onSignIn={handleMockSignIn} />
           </div>
         </div>
       </div>
@@ -901,6 +1054,10 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         className="login-placeholder-hitarea"
         aria-label="进入评估台"
       />
+
+      <div ref={scrollHintRef} className="login-scroll-hint" aria-hidden="true">
+        <Mouse className="login-scroll-hint-icon" strokeWidth={1.45} />
+      </div>
     </main>
   );
 }
