@@ -1,0 +1,3 @@
+interface:
+  display_name: "窗口模块边界"
+  short_description: "维护 app windows 下各窗口的状态和复用边界"

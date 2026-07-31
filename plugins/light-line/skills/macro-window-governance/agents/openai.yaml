@@ -1,0 +1,3 @@
+interface:
+  display_name: "Window 2 可视化治理"
+  short_description: "维护 D1 到 D5 可视化联动和性能边界"

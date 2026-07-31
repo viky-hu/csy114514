@@ -1,0 +1,3 @@
+interface:
+  display_name: "动效错题本"
+  short_description: "防止 GSAP、WebGL、Canvas 动效卡顿和越界"

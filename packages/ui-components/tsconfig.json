@@ -1,0 +1,5 @@
+{
+  "extends": "@csy/configs/react-library.json",
+  "include": ["src"],
+  "exclude": ["dist", "node_modules"]
+}

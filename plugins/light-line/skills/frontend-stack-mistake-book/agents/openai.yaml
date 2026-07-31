@@ -1,0 +1,3 @@
+interface:
+  display_name: "技术栈错题本"
+  short_description: "防止误用项目技术栈和服务边界"

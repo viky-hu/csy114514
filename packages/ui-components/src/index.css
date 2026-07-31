@@ -1,0 +1,46 @@
+:root {
+  color: #18212f;
+  background: #f7f8fb;
+  font-family: Arial, "Noto Sans SC", sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.storybook-shell {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+}
+
+.csy-status {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 12rem;
+  border-top: 1px solid #d8dde7;
+  padding-block: 0.85rem;
+}
+
+.csy-status__label {
+  color: #667085;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.csy-status__value {
+  color: #111827;
+  font-size: 1rem;
+}
+
+.csy-status--ready .csy-status__value {
+  color: #22715c;
+}
+
+.csy-status--building .csy-status__value {
+  color: #2764b5;
+}
+
+.csy-status--planned .csy-status__value {
+  color: #6f5b2f;
+}

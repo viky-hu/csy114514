@@ -1,0 +1,58 @@
+{
+  "description": "Light_line lifecycle hooks. These hooks add project-specific context and guard against obvious destructive commands.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/session-start.mjs",
+            "statusMessage": "Loading Light_line context",
+            "additionalContextLimit": 4000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/user-prompt-submit.mjs",
+            "statusMessage": "Checking Light_line workflow hints",
+            "additionalContextLimit": 3000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/pre-tool-use.mjs",
+            "statusMessage": "Applying Light_line guardrails",
+            "timeout": 10,
+            "additionalContextLimit": 3000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/post-tool-use.mjs",
+            "statusMessage": "Reviewing Light_line follow-up checks",
+            "timeout": 10,
+            "additionalContextLimit": 3000
+          }
+        ]
+      }
+    ]
+  }
+}

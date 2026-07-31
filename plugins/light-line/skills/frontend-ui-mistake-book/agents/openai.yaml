@@ -1,0 +1,3 @@
+interface:
+  display_name: "UI 错题本"
+  short_description: "防止视觉层级、点击域和可读性翻车"

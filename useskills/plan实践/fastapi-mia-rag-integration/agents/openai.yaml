@@ -1,0 +1,3 @@
+interface:
+  display_name: "FastAPI MiA-RAG 接入"
+  short_description: "把队友后端作为独立服务接入 final 检索链路"

@@ -1,0 +1,3 @@
+interface:
+  display_name: "溯源图谱物理优化"
+  short_description: "用 vis-network 物理布局优化真实 RAG 图谱"

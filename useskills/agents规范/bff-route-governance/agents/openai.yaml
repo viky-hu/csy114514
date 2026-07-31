@@ -1,0 +1,3 @@
+interface:
+  display_name: "BFF 路由治理"
+  short_description: "统一 Route Handler 的校验、鉴权和错误语义"

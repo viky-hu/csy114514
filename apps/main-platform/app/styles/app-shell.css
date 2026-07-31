@@ -1,0 +1,229 @@
+.app-shell {
+  display: grid;
+  min-height: 100dvh;
+  grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0)),
+    var(--csy-bg);
+}
+
+.app-shell__rail {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid var(--csy-line);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 1.25rem;
+}
+
+.app-shell__brand {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.app-shell__brand strong {
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.app-shell__brand span,
+.app-shell__rail-note,
+.module-list__meta,
+.health-line span {
+  color: var(--csy-muted);
+  font-size: 0.82rem;
+}
+
+.app-shell__nav {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 2rem;
+}
+
+.app-shell__nav-item {
+  align-items: center;
+  border-radius: 0.45rem;
+  color: #303948;
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.55rem 0.6rem;
+}
+
+.app-shell__nav-item svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.app-shell__nav-item[aria-current="page"] {
+  background: #ecf2ef;
+  color: var(--csy-accent-ink);
+}
+
+.app-shell__main {
+  display: grid;
+  gap: 2rem;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  padding: 2rem clamp(1rem, 4vw, 3rem);
+}
+
+.app-shell__topbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-shell__title {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.app-shell__title h1 {
+  font-size: clamp(1.8rem, 3vw, 3.1rem);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  margin: 0;
+}
+
+.app-shell__title p {
+  color: var(--csy-muted);
+  margin: 0;
+  max-width: 58ch;
+}
+
+.app-shell__action {
+  align-items: center;
+  background: var(--csy-text);
+  border: 0;
+  border-radius: 0.45rem;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.app-shell__action:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.app-shell__content {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1.3fr) minmax(19rem, 0.7fr);
+}
+
+.module-list,
+.health-panel {
+  min-width: 0;
+}
+
+.module-list {
+  border-top: 1px solid var(--csy-line);
+}
+
+.module-list__item {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, auto);
+  padding: 1.1rem 0;
+  border-bottom: 1px solid var(--csy-line);
+}
+
+.module-list__copy {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.module-list__copy strong {
+  font-size: 1rem;
+}
+
+.health-panel {
+  align-self: start;
+  background: var(--csy-surface);
+  border: 1px solid var(--csy-line);
+  border-radius: 0.5rem;
+  box-shadow: 0 16px 34px -28px rgba(23, 32, 51, 0.48);
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.health-line {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.health-line strong {
+  color: var(--csy-accent-ink);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+.csy-status {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 10rem;
+  border-top: 1px solid var(--csy-line);
+  padding-block: 0.85rem;
+}
+
+.csy-status__label {
+  color: var(--csy-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.csy-status__value {
+  color: var(--csy-text);
+  font-size: 0.95rem;
+}
+
+.csy-status--ready .csy-status__value {
+  color: var(--csy-accent);
+}
+
+.csy-status--building .csy-status__value {
+  color: var(--csy-blue);
+}
+
+.csy-status--planned .csy-status__value {
+  color: #6f5b2f;
+}
+
+@media (max-width: 820px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell__rail {
+    min-height: auto;
+    border-bottom: 1px solid var(--csy-line);
+    border-right: 0;
+  }
+
+  .app-shell__nav {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .app-shell__topbar,
+  .app-shell__content,
+  .module-list__item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell__topbar {
+    display: grid;
+  }
+}

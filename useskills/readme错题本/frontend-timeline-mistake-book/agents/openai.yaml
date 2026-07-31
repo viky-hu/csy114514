@@ -1,0 +1,3 @@
+interface:
+  display_name: "时间轴错题本"
+  short_description: "防止动画阶段、锁定和结束态混乱"

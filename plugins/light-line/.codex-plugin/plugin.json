@@ -1,0 +1,31 @@
+{
+  "name": "light-line",
+  "version": "0.2.0",
+  "description": "Light_line 本地 Codex 实践插件，汇总技术栈、组件、UI、动效、时间轴、窗口治理、BFF 接入、commands、hooks 和计划实践 skills。",
+  "author": {
+    "name": "Personal"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "skills",
+    "frontend",
+    "nextjs",
+    "gsap",
+    "main-platform"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Light_line",
+    "shortDescription": "项目专属前端实践、规范审查和计划落地技能集合。",
+    "longDescription": "把 main-platform 项目的 README、README_2、AGENTS 规则、计划文档和前端实践浓缩为可安装的本地 Codex 插件。第二版包含 18 个中文 skills、5 个 workflow 文档、5 个 pm-skills 风格 command 模板，以及可被 Codex 默认发现的 plugin-bundled hooks，适合本机使用，也适合随仓库分享给其他 Codex 用户。",
+    "developerName": "Personal",
+    "category": "Productivity",
+    "capabilities": ["Write", "Review", "Planning"],
+    "defaultPrompt": [
+      "按项目规范帮我新增一个前端功能。",
+      "检查这次改动是否符合窗口边界。",
+      "用插件工作流做一次交付前审查。"
+    ]
+  }
+}

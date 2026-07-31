@@ -1,0 +1,3 @@
+interface:
+  display_name: "仓库交付治理"
+  short_description: "新增功能时完成归属、审查、重构和文档同步"

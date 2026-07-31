@@ -1,0 +1,3 @@
+interface:
+  display_name: "对话初始态优化"
+  short_description: "把空会话改成提示语加居中输入框的 GSAP 流程"

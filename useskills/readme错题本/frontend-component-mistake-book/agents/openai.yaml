@@ -1,0 +1,3 @@
+interface:
+  display_name: "组件错题本"
+  short_description: "防止组件职责和跨窗口边界混乱"
