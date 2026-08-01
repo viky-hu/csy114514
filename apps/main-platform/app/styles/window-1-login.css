@@ -25,6 +25,19 @@
   height: 200dvh;
 }
 
+.login-placeholder-page[data-agent-entry-stage="loading"],
+.login-placeholder-page[data-agent-entry-stage="done"] {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+html.login-agent-entry-lock,
+html.login-agent-entry-lock body {
+  height: 100%;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
 .login-placeholder-page,
 .login-placeholder-page *,
 .login-placeholder-page *::before,
@@ -197,6 +210,17 @@
   pointer-events: auto;
 }
 
+.login-placeholder-page[data-agent-entry-stage="loading"] .login-agent-draft-layer,
+.login-placeholder-page[data-agent-entry-stage="done"] .login-agent-draft-layer {
+  pointer-events: none;
+}
+
+.login-placeholder-page[data-agent-entry-stage="done"] .login-agent-draft-layer,
+.login-placeholder-page[data-agent-entry-stage="done"] .login-agent-prompt-layer {
+  opacity: 0;
+  visibility: hidden;
+}
+
 .login-agent-action-strip {
   position: absolute;
   top: calc(100dvh * 2.45 / 19);
@@ -258,6 +282,11 @@
 
 .login-agent-bracket-button:active {
   transform: translateY(1px);
+}
+
+.login-agent-bracket-button:disabled {
+  cursor: default;
+  opacity: 0.48;
 }
 
 .login-agent-draft {
@@ -982,6 +1011,249 @@
   }
 }
 
+/* ========== Agent Entry Loading ========== */
+
+.login-placeholder-page[data-agent-entry-stage="loading"] .login-scroll-hint,
+.login-placeholder-page[data-agent-entry-stage="done"] .login-scroll-hint,
+.login-placeholder-page[data-agent-entry-stage="loading"] .login-placeholder-hitarea,
+.login-placeholder-page[data-agent-entry-stage="done"] .login-placeholder-hitarea {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.login-agent-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: clamp(28px, 5vw, 72px);
+  color: var(--w1-inverted-title);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.login-placeholder-page[data-agent-entry-stage="loading"] .login-agent-loading-overlay {
+  pointer-events: auto;
+}
+
+.login-agent-loading-stack {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: clamp(16px, 3.2vh, 28px);
+  min-width: min(78vw, 360px);
+}
+
+.login-agent-loader-figure {
+  width: clamp(118px, 14vw, 164px);
+  height: clamp(128px, 16vw, 178px);
+  display: grid;
+  place-items: center;
+}
+
+.login-agent-tower-loader {
+  position: relative;
+  width: 40px;
+  height: 50px;
+  transform: scale(2.75);
+  transform-origin: center;
+}
+
+.login-agent-loader-box {
+  position: relative;
+  left: 10px;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.login-agent-loader-side-left,
+.login-agent-loader-side-right,
+.login-agent-loader-side-top {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 18px rgba(246, 246, 244, 0.08);
+}
+
+.login-agent-loader-side-left {
+  top: 14px;
+  left: 10px;
+  width: 19px;
+  height: 5px;
+  background: rgba(246, 246, 244, 0.52);
+  transform: skew(0deg, -25deg);
+}
+
+.login-agent-loader-side-right {
+  top: 14px;
+  left: -9px;
+  width: 19px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.72);
+  transform: skew(0deg, 25deg);
+}
+
+.login-agent-loader-side-top {
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  transform: rotate(45deg) skew(-20deg, -20deg);
+}
+
+.login-agent-loader-box-1 {
+  animation: login-agent-loader-from-left 4s infinite;
+}
+
+.login-agent-loader-box-2 {
+  animation: login-agent-loader-from-right 4s infinite;
+  animation-delay: 1s;
+}
+
+.login-agent-loader-box-3 {
+  animation: login-agent-loader-from-left 4s infinite;
+  animation-delay: 2s;
+}
+
+.login-agent-loader-box-4 {
+  animation: login-agent-loader-from-right 4s infinite;
+  animation-delay: 3s;
+}
+
+.login-agent-loading-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.02em;
+  min-height: clamp(32px, 4vw, 44px);
+  color: rgba(246, 246, 244, 0.08);
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.65px rgba(246, 246, 244, 0.9);
+  font-family: "Michroma", var(--w1-font-family) !important;
+  font-size: clamp(22px, 2rem, 34px);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: none;
+  text-shadow: 0 0 20px rgba(246, 246, 244, 0.18);
+}
+
+.login-agent-loading-char {
+  display: inline-block;
+  min-width: 0.58em;
+  transform: translateY(0);
+  will-change: transform;
+}
+
+.login-agent-loading-char.is-dot {
+  min-width: 0.34em;
+  color: rgba(246, 246, 244, 0.92);
+  -webkit-text-fill-color: rgba(246, 246, 244, 0.92);
+  -webkit-text-stroke: 0;
+}
+
+@keyframes login-agent-loader-from-left {
+  0% {
+    z-index: 20;
+    opacity: 0;
+    transform: translate(-20px, -6px);
+  }
+
+  20% {
+    z-index: 10;
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  40% {
+    z-index: 9;
+    transform: translate(0, 4px);
+  }
+
+  60% {
+    z-index: 8;
+    transform: translate(0, 8px);
+  }
+
+  80% {
+    z-index: 7;
+    opacity: 1;
+    transform: translate(0, 12px);
+  }
+
+  100% {
+    z-index: 5;
+    opacity: 0;
+    transform: translate(0, 30px);
+  }
+}
+
+@keyframes login-agent-loader-from-right {
+  0% {
+    z-index: 20;
+    opacity: 0;
+    transform: translate(20px, -6px);
+  }
+
+  20% {
+    z-index: 10;
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  40% {
+    z-index: 9;
+    transform: translate(0, 4px);
+  }
+
+  60% {
+    z-index: 8;
+    transform: translate(0, 8px);
+  }
+
+  80% {
+    z-index: 7;
+    opacity: 1;
+    transform: translate(0, 12px);
+  }
+
+  100% {
+    z-index: 5;
+    opacity: 0;
+    transform: translate(0, 30px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-agent-loader-box {
+    animation: none;
+    opacity: 0.92;
+  }
+
+  .login-agent-loader-box-1 {
+    z-index: 10;
+    transform: translate(0, 0);
+  }
+
+  .login-agent-loader-box-2 {
+    z-index: 9;
+    transform: translate(0, 4px);
+  }
+
+  .login-agent-loader-box-3 {
+    z-index: 8;
+    transform: translate(0, 8px);
+  }
+
+  .login-agent-loader-box-4 {
+    z-index: 7;
+    transform: translate(0, 12px);
+  }
+}
+
 @media (max-width: 720px) {
   .login-agent-entry-prompt {
     font-size: clamp(30px, 8.2vw, 46px);
@@ -1059,6 +1331,19 @@
 
   .login-panel-text {
     padding: 28px 22px;
+  }
+
+  .login-agent-loader-figure {
+    width: 108px;
+    height: 126px;
+  }
+
+  .login-agent-tower-loader {
+    transform: scale(2.25);
+  }
+
+  .login-agent-loading-text {
+    font-size: 24px;
   }
 }
 

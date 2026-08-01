@@ -12,6 +12,7 @@ import { LoginForm } from "./LoginForm";
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 type PanelStage = "idle" | "opening" | "open" | "closing";
+type AgentEntryStage = "idle" | "loading" | "done";
 
 const SYSTEM_TITLE_PRIMARY = "Agent 安全评估平台";
 const SYSTEM_TITLE_SECONDARY = "可解释攻击链路可视化系统";
@@ -27,6 +28,8 @@ const INFO_COPY_LINES = [
   "让黑盒测试结果转化为能够指导修复的分析结论。",
 ] as const;
 const MICRO_COPY = "OBSERVABLE / EXPLAINABLE / REPRODUCIBLE / FIXABLE";
+const LOADING_LABEL = "Loading...";
+const LOADING_BOXES = [1, 2, 3, 4] as const;
 
 interface LoginIntroWindowProps {
   onSignIn: (isAdmin: boolean, account: string, nodeType?: string) => void;
@@ -34,6 +37,7 @@ interface LoginIntroWindowProps {
 
 export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
   const [panelStage, setPanelStage] = useState<PanelStage>("idle");
+  const [agentEntryStage, setAgentEntryStage] = useState<AgentEntryStage>("idle");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isScrollReady, setIsScrollReady] = useState(false);
   const ctaPrimaryLabel = isAuthenticated ? CTA_AUTHENTICATED_PRIMARY : CTA_LOGIN_PRIMARY;
@@ -42,10 +46,12 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
     : CTA_LOGIN_SECONDARY;
 
   const panelStageRef = useRef<PanelStage>("idle");
+  const agentEntryStageRef = useRef<AgentEntryStage>("idle");
   const isAuthenticatedRef = useRef(false);
   const isScrollReadyRef = useRef(false);
   const pendingAuthenticatedCloseRef = useRef(false);
   const requestAuthenticatedCloseRef = useRef<() => void>(() => undefined);
+  const beginAgentLoadingRef = useRef<() => void>(() => undefined);
   const syncCtaLayoutRef = useRef<() => void>(() => undefined);
   const pageRef = useRef<HTMLElement>(null);
   const ctaRef = useRef<HTMLButtonElement>(null);
@@ -84,7 +90,11 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
   const invertedCtaRightBracketRef = useRef<SVGTextElement>(null);
   const agentPromptRef = useRef<SVGTextElement>(null);
   const invertedAgentPromptRef = useRef<SVGTextElement>(null);
+  const agentDraftLayerRef = useRef<HTMLDivElement>(null);
+  const loadingOverlayRef = useRef<HTMLDivElement>(null);
+  const loadingTextRef = useRef<HTMLDivElement>(null);
   const idleTimerRef = useRef<number | null>(null);
+  const loadingTimerRef = useRef<number | null>(null);
   const lastXRef = useRef<number | null>(null);
   const pointerXRef = useRef<number | null>(null);
   const pointerInsideRef = useRef(false);
@@ -111,6 +121,9 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const panelShell = panelShellRef.current;
       const panelClose = panelCloseRef.current;
       const panelFormWrap = panelFormWrapRef.current;
+      const agentDraftLayer = agentDraftLayerRef.current;
+      const loadingOverlay = loadingOverlayRef.current;
+      const loadingText = loadingTextRef.current;
       const band = bandRef.current;
       const bandClip = bandClipRef.current;
       const topRule = topRuleRef.current;
@@ -156,6 +169,9 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         !panelShell ||
         !panelClose ||
         !panelFormWrap ||
+        !agentDraftLayer ||
+        !loadingOverlay ||
+        !loadingText ||
         !band ||
         !bandClip ||
         !topRule ||
@@ -170,6 +186,13 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const setStage = (stage: PanelStage) => {
         panelStageRef.current = stage;
         setPanelStage(stage);
+        syncPointerModeAttribute();
+      };
+
+      const setAgentEntryStageValue = (stage: AgentEntryStage) => {
+        agentEntryStageRef.current = stage;
+        setAgentEntryStage(stage);
+        page.setAttribute("data-agent-entry-stage", stage);
         syncPointerModeAttribute();
       };
 
@@ -200,8 +223,18 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       let pointerWidthTween: gsap.core.Tween | null = null;
       let bandTween: gsap.core.Tween | null = null;
       let closeTimeline: gsap.core.Timeline | null = null;
+      let loadingTimeline: gsap.core.Timeline | null = null;
+      let loadingTextTimeline: gsap.core.Timeline | null = null;
       let scrollTrigger: ScrollTrigger | null = null;
       const scrollSceneNodes = [baseScene, invertedScene];
+      const agentPromptLayers = gsap.utils.toArray<SVGGElement>(
+        ".login-agent-prompt-layer",
+        page,
+      );
+      const loadingChars = gsap.utils.toArray<HTMLSpanElement>(
+        ".login-agent-loading-char",
+        loadingText,
+      );
       const scrollState = {
         anchorX: initialX,
         entryLeft: snapToDevicePixel(initialX - lineWidth / 2),
@@ -213,6 +246,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const isAtScrollTop = (progress = scrollState.progress) =>
         progress <= getTopProgressThreshold();
       const isTopPointerMode = () =>
+        agentEntryStageRef.current === "idle" &&
         panelStageRef.current === "idle" &&
         (!isScrollReadyRef.current || isAtScrollTop());
 
@@ -253,6 +287,26 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         );
         page.setAttribute("data-agent-draft-visible", draftFade > 0 ? "true" : "false");
         page.setAttribute("data-agent-draft-ready", draftFade >= 0.98 ? "true" : "false");
+      };
+
+      const renderLockedAgentEntryPage = () => {
+        scrollState.progress = 1;
+        scrollState.locked = true;
+        visualState.centerX = snapToDevicePixel(window.innerWidth * 0.5);
+        visualState.width = snapToDevicePixel(window.innerWidth);
+        renderBand();
+        gsap.set(scrollSceneNodes, {
+          y: snapToDevicePixel(-window.innerHeight),
+        });
+        gsap.set(scrollHint, {
+          autoAlpha: 0,
+          y: 8,
+        });
+        page.style.setProperty("--login-agent-draft-opacity", "1");
+        page.style.setProperty("--login-agent-draft-y", "0px");
+        page.setAttribute("data-agent-draft-visible", "true");
+        page.setAttribute("data-agent-draft-ready", "false");
+        syncPointerModeAttribute();
       };
 
       const lockScrollModeInteractions = () => {
@@ -598,11 +652,68 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         closeTimeline = null;
       };
 
+      const clearLoadingTimeline = () => {
+        loadingTimeline?.kill();
+        loadingTimeline = null;
+      };
+
+      const clearLoadingTextTimeline = () => {
+        loadingTextTimeline?.kill();
+        loadingTextTimeline = null;
+      };
+
+      const clearLoadingTimer = () => {
+        if (loadingTimerRef.current !== null) {
+          window.clearTimeout(loadingTimerRef.current);
+          loadingTimerRef.current = null;
+        }
+      };
+
       const clearIdleTimer = () => {
         if (idleTimerRef.current !== null) {
           window.clearTimeout(idleTimerRef.current);
           idleTimerRef.current = null;
         }
+      };
+
+      const lockAgentEntryScroll = () => {
+        window.scrollTo({ top: window.innerHeight, left: 0, behavior: "auto" });
+        document.documentElement.classList.add("login-agent-entry-lock");
+      };
+
+      const unlockAgentEntryScroll = () => {
+        document.documentElement.classList.remove("login-agent-entry-lock");
+      };
+
+      const isScrollKey = (key: string) =>
+        [
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "ArrowUp",
+          "End",
+          "Home",
+          "PageDown",
+          "PageUp",
+          " ",
+        ].includes(key);
+
+      const preventLockedScroll = (event: Event) => {
+        if (agentEntryStageRef.current === "idle") {
+          return;
+        }
+
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+      };
+
+      const preventLockedScrollKey = (event: KeyboardEvent) => {
+        if (agentEntryStageRef.current === "idle" || !isScrollKey(event.key)) {
+          return;
+        }
+
+        event.preventDefault();
       };
 
       const collapseAtCurrentX = () => {
@@ -653,6 +764,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       gsap.set(panelShell, { autoAlpha: 0 });
       gsap.set(panelClose, { autoAlpha: 0, y: -6 });
       gsap.set(panelFormWrap, { autoAlpha: 0, y: 18 });
+      gsap.set(loadingOverlay, { autoAlpha: 0, y: 12, scale: 0.98 });
+      gsap.set(loadingChars, { y: 0 });
 
       const openTimeline = gsap.timeline({
         paused: true,
@@ -930,6 +1043,11 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const syncOnResize = () => {
         renderStaticLayout();
 
+        if (agentEntryStageRef.current !== "idle") {
+          renderLockedAgentEntryPage();
+          return;
+        }
+
         if (isScrollReadyRef.current) {
           scrollState.anchorX = snapToDevicePixel(clampX(scrollState.anchorX));
           renderScrollProgress(scrollState.progress);
@@ -966,6 +1084,106 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         closePanel();
       };
 
+      const startLoadingTextWave = () => {
+        clearLoadingTextTimeline();
+
+        if (prefersReducedMotion) {
+          gsap.set(loadingChars, { y: 0 });
+          return;
+        }
+
+        loadingTextTimeline = gsap.timeline({ repeat: -1, repeatDelay: 0.26 });
+        loadingTextTimeline
+          .to(loadingChars, {
+            y: -9,
+            duration: 0.28,
+            ease: "sine.out",
+            stagger: 0.055,
+          })
+          .to(
+            loadingChars,
+            {
+              y: 0,
+              duration: 0.34,
+              ease: "sine.inOut",
+              stagger: 0.055,
+            },
+            "<0.16",
+          );
+      };
+
+      const finishAgentLoading = () => {
+        if (agentEntryStageRef.current !== "loading") {
+          return;
+        }
+
+        clearLoadingTimer();
+        clearLoadingTimeline();
+        renderLockedAgentEntryPage();
+        loadingTimeline = gsap.timeline({
+          onComplete: () => {
+            clearLoadingTextTimeline();
+            setAgentEntryStageValue("done");
+            renderLockedAgentEntryPage();
+            loadingTimeline = null;
+          },
+        });
+
+        loadingTimeline.to(loadingOverlay, {
+          autoAlpha: 0,
+          y: -12,
+          duration: prefersReducedMotion ? 0 : 0.42,
+          ease: "power2.inOut",
+        });
+      };
+
+      const beginAgentLoading = withContextSafe(() => {
+        if (agentEntryStageRef.current !== "idle") {
+          return;
+        }
+
+        clearIdleTimer();
+        clearPointerTweens();
+        clearBandTween();
+        clearCloseTimeline();
+        clearLoadingTimer();
+        clearLoadingTimeline();
+        clearLoadingTextTimeline();
+        renderScrollProgress(1);
+        destroyScrollTrigger();
+        lockAgentEntryScroll();
+        setAgentEntryStageValue("loading");
+        renderLockedAgentEntryPage();
+        startLoadingTextWave();
+
+        loadingTimerRef.current = window.setTimeout(finishAgentLoading, 5000);
+
+        loadingTimeline = gsap.timeline();
+        loadingTimeline
+          .to(
+            [agentDraftLayer, ...agentPromptLayers],
+            {
+              autoAlpha: 0,
+              y: -14,
+              duration: prefersReducedMotion ? 0 : 0.45,
+              ease: "power2.inOut",
+              stagger: prefersReducedMotion ? 0 : 0.025,
+            },
+            0,
+          )
+          .to(
+            loadingOverlay,
+            {
+              autoAlpha: 1,
+              y: 0,
+              scale: 1,
+              duration: prefersReducedMotion ? 0 : 0.35,
+              ease: "power2.out",
+            },
+            prefersReducedMotion ? 0 : 0.22,
+          );
+      });
+
       requestAuthenticatedCloseRef.current = withContextSafe(() => {
         if (isAuthenticatedRef.current && isScrollReadyRef.current) {
           return;
@@ -984,6 +1202,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
 
         closePanel();
       });
+      beginAgentLoadingRef.current = beginAgentLoading;
 
       page.addEventListener("pointerenter", followPointer);
       page.addEventListener("pointerleave", leavePage);
@@ -992,6 +1211,9 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       window.addEventListener("pointermove", followPointer);
       window.addEventListener("resize", syncOnResize);
       window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("keydown", preventLockedScrollKey);
+      window.addEventListener("wheel", preventLockedScroll, { passive: false });
+      window.addEventListener("touchmove", preventLockedScroll, { passive: false });
       cta.addEventListener("pointerenter", hoverCtaIn);
       cta.addEventListener("pointerleave", hoverCtaOut);
       cta.addEventListener("focus", hoverCtaIn);
@@ -1007,6 +1229,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       lastXRef.current = initialX;
       pointerXRef.current = initialX;
       setStage("idle");
+      setAgentEntryStageValue("idle");
       setIsAuthenticated(false);
       setIsScrollReady(false);
       resetScrollScene();
@@ -1016,8 +1239,10 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
 
       return () => {
         requestAuthenticatedCloseRef.current = () => undefined;
+        beginAgentLoadingRef.current = () => undefined;
         syncCtaLayoutRef.current = () => undefined;
         clearIdleTimer();
+        clearLoadingTimer();
         page.removeEventListener("pointerenter", followPointer);
         page.removeEventListener("pointerleave", leavePage);
         page.removeEventListener("pointercancel", leavePage);
@@ -1025,6 +1250,9 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         window.removeEventListener("pointermove", followPointer);
         window.removeEventListener("resize", syncOnResize);
         window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("keydown", preventLockedScrollKey);
+        window.removeEventListener("wheel", preventLockedScroll);
+        window.removeEventListener("touchmove", preventLockedScroll);
         cta.removeEventListener("pointerenter", hoverCtaIn);
         cta.removeEventListener("pointerleave", hoverCtaOut);
         cta.removeEventListener("focus", hoverCtaIn);
@@ -1034,12 +1262,16 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         clearPointerTweens();
         clearBandTween();
         clearCloseTimeline();
+        clearLoadingTimeline();
+        clearLoadingTextTimeline();
         destroyScrollTrigger();
+        unlockAgentEntryScroll();
         openTimeline.kill();
         gsap.killTweensOf(visualState);
         gsap.killTweensOf(scrollSceneNodes);
         gsap.killTweensOf(scrollHint);
         gsap.killTweensOf([...ctaLeftBrackets, ...ctaRightBrackets]);
+        gsap.killTweensOf([agentDraftLayer, ...agentPromptLayers, loadingOverlay, ...loadingChars]);
       };
     },
     { scope: pageRef },
@@ -1052,6 +1284,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       data-panel-stage={panelStage}
       data-authenticated={isAuthenticated ? "true" : "false"}
       data-scroll-ready={isScrollReady ? "true" : "false"}
+      data-agent-entry-stage={agentEntryStage}
     >
       <svg className="login-hover-band-svg" aria-hidden="true">
         <defs>
@@ -1210,9 +1443,14 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         </g>
       </svg>
 
-      <div className="login-agent-draft-layer">
+      <div ref={agentDraftLayerRef} className="login-agent-draft-layer">
         <div className="login-agent-action-strip" aria-label="Agent 接入操作">
-          <button type="button" className="login-agent-bracket-button">
+          <button
+            type="button"
+            className="login-agent-bracket-button"
+            disabled={agentEntryStage !== "idle"}
+            onClick={() => beginAgentLoadingRef.current()}
+          >
             <span className="login-agent-bracket" aria-hidden="true">
               [
             </span>
@@ -1221,7 +1459,12 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
               ]
             </span>
           </button>
-          <button type="button" className="login-agent-bracket-button is-secondary">
+          <button
+            type="button"
+            className="login-agent-bracket-button is-secondary"
+            disabled={agentEntryStage !== "idle"}
+            onClick={() => beginAgentLoadingRef.current()}
+          >
             <span className="login-agent-bracket" aria-hidden="true">
               [
             </span>
@@ -1232,6 +1475,42 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           </button>
         </div>
         <AgentConnectDraft />
+      </div>
+
+      <div
+        ref={loadingOverlayRef}
+        className="login-agent-loading-overlay"
+        role="status"
+        aria-live="polite"
+        aria-label="正在接入 Agent"
+        aria-hidden={agentEntryStage === "idle" || agentEntryStage === "done"}
+      >
+        <div className="login-agent-loading-stack">
+          <div className="login-agent-loader-figure" aria-hidden="true">
+            <div className="login-agent-tower-loader">
+              {LOADING_BOXES.map((box) => (
+                <div
+                  key={box}
+                  className={`login-agent-loader-box login-agent-loader-box-${box}`}
+                >
+                  <div className="login-agent-loader-side-left" />
+                  <div className="login-agent-loader-side-right" />
+                  <div className="login-agent-loader-side-top" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div ref={loadingTextRef} className="login-agent-loading-text" aria-hidden="true">
+            {LOADING_LABEL.split("").map((char, index) => (
+              <span
+                key={`${char}-${index}`}
+                className={`login-agent-loading-char${char === "." ? " is-dot" : ""}`}
+              >
+                {char}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div ref={panelDimRef} className="login-panel-dim" aria-hidden="true" />

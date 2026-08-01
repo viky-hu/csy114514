@@ -39,3 +39,11 @@
 - Extensibility: the top threshold remains viewport-relative (`1 / window.innerHeight`) so reverse scrolling to the exact top restores the mature first-page pointer behavior, while non-top scroll states clear pending pointer tweens and timers before the band expands.
 - Styling: no visual redesign; the window stylesheet is segmented so second-page Agent entry styles and login panel overlay styles stay easy to discuss independently.
 - Validation: run `pnpm type-check`, `pnpm lint`, and `pnpm build`; manually verify leaving the page at full blue second-page state no longer collapses the band to a vertical line.
+
+## 2026-08-01 Login Agent Loading Lock
+
+- Ownership: `app/windows/login/LoginIntroWindow.tsx` owns the local Agent entry stage machine; `app/styles/window-1-login.css` owns the loading overlay, white tower loader, hollow loading text, and locked-page styling.
+- Boundary: both Agent entry actions are local mock transitions only; the 5-second loading state does not call `/api/agents`, enter the main application, restore the draft, or expose a new public component API.
+- Extensibility: loading is isolated behind `agentEntryStage` so future real Agent connection work can replace the mock timer without changing the second-page scroll-band or pointer-mode contracts.
+- Styling: the loader keeps the provided 3D tower keyframe structure but uses project-prefixed classes, white-toned faces, responsive sizing, and a GSAP staggered text wave with reduced-motion fallback.
+- Validation: run `pnpm type-check`, `pnpm lint`, and `pnpm build`; manually verify both Agent buttons lock the second page, fade out prompt/draft content, show the centered loader, and leave the page on a blue empty state after completion.
