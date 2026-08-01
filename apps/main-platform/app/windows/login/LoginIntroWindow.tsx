@@ -6,6 +6,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Mouse } from "lucide-react";
 import { LINE_DRAW_EASE } from "../shared/animation";
+import { AgentConnectDraft } from "./AgentConnectDraft";
 import { LoginForm } from "./LoginForm";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
@@ -17,6 +18,7 @@ const SYSTEM_TITLE_SECONDARY = "可解释攻击链路可视化系统";
 const BRAND_WORD = "AegisTrace";
 const CTA_PRIMARY = "进入";
 const CTA_SECONDARY = "评估台";
+const AGENT_ENTRY_PROMPT = "请接入你的测评对象Agent";
 const INFO_COPY_LINES = [
   "把 Agent 结构、攻击路径、评估过程与证据报告组织成",
   "可观察、可解释、可复现、可修复的安全认知过程，",
@@ -72,6 +74,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
   const invertedCtaPrimaryRef = useRef<SVGTextElement>(null);
   const invertedCtaSecondaryRef = useRef<SVGTextElement>(null);
   const invertedCtaRightBracketRef = useRef<SVGTextElement>(null);
+  const agentPromptRef = useRef<SVGTextElement>(null);
+  const invertedAgentPromptRef = useRef<SVGTextElement>(null);
   const idleTimerRef = useRef<number | null>(null);
   const lastXRef = useRef<number | null>(null);
   const pointerXRef = useRef<number | null>(null);
@@ -125,6 +129,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           invertedCtaRightBracketRef.current,
         ],
       ];
+      const agentPromptNodes = [agentPromptRef.current, invertedAgentPromptRef.current];
 
       if (
         !page ||
@@ -149,6 +154,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const setStage = (stage: PanelStage) => {
         panelStageRef.current = stage;
         setPanelStage(stage);
+        syncPointerModeAttribute();
       };
 
       const devicePixelRatio = window.devicePixelRatio || 1;
@@ -158,6 +164,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const clamp = (value: number, min: number, max: number) =>
         Math.min(Math.max(value, min), max);
       const clampX = (value: number) => clamp(value, 0, window.innerWidth);
+      const getTopProgressThreshold = () => 1 / Math.max(window.innerHeight, 1);
       const panelWidthInPx = 10 * (96 / 2.54);
       const getExpandedWidth = () =>
         snapToDevicePixel(Math.min(Math.max(window.innerWidth * 0.074, 72), 122));
@@ -187,6 +194,16 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         locked: false,
       };
 
+      const isAtScrollTop = (progress = scrollState.progress) =>
+        progress <= getTopProgressThreshold();
+      const isTopPointerMode = () =>
+        panelStageRef.current === "idle" &&
+        (!isScrollReadyRef.current || isAtScrollTop());
+
+      const syncPointerModeAttribute = () => {
+        page.setAttribute("data-pointer-mode", isTopPointerMode() ? "top" : "scroll");
+      };
+
       const renderBand = () => {
         const width = snapToDevicePixel(visualState.width);
         const x = snapToDevicePixel(clampX(visualState.centerX) - width / 2);
@@ -207,6 +224,28 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         }
       };
 
+      const updateAgentEntryVisibility = (progress: number) => {
+        const promptFade = clamp((progress - 0.78) / 0.18, 0, 1);
+        const draftFade = clamp((progress - 0.72) / 0.24, 0, 1);
+
+        page.style.setProperty("--login-agent-prompt-opacity", String(promptFade));
+        page.style.setProperty("--login-agent-draft-opacity", String(draftFade));
+        page.style.setProperty(
+          "--login-agent-draft-y",
+          `${snapToDevicePixel((1 - draftFade) * 18)}px`,
+        );
+        page.setAttribute("data-agent-draft-visible", draftFade > 0 ? "true" : "false");
+        page.setAttribute("data-agent-draft-ready", draftFade >= 0.98 ? "true" : "false");
+      };
+
+      const lockScrollModeInteractions = () => {
+        clearIdleTimer();
+        clearPointerTweens();
+        clearBandTween();
+        clearCloseTimeline();
+        syncPointerModeAttribute();
+      };
+
       const resetScrollScene = () => {
         scrollState.progress = 0;
         scrollState.locked = false;
@@ -215,6 +254,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         scrollState.entryRight = snapToDevicePixel(scrollState.anchorX + lineWidth / 2);
         gsap.set(scrollSceneNodes, { y: 0 });
         gsap.set(scrollHint, { autoAlpha: isScrollReadyRef.current ? 1 : 0, y: 0 });
+        updateAgentEntryVisibility(0);
+        syncPointerModeAttribute();
       };
 
       const syncTopEntryState = () => {
@@ -247,8 +288,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
 
       const renderScrollProgress = (progress: number) => {
         const nextProgress = clamp(progress, 0, 1);
-        const topProgressThreshold = 1 / Math.max(window.innerHeight, 1);
-        const isAtTop = nextProgress <= topProgressThreshold;
+        const isAtTop = isAtScrollTop(nextProgress);
 
         if (!isScrollReadyRef.current) {
           return;
@@ -259,6 +299,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         if (isAtTop) {
           const wasLocked = scrollState.locked;
           scrollState.locked = false;
+          syncPointerModeAttribute();
 
           gsap.set(scrollSceneNodes, {
             y: 0,
@@ -267,6 +308,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
             autoAlpha: 1,
             y: 0,
           });
+          updateAgentEntryVisibility(0);
 
           if (wasLocked) {
             clearIdleTimer();
@@ -280,10 +322,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         }
 
         if (!scrollState.locked) {
-          clearIdleTimer();
-          clearPointerTweens();
-          clearBandTween();
-          clearCloseTimeline();
+          lockScrollModeInteractions();
           captureScrollEntryState();
           scrollState.locked = true;
         }
@@ -308,6 +347,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           autoAlpha: nextProgress > 0.035 ? 0 : 1,
           y: nextProgress > 0.035 ? 8 : 0,
         });
+        updateAgentEntryVisibility(nextProgress);
+        syncPointerModeAttribute();
       };
 
       const destroyScrollTrigger = () => {
@@ -380,6 +421,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         const ctaCenterY = snapToDevicePixel(
           window.innerHeight - ctaBottomInset - ctaLineGap * 0.5,
         );
+        const agentPromptX = snapToDevicePixel(window.innerWidth * (3 / 34));
+        const agentPromptY = snapToDevicePixel(window.innerHeight * (3 / 19));
 
         for (const line of [topRule, topRuleInverted]) {
           line.setAttribute("x1", String(horizontalInset));
@@ -441,6 +484,15 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
 
           micro.setAttribute("x", String(titleX));
           micro.setAttribute("y", String(microY));
+        }
+
+        for (const prompt of agentPromptNodes) {
+          if (!prompt) {
+            continue;
+          }
+
+          prompt.setAttribute("x", String(agentPromptX));
+          prompt.setAttribute("y", String(agentPromptY));
         }
 
         for (const [leftBracket, primary, secondary, rightBracket] of ctaNodes) {
@@ -537,7 +589,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       };
 
       const collapseAtCurrentX = () => {
-        if (panelStageRef.current !== "idle") {
+        if (!isTopPointerMode()) {
+          clearIdleTimer();
           return;
         }
 
@@ -783,11 +836,9 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const followPointer = (event: PointerEvent) => {
         const nextX = rememberPointerX(event.clientX);
 
-        if (isScrollReadyRef.current && scrollState.locked) {
-          return;
-        }
-
-        if (panelStageRef.current !== "idle") {
+        if (!isTopPointerMode()) {
+          clearIdleTimer();
+          clearPointerTweens();
           return;
         }
 
@@ -828,7 +879,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const leavePage = () => {
         pointerInsideRef.current = false;
 
-        if (panelStageRef.current !== "idle") {
+        if (!isTopPointerMode()) {
+          clearIdleTimer();
           return;
         }
 
@@ -913,6 +965,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       setIsAuthenticated(false);
       setIsScrollReady(false);
       resetScrollScene();
+      syncPointerModeAttribute();
       renderStaticLayout();
       renderBand();
 
@@ -1024,6 +1077,13 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
               ]
             </text>
           </g>
+
+        </g>
+
+        <g className="login-agent-prompt-layer">
+          <text ref={agentPromptRef} className="login-agent-entry-prompt">
+            {AGENT_ENTRY_PROMPT}
+          </text>
         </g>
 
         <rect
@@ -1094,8 +1154,19 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
               ]
             </text>
           </g>
+
+        </g>
+
+        <g className="login-agent-prompt-layer is-inverted" clipPath="url(#login-band-text-clip)">
+          <text ref={invertedAgentPromptRef} className="login-agent-entry-prompt is-inverted">
+            {AGENT_ENTRY_PROMPT}
+          </text>
         </g>
       </svg>
+
+      <div className="login-agent-draft-layer">
+        <AgentConnectDraft />
+      </div>
 
       <div ref={panelDimRef} className="login-panel-dim" aria-hidden="true" />
 

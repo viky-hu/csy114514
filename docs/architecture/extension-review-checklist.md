@@ -23,3 +23,19 @@
 - Extensibility: successful mock login reuses the existing Escape close timeline, then unlocks a second viewport and ScrollTrigger-driven SVG band expansion without introducing another animation library; returning to the exact top restores mouse-follow behavior at the current scroll-entry baseline instead of forcing line width, and the next first scroll preserves the currently visible band width as its expansion baseline.
 - Styling: error and pending prompt boxes are removed; the post-login scroll hint is icon-only and the existing clipPath text inversion remains the core visual rule.
 - Validation: run `pnpm type-check` and `pnpm build`; manually verify manual Escape does not unlock scroll while successful login does.
+
+## 2026-08-01 Login Agent Entry Draft
+
+- Ownership: `app/windows/login/LoginIntroWindow.tsx`, `app/windows/login/AgentConnectDraft.tsx`, and `app/styles/window-1-login.css`.
+- Boundary: the second-page entry is a local interactive draft only; it previews API adapter fields and `AgentManifest` data without adding `/api/agents`, posting to the FastAPI backend, or modifying `shared/contracts`.
+- Extensibility: the SVG prompt now lives in an independent second-page prompt layer that reuses the existing clipPath text reveal, while the HTML draft overlay is independently faded by scroll progress so the band locking and first-scroll baseline logic remain untouched.
+- Styling: the prompt uses the exact login surface color on the blue band; the draft controls preserve the transparent white-line form language, separate the form and profile preview with a fixed 1px white divider, and keep Manifest JSON collapsed behind details controls.
+- Validation: run `pnpm type-check` and `pnpm build`; manually verify the prompt resolves at the second-page 3cm/3cm baseline over the full blue page and the local profile precheck updates without network traffic.
+
+## 2026-08-01 Login Scroll Pointer Mode Guard
+
+- Ownership: `app/windows/login/LoginIntroWindow.tsx`, with CSS section boundaries in `app/styles/window-1-login.css`.
+- Boundary: pointer-follow, idle-collapse, leave-collapse, and blur-collapse are only valid in the top pointer mode; any scroll progress beyond the top threshold belongs to the scroll/second-page mode.
+- Extensibility: the top threshold remains viewport-relative (`1 / window.innerHeight`) so reverse scrolling to the exact top restores the mature first-page pointer behavior, while non-top scroll states clear pending pointer tweens and timers before the band expands.
+- Styling: no visual redesign; the window stylesheet is segmented so second-page Agent entry styles and login panel overlay styles stay easy to discuss independently.
+- Validation: run `pnpm type-check`, `pnpm lint`, and `pnpm build`; manually verify leaving the page at full blue second-page state no longer collapses the band to a vertical line.

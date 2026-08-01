@@ -157,6 +157,457 @@
   shape-rendering: crispEdges;
 }
 
+/* ========== Authenticated Scroll Agent Entry ========== */
+
+.login-agent-prompt-layer {
+  opacity: var(--login-agent-prompt-opacity, 0);
+  pointer-events: none;
+  transition: opacity 180ms linear;
+}
+
+.login-agent-entry-prompt {
+  fill: #F2F1EB;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0;
+  dominant-baseline: alphabetic;
+  text-rendering: geometricPrecision;
+}
+
+.login-agent-draft-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  color: var(--w1-surface);
+  opacity: var(--login-agent-draft-opacity, 0);
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(var(--login-agent-draft-y, 18px));
+  transition: opacity 180ms linear, transform 180ms ease, visibility 0s linear 180ms;
+}
+
+.login-placeholder-page[data-agent-draft-visible="true"] .login-agent-draft-layer {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.login-placeholder-page[data-agent-draft-ready="true"] .login-agent-draft-layer {
+  pointer-events: auto;
+}
+
+.login-agent-draft {
+  position: absolute;
+  left: calc(100vw * 3 / 34);
+  right: calc(100vw * 2.2 / 34);
+  top: calc(100dvh * 4.6 / 19);
+  bottom: calc(100dvh * 1.05 / 19);
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) 1px minmax(300px, 0.82fr);
+  column-gap: clamp(28px, 3vw, 52px);
+  min-width: 0;
+  min-height: 0;
+}
+
+.login-agent-draft-form,
+.login-agent-draft-preview {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.login-agent-draft-form::-webkit-scrollbar,
+.login-agent-draft-preview::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.login-agent-draft-divider {
+  width: 1px;
+  min-height: 0;
+  background: rgba(242, 241, 235, 0.72);
+  box-shadow: 0 0 0 0.5px rgba(242, 241, 235, 0.14);
+}
+
+.login-agent-draft-toolbar {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(242, 241, 235, 0.36);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.login-agent-draft-toolbar svg,
+.login-agent-channel svg,
+.login-agent-check-row svg,
+.login-agent-json-details summary svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.5;
+}
+
+.login-agent-text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--w1-surface);
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: 0;
+  opacity: 0.78;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.login-agent-text-action:hover,
+.login-agent-text-action:focus-visible {
+  opacity: 1;
+  outline: none;
+}
+
+.login-agent-text-action:active {
+  transform: translateY(1px);
+}
+
+.login-agent-channel-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.login-agent-channel {
+  min-width: 0;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(242, 241, 235, 0.34);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--w1-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.login-agent-channel.is-active {
+  border-color: rgba(242, 241, 235, 0.74);
+  background: rgba(242, 241, 235, 0.08);
+}
+
+.login-agent-channel[aria-disabled="true"] {
+  cursor: default;
+  color: rgba(242, 241, 235, 0.72);
+}
+
+.login-agent-channel:not([aria-disabled="true"]):active {
+  transform: translateY(1px);
+}
+
+.login-agent-field-grid {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.login-agent-field-grid.is-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.login-agent-field-grid.is-api {
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 0.2fr);
+}
+
+.login-agent-field-grid.is-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.login-agent-bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.48fr) minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.login-agent-field {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.login-agent-field > span:first-child,
+.login-agent-option-group legend,
+.login-agent-profile-stat span,
+.login-agent-risk-row span,
+.login-agent-check-row span,
+.login-agent-adapter-card span {
+  color: rgba(242, 241, 235, 0.66);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.login-agent-field input,
+.login-agent-field textarea,
+.login-agent-field select,
+.login-agent-permission-row select {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid rgba(242, 241, 235, 0.36);
+  border-radius: 0;
+  background: transparent;
+  color: var(--w1-surface);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0;
+  outline: none;
+  transition: border-color 160ms ease, opacity 160ms ease;
+}
+
+.login-agent-field input,
+.login-agent-field select,
+.login-agent-permission-row select {
+  height: 30px;
+}
+
+.login-agent-field textarea {
+  height: 58px;
+  padding: 5px 0;
+  resize: none;
+  line-height: 1.36;
+}
+
+.login-agent-field input:focus,
+.login-agent-field textarea:focus,
+.login-agent-field select:focus,
+.login-agent-permission-row select:focus {
+  border-bottom-color: var(--w1-surface);
+}
+
+.login-agent-field textarea[aria-invalid="true"] {
+  border-bottom-color: rgba(242, 241, 235, 0.86);
+}
+
+.login-agent-field input:disabled,
+.login-agent-field select:disabled,
+.login-agent-permission-row select:disabled {
+  opacity: 0.48;
+}
+
+.login-agent-field select option,
+.login-agent-permission-row select option {
+  color: #111111;
+  background: var(--w1-surface);
+}
+
+.login-agent-inline-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.login-agent-option-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.login-agent-option-group legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.login-agent-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px 10px;
+  min-width: 0;
+}
+
+.login-agent-permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 10px;
+  min-width: 0;
+}
+
+.login-agent-source-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.login-agent-chip {
+  min-width: 0;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--w1-surface);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.login-agent-chip input {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--w1-surface);
+}
+
+.login-agent-chip span,
+.login-agent-permission-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-agent-permission-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  align-items: center;
+  gap: 8px;
+  color: var(--w1-surface);
+  font-size: 12px;
+}
+
+.login-agent-field-error {
+  margin: -3px 0 0;
+  color: var(--w1-surface);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.login-agent-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.login-agent-profile-stat {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(242, 241, 235, 0.32);
+}
+
+.login-agent-profile-stat strong {
+  overflow: hidden;
+  color: var(--w1-surface);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-agent-risk-list,
+.login-agent-check-list,
+.login-agent-adapter-card {
+  display: grid;
+  min-width: 0;
+  border-top: 1px solid rgba(242, 241, 235, 0.22);
+}
+
+.login-agent-risk-row,
+.login-agent-check-row {
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  border-bottom: 1px solid rgba(242, 241, 235, 0.22);
+}
+
+.login-agent-risk-row {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.login-agent-check-row {
+  grid-template-columns: 14px 68px minmax(0, 1fr);
+}
+
+.login-agent-risk-row strong,
+.login-agent-check-row strong,
+.login-agent-adapter-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--w1-surface);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-agent-adapter-card {
+  gap: 7px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid rgba(242, 241, 235, 0.22);
+}
+
+.login-agent-json-details {
+  min-width: 0;
+  border-bottom: 1px solid rgba(242, 241, 235, 0.22);
+}
+
+.login-agent-json-details summary {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--w1-surface);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  list-style: none;
+}
+
+.login-agent-json-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.login-agent-json-details pre {
+  margin: 0;
+  padding: 2px 0 12px;
+  color: var(--w1-surface);
+  font-family: "Michroma", "DingTalk JinBuTi", monospace;
+  font-size: 10px;
+  line-height: 1.34;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ========== Login Panel Overlay ========== */
+
 .login-panel-dim {
   position: fixed;
   inset: 0;
@@ -296,6 +747,46 @@
 }
 
 @media (max-width: 720px) {
+  .login-agent-entry-prompt {
+    font-size: 24px;
+  }
+
+  .login-agent-draft {
+    left: 18px;
+    right: 18px;
+    top: calc(100dvh * 3.6 / 19);
+    bottom: 18px;
+    grid-template-columns: 1fr;
+  }
+
+  .login-agent-draft-divider {
+    display: none;
+  }
+
+  .login-agent-draft-preview {
+    display: none;
+  }
+
+  .login-agent-channel-row {
+    grid-template-columns: 1fr;
+  }
+
+  .login-agent-field-grid.is-three,
+  .login-agent-field-grid.is-api,
+  .login-agent-field-grid.is-two,
+  .login-agent-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .login-agent-chip-grid,
+  .login-agent-permission-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .login-agent-source-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .login-brand-mark-word {
     font-size: 22px;
   }
