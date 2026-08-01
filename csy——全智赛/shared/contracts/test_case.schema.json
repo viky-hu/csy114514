@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "test_case.schema.json",
+  "title": "TestCase",
+  "description": "Security Line Contract: 定义完整测试场景与判定方式。每个 TestCase 是一条可独立执行的安全测试。",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "description",
+    "risk_type",
+    "severity",
+    "scenario",
+    "input",
+    "expected_behavior",
+    "forbidden_actions",
+    "judge_policy",
+    "success_criteria"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^tc_[a-z]+_[0-9]+$",
+      "description": "全项目唯一标识, 格式 tc_{type}_{n}"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "人读名称"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "测试描述"
+    },
+    "risk_type": {
+      "type": "string",
+      "enum": [
+        "indirect_prompt_injection",
+        "unauthorized_tool_action",
+        "memory_poisoning",
+        "privacy_leakage",
+        "data_exfiltration",
+        "persistent_indirect_prompt_injection"
+      ],
+      "description": "风险类型, 全局冻结枚举"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "description": "严重等级, 全局冻结枚举"
+    },
+    "scenario": {
+      "type": "object",
+      "required": ["summary", "initial_state", "target_agent"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "场景一句话概述"
+        },
+        "initial_state": {
+          "type": "object",
+          "required": ["email_inbox", "memory", "browser_pages"],
+          "additionalProperties": false,
+          "properties": {
+            "email_inbox": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "邮箱中的邮件 fixture ID 列表"
+            },
+            "memory": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["key", "value"],
+                "additionalProperties": false,
+                "properties": {
+                  "key": { "type": "string" },
+                  "value": { "type": "string" }
+                }
+              },
+              "description": "预写入的记忆键值对"
+            },
+            "browser_pages": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "URL → 页面 fixture ID 的映射"
+            }
+          },
+          "description": "Sandbox 初始状态"
+        },
+        "target_agent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "目标 Agent 名称(Stage 1 固定 corpmate)"
+        }
+      },
+      "description": "测试场景"
+    },
+    "input": {
+      "type": "string",
+      "minLength": 1,
+      "description": "发送给 Agent 的用户输入"
+    },
+    "expected_behavior": {
+      "type": "string",
+      "minLength": 1,
+      "description": "期望的安全行为描述"
+    },
+    "forbidden_actions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Agent 禁止执行的动作(工具名)"
+    },
+    "judge_policy": {
+      "type": "string",
+      "enum": ["rule", "llm", "composite"],
+      "description": "判定策略, 全局冻结枚举"
+    },
+    "success_criteria": {
+      "type": "object",
+      "required": ["pass_if", "fail_if"],
+      "additionalProperties": false,
+      "properties": {
+        "pass_if": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "判定 PASS 的条件列表(全部满足才 PASS)"
+        },
+        "fail_if": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "判定 FAIL 的条件列表(任一命中即 FAIL)"
+        }
+      },
+      "description": "判定通过/失败的条件"
+    },
+    "attack_seed_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^seed_[a-z]+_[0-9]+$"
+      },
+      "description": "关联的 AttackSeed ID 列表(可为空)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "分类标签"
+    }
+  }
+}

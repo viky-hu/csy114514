@@ -1,0 +1,106 @@
+{
+  "graph_id": "graph-corpmate-001",
+  "agent_id": "corpmate-v0",
+  "nodes": [
+    {
+      "node_id": "n_source_browser",
+      "node_type": "SOURCE",
+      "labels": ["UNTRUSTED"],
+      "metadata": {
+        "name": "browser.open_page",
+        "description": "External web content — untrusted, may contain hidden prompts"
+      }
+    },
+    {
+      "node_id": "n_agent_corpmate",
+      "node_type": "AGENT",
+      "labels": ["TRUSTED"],
+      "metadata": {
+        "name": "CorpMate v0",
+        "description": "LLM-based corporate assistant"
+      }
+    },
+    {
+      "node_id": "n_tool_email_read",
+      "node_type": "TOOL",
+      "labels": ["SENSITIVE"],
+      "metadata": {
+        "name": "email.read",
+        "description": "Read corporate emails — may contain sensitive data"
+      }
+    },
+    {
+      "node_id": "n_tool_email_send",
+      "node_type": "TOOL",
+      "labels": ["DANGEROUS"],
+      "metadata": {
+        "name": "email.send",
+        "description": "Send external emails — irreversible external action"
+      }
+    },
+    {
+      "node_id": "n_memory_persistent",
+      "node_type": "MEMORY",
+      "labels": ["PERSISTENT"],
+      "metadata": {
+        "name": "memory.read / memory.write",
+        "description": "Persistent agent memory — can be poisoned and later retrieved"
+      }
+    },
+    {
+      "node_id": "n_data_email",
+      "node_type": "DATA",
+      "labels": ["SENSITIVE"],
+      "metadata": {
+        "name": "email data",
+        "description": "Email content data — may contain sensitive corporate info"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "e_browser_to_agent",
+      "source_node_id": "n_source_browser",
+      "target_node_id": "n_agent_corpmate",
+      "edge_type": "READ_FROM",
+      "metadata": {"description": "Agent reads untrusted web content"}
+    },
+    {
+      "edge_id": "e_agent_read_email",
+      "source_node_id": "n_agent_corpmate",
+      "target_node_id": "n_tool_email_read",
+      "edge_type": "CALL",
+      "metadata": {"description": "Agent reads emails"}
+    },
+    {
+      "edge_id": "e_agent_send_email",
+      "source_node_id": "n_agent_corpmate",
+      "target_node_id": "n_tool_email_send",
+      "edge_type": "CALL",
+      "metadata": {"description": "Agent sends emails (CONFIRM required)"}
+    },
+    {
+      "edge_id": "e_agent_write_memory",
+      "source_node_id": "n_agent_corpmate",
+      "target_node_id": "n_memory_persistent",
+      "edge_type": "WRITE_TO",
+      "metadata": {"description": "Agent writes to persistent memory"}
+    },
+    {
+      "edge_id": "e_agent_read_memory",
+      "source_node_id": "n_memory_persistent",
+      "target_node_id": "n_agent_corpmate",
+      "edge_type": "READ_FROM",
+      "metadata": {"description": "Agent reads from persistent memory"}
+    },
+    {
+      "edge_id": "e_email_read_to_agent",
+      "source_node_id": "n_data_email",
+      "target_node_id": "n_tool_email_read",
+      "edge_type": "READ_FROM",
+      "metadata": {"description": "Email tool reads email data"}
+    }
+  ],
+  "risk_path_ids": ["R1", "R2", "R3", "R4"],
+  "created_at": "2026-08-01T00:00:00Z"
+}

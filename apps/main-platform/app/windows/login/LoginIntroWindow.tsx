@@ -181,6 +181,8 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const scrollSceneNodes = [baseScene, invertedScene];
       const scrollState = {
         anchorX: initialX,
+        entryLeft: snapToDevicePixel(initialX - lineWidth / 2),
+        entryRight: snapToDevicePixel(initialX + lineWidth / 2),
         progress: 0,
         locked: false,
       };
@@ -209,31 +211,88 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         scrollState.progress = 0;
         scrollState.locked = false;
         scrollState.anchorX = getTrackedPointerX();
+        scrollState.entryLeft = snapToDevicePixel(scrollState.anchorX - lineWidth / 2);
+        scrollState.entryRight = snapToDevicePixel(scrollState.anchorX + lineWidth / 2);
         gsap.set(scrollSceneNodes, { y: 0 });
         gsap.set(scrollHint, { autoAlpha: isScrollReadyRef.current ? 1 : 0, y: 0 });
       };
 
+      const syncTopEntryState = () => {
+        const entryLeft = snapToDevicePixel(scrollState.entryLeft);
+        const entryRight = snapToDevicePixel(scrollState.entryRight);
+        const entryWidth = Math.max(snapToDevicePixel(entryRight - entryLeft), lineWidth);
+
+        scrollState.anchorX = getTrackedPointerX();
+        visualState.centerX = snapToDevicePixel(entryLeft + entryWidth / 2);
+        visualState.width = entryWidth;
+        renderBand();
+      };
+
+      const captureScrollEntryState = () => {
+        syncVisualStateFromRenderedBand();
+
+        const renderedX = Number(band.getAttribute("x"));
+        const renderedWidth = Number(band.getAttribute("width"));
+        const entryLeft = Number.isFinite(renderedX)
+          ? renderedX
+          : visualState.centerX - visualState.width / 2;
+        const entryWidth = Number.isFinite(renderedWidth)
+          ? Math.max(renderedWidth, lineWidth)
+          : Math.max(visualState.width, lineWidth);
+
+        scrollState.anchorX = getTrackedPointerX();
+        scrollState.entryLeft = snapToDevicePixel(entryLeft);
+        scrollState.entryRight = snapToDevicePixel(entryLeft + entryWidth);
+      };
+
       const renderScrollProgress = (progress: number) => {
         const nextProgress = clamp(progress, 0, 1);
+        const topProgressThreshold = 1 / Math.max(window.innerHeight, 1);
+        const isAtTop = nextProgress <= topProgressThreshold;
 
         if (!isScrollReadyRef.current) {
           return;
         }
 
-        if (nextProgress > 0 && !scrollState.locked) {
+        scrollState.progress = nextProgress;
+
+        if (isAtTop) {
+          const wasLocked = scrollState.locked;
+          scrollState.locked = false;
+
+          gsap.set(scrollSceneNodes, {
+            y: 0,
+          });
+          gsap.set(scrollHint, {
+            autoAlpha: 1,
+            y: 0,
+          });
+
+          if (wasLocked) {
+            clearIdleTimer();
+            clearPointerTweens();
+            clearBandTween();
+            clearCloseTimeline();
+            syncTopEntryState();
+          }
+
+          return;
+        }
+
+        if (!scrollState.locked) {
           clearIdleTimer();
           clearPointerTweens();
           clearBandTween();
           clearCloseTimeline();
-          syncVisualStateFromRenderedBand();
-          scrollState.anchorX = getTrackedPointerX();
+          captureScrollEntryState();
           scrollState.locked = true;
         }
 
-        const anchorX = snapToDevicePixel(clampX(scrollState.anchorX));
-        const leftEdge = snapToDevicePixel(anchorX * (1 - nextProgress));
+        const leftEdge = snapToDevicePixel(
+          gsap.utils.interpolate(scrollState.entryLeft, 0, nextProgress),
+        );
         const rightEdge = snapToDevicePixel(
-          anchorX + (window.innerWidth - anchorX) * nextProgress,
+          gsap.utils.interpolate(scrollState.entryRight, window.innerWidth, nextProgress),
         );
         const width = Math.max(snapToDevicePixel(rightEdge - leftEdge), lineWidth);
 
