@@ -21,15 +21,15 @@
 - Ownership: `app/windows/login/LoginIntroWindow.tsx`, `app/windows/login/LoginForm.tsx`, and `app/styles/window-1-login.css`.
 - Boundary: MVP auth is intentionally local mock state only; real credential exchange remains outside this login surface until the BFF/auth contract is restored.
 - Extensibility: successful mock login reuses the existing Escape close timeline, then unlocks a second viewport and ScrollTrigger-driven SVG band expansion without introducing another animation library; returning to the exact top restores mouse-follow behavior at the current scroll-entry baseline instead of forcing line width, and the next first scroll preserves the currently visible band width as its expansion baseline.
-- Styling: error and pending prompt boxes are removed; the post-login scroll hint is icon-only and the existing clipPath text inversion remains the core visual rule.
+- Styling: error and pending prompt boxes are removed; the post-login scroll hint is icon-only, the first-screen CTA copy switches from account-login wording to an authenticated state label, the login panel close action fades with the form content, and the existing clipPath text inversion remains the core visual rule.
 - Validation: run `pnpm type-check` and `pnpm build`; manually verify manual Escape does not unlock scroll while successful login does.
 
 ## 2026-08-01 Login Agent Entry Draft
 
 - Ownership: `app/windows/login/LoginIntroWindow.tsx`, `app/windows/login/AgentConnectDraft.tsx`, and `app/styles/window-1-login.css`.
 - Boundary: the second-page entry is a local interactive draft only; it previews API adapter fields and `AgentManifest` data without adding `/api/agents`, posting to the FastAPI backend, or modifying `shared/contracts`.
-- Extensibility: the SVG prompt now lives in an independent second-page prompt layer that reuses the existing clipPath text reveal, while the HTML draft overlay is independently faded by scroll progress so the band locking and first-scroll baseline logic remain untouched.
-- Styling: the prompt uses the exact login surface color on the blue band; the draft controls preserve the transparent white-line form language, separate the form and profile preview with a fixed 1px white divider, and keep Manifest JSON collapsed behind details controls.
+- Extensibility: the SVG prompt uses the same base-layer/band/inverted-layer clipPath reveal model as the first-page copy, with its coordinates placed in the second viewport and the clip rect spanning the two-viewport Window 1 scroll scene; the HTML draft overlay remains independently faded by scroll progress so the band locking and first-scroll baseline logic stay untouched.
+- Styling: the prompt uses the exact login surface color on the blue band; the draft controls preserve the transparent white-line form language, the top-right actions reuse the login bracket-command button language, the form and profile preview stay separated by a fixed 1px white divider, and Manifest JSON remains collapsed behind details controls.
 - Validation: run `pnpm type-check` and `pnpm build`; manually verify the prompt resolves at the second-page 3cm/3cm baseline over the full blue page and the local profile precheck updates without network traffic.
 
 ## 2026-08-01 Login Scroll Pointer Mode Guard

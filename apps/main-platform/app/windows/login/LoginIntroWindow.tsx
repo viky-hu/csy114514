@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Mouse } from "lucide-react";
+import { Mouse, X } from "lucide-react";
 import { LINE_DRAW_EASE } from "../shared/animation";
 import { AgentConnectDraft } from "./AgentConnectDraft";
 import { LoginForm } from "./LoginForm";
@@ -16,8 +16,10 @@ type PanelStage = "idle" | "opening" | "open" | "closing";
 const SYSTEM_TITLE_PRIMARY = "Agent 安全评估平台";
 const SYSTEM_TITLE_SECONDARY = "可解释攻击链路可视化系统";
 const BRAND_WORD = "AegisTrace";
-const CTA_PRIMARY = "进入";
-const CTA_SECONDARY = "评估台";
+const CTA_LOGIN_PRIMARY = "账号";
+const CTA_LOGIN_SECONDARY = "登录";
+const CTA_AUTHENTICATED_PRIMARY = "已登录";
+const CTA_AUTHENTICATED_SECONDARY = "";
 const AGENT_ENTRY_PROMPT = "请接入你的测评对象Agent";
 const INFO_COPY_LINES = [
   "把 Agent 结构、攻击路径、评估过程与证据报告组织成",
@@ -34,12 +36,17 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
   const [panelStage, setPanelStage] = useState<PanelStage>("idle");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isScrollReady, setIsScrollReady] = useState(false);
+  const ctaPrimaryLabel = isAuthenticated ? CTA_AUTHENTICATED_PRIMARY : CTA_LOGIN_PRIMARY;
+  const ctaSecondaryLabel = isAuthenticated
+    ? CTA_AUTHENTICATED_SECONDARY
+    : CTA_LOGIN_SECONDARY;
 
   const panelStageRef = useRef<PanelStage>("idle");
   const isAuthenticatedRef = useRef(false);
   const isScrollReadyRef = useRef(false);
   const pendingAuthenticatedCloseRef = useRef(false);
   const requestAuthenticatedCloseRef = useRef<() => void>(() => undefined);
+  const syncCtaLayoutRef = useRef<() => void>(() => undefined);
   const pageRef = useRef<HTMLElement>(null);
   const ctaRef = useRef<HTMLButtonElement>(null);
   const scrollHintRef = useRef<HTMLDivElement>(null);
@@ -47,6 +54,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
   const invertedSceneRef = useRef<SVGGElement>(null);
   const panelDimRef = useRef<HTMLDivElement>(null);
   const panelShellRef = useRef<HTMLDivElement>(null);
+  const panelCloseRef = useRef<HTMLButtonElement>(null);
   const panelFormWrapRef = useRef<HTMLDivElement>(null);
   const bandRef = useRef<SVGRectElement>(null);
   const bandClipRef = useRef<SVGRectElement>(null);
@@ -86,6 +94,12 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
     requestAuthenticatedCloseRef.current();
   };
 
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => syncCtaLayoutRef.current());
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isAuthenticated]);
+
   useGSAP(
     (_, contextSafe) => {
       const page = pageRef.current;
@@ -95,6 +109,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       const invertedScene = invertedSceneRef.current;
       const panelDim = panelDimRef.current;
       const panelShell = panelShellRef.current;
+      const panelClose = panelCloseRef.current;
       const panelFormWrap = panelFormWrapRef.current;
       const band = bandRef.current;
       const bandClip = bandClipRef.current;
@@ -139,6 +154,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         !invertedScene ||
         !panelDim ||
         !panelShell ||
+        !panelClose ||
         !panelFormWrap ||
         !band ||
         !bandClip ||
@@ -216,19 +232,20 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         );
         page.style.setProperty("--login-panel-height", `${window.innerHeight}px`);
 
-        for (const rect of [band, bandClip]) {
-          rect.setAttribute("x", String(x));
-          rect.setAttribute("y", "0");
-          rect.setAttribute("width", String(width));
-          rect.setAttribute("height", String(window.innerHeight));
-        }
+        band.setAttribute("x", String(x));
+        band.setAttribute("y", "0");
+        band.setAttribute("width", String(width));
+        band.setAttribute("height", String(window.innerHeight));
+
+        bandClip.setAttribute("x", String(x));
+        bandClip.setAttribute("y", "0");
+        bandClip.setAttribute("width", String(width));
+        bandClip.setAttribute("height", String(window.innerHeight * 2));
       };
 
       const updateAgentEntryVisibility = (progress: number) => {
-        const promptFade = clamp((progress - 0.78) / 0.18, 0, 1);
         const draftFade = clamp((progress - 0.72) / 0.24, 0, 1);
 
-        page.style.setProperty("--login-agent-prompt-opacity", String(promptFade));
         page.style.setProperty("--login-agent-draft-opacity", String(draftFade));
         page.style.setProperty(
           "--login-agent-draft-y",
@@ -422,7 +439,9 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           window.innerHeight - ctaBottomInset - ctaLineGap * 0.5,
         );
         const agentPromptX = snapToDevicePixel(window.innerWidth * (3 / 34));
-        const agentPromptY = snapToDevicePixel(window.innerHeight * (3 / 19));
+        const agentPromptY = snapToDevicePixel(
+          window.innerHeight + window.innerHeight * (3 / 19),
+        );
 
         for (const line of [topRule, topRuleInverted]) {
           line.setAttribute("x1", String(horizontalInset));
@@ -501,15 +520,13 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           }
 
           primary.setAttribute("x", "0");
-          primary.setAttribute(
-            "y",
-            String(snapToDevicePixel(ctaCenterY - ctaLineGap / 2)),
-          );
+          const hasSecondaryLine = (secondary.textContent ?? "").trim().length > 0;
+          const primaryY = hasSecondaryLine ? ctaCenterY - ctaLineGap / 2 : ctaCenterY;
+          const secondaryY = hasSecondaryLine ? ctaCenterY + ctaLineGap / 2 : ctaCenterY;
+
+          primary.setAttribute("y", String(snapToDevicePixel(primaryY)));
           secondary.setAttribute("x", "0");
-          secondary.setAttribute(
-            "y",
-            String(snapToDevicePixel(ctaCenterY + ctaLineGap / 2)),
-          );
+          secondary.setAttribute("y", String(snapToDevicePixel(secondaryY)));
 
           const primaryWidth = primary.getComputedTextLength();
           const secondaryWidth = secondary.getComputedTextLength();
@@ -634,6 +651,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
 
       gsap.set(panelDim, { autoAlpha: 0 });
       gsap.set(panelShell, { autoAlpha: 0 });
+      gsap.set(panelClose, { autoAlpha: 0, y: -6 });
       gsap.set(panelFormWrap, { autoAlpha: 0, y: 18 });
 
       const openTimeline = gsap.timeline({
@@ -667,6 +685,16 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
           0.1,
         )
         .to(
+          panelClose,
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: prefersReducedMotion ? 0 : 0.22,
+            ease: "power2.out",
+          },
+          0.2,
+        )
+        .to(
           panelFormWrap,
           {
             autoAlpha: 1,
@@ -681,6 +709,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         openTimeline.pause(0);
         gsap.set(panelDim, { autoAlpha: 0 });
         gsap.set(panelShell, { autoAlpha: 0 });
+        gsap.set(panelClose, { autoAlpha: 0, y: -6 });
         gsap.set(panelFormWrap, { autoAlpha: 0, y: 18 });
       };
 
@@ -794,6 +823,16 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         });
 
         closeTimeline
+          .to(
+            panelClose,
+            {
+              autoAlpha: 0,
+              y: -6,
+              duration: prefersReducedMotion ? 0 : 0.14,
+              ease: "power2.in",
+            },
+            0,
+          )
           .to(
             panelFormWrap,
             {
@@ -958,6 +997,12 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
       cta.addEventListener("focus", hoverCtaIn);
       cta.addEventListener("blur", hoverCtaOut);
       cta.addEventListener("click", openPanel);
+      panelClose.addEventListener("click", closePanel);
+
+      syncCtaLayoutRef.current = () => {
+        renderStaticLayout();
+        renderBand();
+      };
 
       lastXRef.current = initialX;
       pointerXRef.current = initialX;
@@ -971,6 +1016,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
 
       return () => {
         requestAuthenticatedCloseRef.current = () => undefined;
+        syncCtaLayoutRef.current = () => undefined;
         clearIdleTimer();
         page.removeEventListener("pointerenter", followPointer);
         page.removeEventListener("pointerleave", leavePage);
@@ -984,6 +1030,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         cta.removeEventListener("focus", hoverCtaIn);
         cta.removeEventListener("blur", hoverCtaOut);
         cta.removeEventListener("click", openPanel);
+        panelClose.removeEventListener("click", closePanel);
         clearPointerTweens();
         clearBandTween();
         clearCloseTimeline();
@@ -1068,22 +1115,22 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
               [
             </text>
             <text ref={ctaPrimaryRef} className="login-cta-line">
-              {CTA_PRIMARY}
+              {ctaPrimaryLabel}
             </text>
             <text ref={ctaSecondaryRef} className="login-cta-line">
-              {CTA_SECONDARY}
+              {ctaSecondaryLabel}
             </text>
             <text ref={ctaRightBracketRef} className="login-cta-bracket">
               ]
             </text>
           </g>
 
-        </g>
+          <g className="login-agent-prompt-layer">
+            <text ref={agentPromptRef} className="login-agent-entry-prompt">
+              {AGENT_ENTRY_PROMPT}
+            </text>
+          </g>
 
-        <g className="login-agent-prompt-layer">
-          <text ref={agentPromptRef} className="login-agent-entry-prompt">
-            {AGENT_ENTRY_PROMPT}
-          </text>
         </g>
 
         <rect
@@ -1145,32 +1192,55 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
               [
             </text>
             <text ref={invertedCtaPrimaryRef} className="login-cta-line">
-              {CTA_PRIMARY}
+              {ctaPrimaryLabel}
             </text>
             <text ref={invertedCtaSecondaryRef} className="login-cta-line">
-              {CTA_SECONDARY}
+              {ctaSecondaryLabel}
             </text>
             <text ref={invertedCtaRightBracketRef} className="login-cta-bracket">
               ]
             </text>
           </g>
 
-        </g>
-
-        <g className="login-agent-prompt-layer is-inverted" clipPath="url(#login-band-text-clip)">
-          <text ref={invertedAgentPromptRef} className="login-agent-entry-prompt is-inverted">
-            {AGENT_ENTRY_PROMPT}
-          </text>
+          <g className="login-agent-prompt-layer is-inverted" clipPath="url(#login-band-text-clip)">
+            <text ref={invertedAgentPromptRef} className="login-agent-entry-prompt">
+              {AGENT_ENTRY_PROMPT}
+            </text>
+          </g>
         </g>
       </svg>
 
       <div className="login-agent-draft-layer">
+        <div className="login-agent-action-strip" aria-label="Agent 接入操作">
+          <button type="button" className="login-agent-bracket-button">
+            <span className="login-agent-bracket" aria-hidden="true">
+              [
+            </span>
+            <span>确认接入</span>
+            <span className="login-agent-bracket" aria-hidden="true">
+              ]
+            </span>
+          </button>
+          <button type="button" className="login-agent-bracket-button is-secondary">
+            <span className="login-agent-bracket" aria-hidden="true">
+              [
+            </span>
+            <span>稍后再说</span>
+            <span className="login-agent-bracket" aria-hidden="true">
+              ]
+            </span>
+          </button>
+        </div>
         <AgentConnectDraft />
       </div>
 
       <div ref={panelDimRef} className="login-panel-dim" aria-hidden="true" />
 
       <div ref={panelShellRef} className="login-panel-shell" aria-hidden={panelStage === "idle"}>
+        <button ref={panelCloseRef} type="button" className="login-panel-close">
+          <span>关闭</span>
+          <X aria-hidden="true" strokeWidth={1.9} />
+        </button>
         <div className="svg-text-content login-panel-text">
           <div ref={panelFormWrapRef} className="login-panel-form-wrap">
             <LoginForm onSignIn={handleMockSignIn} />
@@ -1182,7 +1252,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
         ref={ctaRef}
         type="button"
         className="login-placeholder-hitarea"
-        aria-label="进入评估台"
+        aria-label={isAuthenticated ? "已登录" : "账号登录"}
       />
 
       <div ref={scrollHintRef} className="login-scroll-hint" aria-hidden="true">
