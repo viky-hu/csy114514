@@ -55,3 +55,11 @@
 - Extensibility: the main shell uses real SVG top/main white surface rectangles plus a blue separator rectangle, so later top-bar and workspace content can attach to stable regions instead of inheriting the temporary loading cover.
 - Styling: the entry timeline keeps the existing brand blue `#3152f4`, the login surface white `#F2F1EB`, `LINE_DRAW_EASE`, `useGSAP` cleanup, and reduced-motion direct-set behavior.
 - Validation: run `pnpm type-check`; manually verify the first main-frame is full blue, the cover collapses into a centered horizontal line, then moves to the 2/19 top separator with 2/34 left/right insets while revealing the white SVG surfaces.
+
+## 2026-08-03 Main Left Line Sidebar
+
+- Ownership: `app/windows/main/MainWindow.tsx` computes the SVG-aware sidebar coordinates and intro timing; `app/windows/main/MainLineSidebar.tsx` owns the local navigation interaction; `app/styles/window-3-main.css` owns the visual treatment.
+- Boundary: the sidebar is a React/TypeScript port of the Vue Bits line-sidebar pattern, not a Vue or shadcn-vue runtime embed. It changes only local active navigation state and does not add routes, URL hash behavior, BFF calls, or main-content swapping.
+- Extensibility: the sidebar position follows the same logical 34-by-19 screen mapping as the SVG separator, with the whole menu placed in the main region below the blue line so later workspace content can align against the same CSS variables.
+- Styling: hover uses pointer-proximity RAF smoothing for text/marker blue-gradient emphasis, while the page-level entrance remains a scoped GSAP timeline that overlaps the separator's final movement and respects reduced-motion direct-set behavior.
+- Validation: run `pnpm type-check`, `pnpm lint`, and `pnpm build`; manually verify below-line placement, active-state clicks, pointer hover smoothing, resize alignment, and reduced-motion final state.

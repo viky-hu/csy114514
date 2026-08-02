@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { LINE_DRAW_EASE } from "../shared/animation";
+import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
 
 gsap.registerPlugin(useGSAP);
 
@@ -15,13 +16,19 @@ type RectAttrs = {
 };
 
 type MainLayout = {
+  cmX: number;
+  cmY: number;
   fullHeight: number;
   fullWidth: number;
   insetX: number;
   lineHeight: number;
+  lineBottom: number;
   lineTop: number;
   mainSurface: RectAttrs;
   separator: RectAttrs;
+  sidebarLeft: number;
+  sidebarTop: number;
+  sidebarWidth: number;
   topSurface: RectAttrs;
   transitionCenter: RectAttrs;
   transitionFinal: RectAttrs;
@@ -30,6 +37,15 @@ type MainLayout = {
 
 const LOGICAL_SCREEN_WIDTH = 34;
 const LOGICAL_SCREEN_HEIGHT = 19;
+const MAIN_NAV_ITEMS: MainLineSidebarItem[] = [
+  { key: "dashboard", label: "总览", english: "Dashboard" },
+  { key: "profile", label: "安全画像", english: "Profile" },
+  { key: "anatomy", label: "攻击图谱", english: "Anatomy" },
+  { key: "run", label: "测评运行", english: "Run" },
+  { key: "report", label: "测评报告", english: "Report" },
+  { key: "agent", label: "初始接口", english: "Agent" },
+  { key: "setting", label: "设置", english: "Setting" },
+];
 
 function createSnapper(devicePixelRatio: number) {
   return (value: number) => Math.round(value * devicePixelRatio) / devicePixelRatio;
@@ -42,7 +58,7 @@ function getMainLayout(): MainLayout {
   const snap = createSnapper(devicePixelRatio);
   const cmX = fullWidth / LOGICAL_SCREEN_WIDTH;
   const cmY = fullHeight / LOGICAL_SCREEN_HEIGHT;
-  const lineHeight = snap(2 / devicePixelRatio);
+  const lineHeight = snap(3 / devicePixelRatio);
   const y1 = snap(2 * cmY);
   const y2 = snap(fullHeight / 2);
   const insetX = snap(2 * cmX);
@@ -50,13 +66,23 @@ function getMainLayout(): MainLayout {
   const lineBottom = snap(lineTop + lineHeight);
   const centerLineTop = snap(y2 - lineHeight / 2);
   const finalWidth = Math.max(snap(fullWidth - insetX * 2), lineHeight);
+  const sidebarLeft = snap(1.25 * cmX);
+  const sidebarTop = snap(lineBottom + 1.25 * cmY);
+  const sidebarMaxWidth = Math.max(snap(fullWidth - insetX * 2), 220);
+  const sidebarWidth = Math.min(Math.max(snap(7 * cmX), 260), sidebarMaxWidth);
 
   return {
+    cmX,
+    cmY,
     fullHeight,
     fullWidth,
     insetX,
     lineHeight,
+    lineBottom,
     lineTop,
+    sidebarLeft,
+    sidebarTop,
+    sidebarWidth,
     topSurface: {
       x: 0,
       y: 0,
@@ -102,7 +128,12 @@ function setRectAttrs(rect: SVGRectElement, attrs: RectAttrs) {
   });
 }
 
+function setPxVar(element: HTMLElement, name: string, value: number) {
+  element.style.setProperty(name, `${value}px`);
+}
+
 export function MainWindow() {
+  const [activeNavKey, setActiveNavKey] = useState(MAIN_NAV_ITEMS[0].key);
   const rootRef = useRef<HTMLElement>(null);
   const topSurfaceRef = useRef<SVGRectElement>(null);
   const mainSurfaceRef = useRef<SVGRectElement>(null);
@@ -121,6 +152,11 @@ export function MainWindow() {
         return;
       }
 
+      const sidebar = root.querySelector<HTMLElement>(".main-line-sidebar");
+      const sidebarItems = gsap.utils.toArray<HTMLElement>(
+        ".main-line-sidebar-item",
+        root,
+      );
       const prefersReducedMotion = window.matchMedia(
         "(prefers-reduced-motion: reduce)",
       ).matches;
@@ -130,6 +166,13 @@ export function MainWindow() {
       const renderSurfaceLayout = (layout: MainLayout) => {
         setRectAttrs(topSurface, layout.topSurface);
         setRectAttrs(mainSurface, layout.mainSurface);
+        setPxVar(root, "--main-cm-x", layout.cmX);
+        setPxVar(root, "--main-cm-y", layout.cmY);
+        setPxVar(root, "--main-separator-y", layout.lineTop);
+        setPxVar(root, "--main-separator-height", layout.lineHeight);
+        setPxVar(root, "--main-sidebar-left", layout.sidebarLeft);
+        setPxVar(root, "--main-sidebar-top", layout.sidebarTop);
+        setPxVar(root, "--main-sidebar-width", layout.sidebarWidth);
       };
 
       const renderSettledLayout = (layout = getMainLayout()) => {
@@ -138,6 +181,8 @@ export function MainWindow() {
         setRectAttrs(transitionBlue, layout.transitionFinal);
         gsap.set(separator, { autoAlpha: 1 });
         gsap.set(transitionBlue, { autoAlpha: 0 });
+        gsap.set(sidebar, { autoAlpha: 1, x: 0 });
+        gsap.set(sidebarItems, { autoAlpha: 1, x: 0, y: 0 });
         root.setAttribute("data-main-window-stage", "settled");
       };
 
@@ -147,6 +192,8 @@ export function MainWindow() {
         setRectAttrs(transitionBlue, layout.transitionFull);
         gsap.set(separator, { autoAlpha: 0 });
         gsap.set(transitionBlue, { autoAlpha: 1 });
+        gsap.set(sidebar, { autoAlpha: 0, x: -18 });
+        gsap.set(sidebarItems, { autoAlpha: 0, x: -12, y: 4 });
         root.setAttribute("data-main-window-stage", "intro");
       };
 
@@ -189,6 +236,30 @@ export function MainWindow() {
               ease: LINE_DRAW_EASE,
             },
             1,
+          )
+          .set(separator, { autoAlpha: 1 }, 1.4)
+          .set(transitionBlue, { autoAlpha: 0 }, 1.4)
+          .to(
+            sidebar,
+            {
+              autoAlpha: 1,
+              duration: 0.45,
+              ease: LINE_DRAW_EASE,
+              x: 0,
+            },
+            1.18,
+          )
+          .to(
+            sidebarItems,
+            {
+              autoAlpha: 1,
+              duration: 0.42,
+              ease: "power3.out",
+              stagger: 0.045,
+              x: 0,
+              y: 0,
+            },
+            1.2,
           );
       };
 
@@ -207,7 +278,14 @@ export function MainWindow() {
       return () => {
         window.removeEventListener("resize", handleResize);
         introTimeline?.kill();
-        gsap.killTweensOf([transitionBlue, separator, topSurface, mainSurface]);
+        gsap.killTweensOf([
+          transitionBlue,
+          separator,
+          topSurface,
+          mainSurface,
+          sidebar,
+          ...sidebarItems,
+        ]);
       };
     },
     { scope: rootRef },
@@ -237,6 +315,11 @@ export function MainWindow() {
           shapeRendering="crispEdges"
         />
       </svg>
+      <MainLineSidebar
+        activeKey={activeNavKey}
+        items={MAIN_NAV_ITEMS}
+        onSelect={(item) => setActiveNavKey(item.key)}
+      />
     </main>
   );
 }
