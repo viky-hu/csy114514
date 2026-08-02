@@ -1,5 +1,6 @@
 import "./globals.css";
 import "./styles/window-1-login.css";
+import "./styles/window-3-main.css";
 import "cn-fontsource-ding-talk-jin-bu-ti-regular/font.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";

@@ -32,10 +32,11 @@ const LOADING_LABEL = "Loading...";
 const LOADING_BOXES = [1, 2, 3, 4] as const;
 
 interface LoginIntroWindowProps {
+  onAgentEntryComplete?: () => void;
   onSignIn: (isAdmin: boolean, account: string, nodeType?: string) => void;
 }
 
-export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
+export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroWindowProps) {
   const [panelStage, setPanelStage] = useState<PanelStage>("idle");
   const [agentEntryStage, setAgentEntryStage] = useState<AgentEntryStage>("idle");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1126,6 +1127,7 @@ export function LoginIntroWindow({ onSignIn }: LoginIntroWindowProps) {
             setAgentEntryStageValue("done");
             renderLockedAgentEntryPage();
             loadingTimeline = null;
+            onAgentEntryComplete?.();
           },
         });
 

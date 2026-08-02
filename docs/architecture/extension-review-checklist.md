@@ -47,3 +47,11 @@
 - Extensibility: loading is isolated behind `agentEntryStage` so future real Agent connection work can replace the mock timer without changing the second-page scroll-band or pointer-mode contracts.
 - Styling: the loader keeps the provided 3D tower keyframe structure but uses project-prefixed classes, white-toned faces, responsive sizing, and a GSAP staggered text wave with reduced-motion fallback.
 - Validation: run `pnpm type-check`, `pnpm lint`, and `pnpm build`; manually verify both Agent buttons lock the second page, fade out prompt/draft content, show the centered loader, and leave the page on a blue empty state after completion.
+
+## 2026-08-02 Main SVG Partition Intro
+
+- Ownership: `app/page.tsx` switches from the login entry flow to `app/windows/main/MainWindow.tsx` after the local Agent loading overlay fades out; `app/styles/window-3-main.css` owns the main SVG shell styling.
+- Boundary: this is still a local frontend transition only. It does not add BFF routes, call `/agents`, create workspace data state, or introduce main-page business content.
+- Extensibility: the main shell uses real SVG top/main white surface rectangles plus a blue separator rectangle, so later top-bar and workspace content can attach to stable regions instead of inheriting the temporary loading cover.
+- Styling: the entry timeline keeps the existing brand blue `#3152f4`, the login surface white `#F2F1EB`, `LINE_DRAW_EASE`, `useGSAP` cleanup, and reduced-motion direct-set behavior.
+- Validation: run `pnpm type-check`; manually verify the first main-frame is full blue, the cover collapses into a centered horizontal line, then moves to the 2/19 top separator with 2/34 left/right insets while revealing the white SVG surfaces.
