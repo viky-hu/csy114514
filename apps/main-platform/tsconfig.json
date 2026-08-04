@@ -1,6 +1,7 @@
 {
   "extends": "@csy/configs/nextjs.json",
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
     "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["./*"]

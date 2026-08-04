@@ -5,6 +5,7 @@ import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { LINE_DRAW_EASE } from "../shared/animation";
 import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
+import { OverviewDashboard } from "./overview/OverviewDashboard";
 
 gsap.registerPlugin(useGSAP);
 
@@ -24,6 +25,10 @@ type MainLayout = {
   lineHeight: number;
   lineBottom: number;
   lineTop: number;
+  contentBottom: number;
+  contentLeft: number;
+  contentRight: number;
+  contentTop: number;
   mainSurface: RectAttrs;
   separator: RectAttrs;
   sidebarLeft: number;
@@ -37,15 +42,68 @@ type MainLayout = {
 
 const LOGICAL_SCREEN_WIDTH = 34;
 const LOGICAL_SCREEN_HEIGHT = 19;
-const MAIN_NAV_ITEMS: MainLineSidebarItem[] = [
-  { key: "dashboard", label: "总览", english: "Dashboard" },
-  { key: "profile", label: "安全画像", english: "Profile" },
-  { key: "anatomy", label: "攻击图谱", english: "Anatomy" },
-  { key: "run", label: "测评运行", english: "Run" },
-  { key: "report", label: "测评报告", english: "Report" },
-  { key: "agent", label: "初始接口", english: "Agent" },
-  { key: "setting", label: "设置", english: "Setting" },
+const SIDEBAR_WIDTH_UNITS = 5.65;
+const SIDEBAR_WIDTH_MIN = 224;
+const SIDEBAR_WIDTH_MAX = 252;
+const SIDEBAR_TO_CONTENT_GAP_UNITS = 0.3;
+type MainNavKey =
+  | "agent"
+  | "anatomy"
+  | "dashboard"
+  | "profile"
+  | "report"
+  | "run"
+  | "setting";
+
+type MainWindowNavItem = MainLineSidebarItem & {
+  key: MainNavKey;
+};
+
+const MAIN_NAV_ITEMS: MainWindowNavItem[] = [
+  { key: "dashboard", label: "总览", english: "默认视图" },
+  { key: "profile", label: "安全画像", english: "能力边界" },
+  { key: "anatomy", label: "攻击图谱", english: "风险路径" },
+  { key: "run", label: "测评运行", english: "执行流程" },
+  { key: "report", label: "测评报告", english: "证据结论" },
+  { key: "agent", label: "初始接口", english: "接口接入" },
+  { key: "setting", label: "设置", english: "系统配置" },
 ];
+
+const MAIN_MODULE_PLACEHOLDERS: Record<
+  Exclude<MainNavKey, "dashboard">,
+  { description: string; english: string; label: string }
+> = {
+  agent: {
+    description: "智能体清单接入与示例对象确认将在此区域展开。",
+    english: "接口接入",
+    label: "初始接口",
+  },
+  anatomy: {
+    description: "攻击图谱工作台将在此区域承接 R4 风险路径的展开分析。",
+    english: "风险路径",
+    label: "攻击图谱",
+  },
+  profile: {
+    description: "安全画像将在此区域呈现工具权限、记忆资产与数据源边界。",
+    english: "能力边界",
+    label: "安全画像",
+  },
+  report: {
+    description: "测评报告将在此区域复盘风险结论、发现项与证据。",
+    english: "证据结论",
+    label: "测评报告",
+  },
+  run: {
+    description: "测评运行将在此区域展示用例编排与执行时间线。",
+    english: "执行流程",
+    label: "测评运行",
+  },
+  setting: {
+    description: "设置将在此区域承载运行偏好与工作台配置。",
+    english: "系统配置",
+    label: "设置",
+  },
+};
 
 function createSnapper(devicePixelRatio: number) {
   return (value: number) => Math.round(value * devicePixelRatio) / devicePixelRatio;
@@ -69,11 +127,24 @@ function getMainLayout(): MainLayout {
   const sidebarLeft = snap(1.25 * cmX);
   const sidebarTop = snap(lineBottom + 1.25 * cmY);
   const sidebarMaxWidth = Math.max(snap(fullWidth - insetX * 2), 220);
-  const sidebarWidth = Math.min(Math.max(snap(7 * cmX), 260), sidebarMaxWidth);
+  const sidebarWidth = Math.min(
+    Math.max(snap(SIDEBAR_WIDTH_UNITS * cmX), SIDEBAR_WIDTH_MIN),
+    Math.min(sidebarMaxWidth, SIDEBAR_WIDTH_MAX),
+  );
+  const contentLeft = snap(
+    sidebarLeft + sidebarWidth + SIDEBAR_TO_CONTENT_GAP_UNITS * cmX,
+  );
+  const contentTop = snap(lineBottom + 0.72 * cmY);
+  const contentRight = snap(1.78 * cmX);
+  const contentBottom = snap(1.1 * cmY);
 
   return {
     cmX,
     cmY,
+    contentBottom,
+    contentLeft,
+    contentRight,
+    contentTop,
     fullHeight,
     fullWidth,
     insetX,
@@ -132,8 +203,24 @@ function setPxVar(element: HTMLElement, name: string, value: number) {
   element.style.setProperty(name, `${value}px`);
 }
 
+function MainModulePlaceholder({
+  activeNavKey,
+}: {
+  activeNavKey: Exclude<MainNavKey, "dashboard">;
+}) {
+  const placeholder = MAIN_MODULE_PLACEHOLDERS[activeNavKey];
+
+  return (
+    <section className="main-module-placeholder" aria-label={placeholder.label}>
+      <span>{placeholder.english}</span>
+      <h1>{placeholder.label}</h1>
+      <p>{placeholder.description}</p>
+    </section>
+  );
+}
+
 export function MainWindow() {
-  const [activeNavKey, setActiveNavKey] = useState(MAIN_NAV_ITEMS[0].key);
+  const [activeNavKey, setActiveNavKey] = useState<MainNavKey>("dashboard");
   const rootRef = useRef<HTMLElement>(null);
   const topSurfaceRef = useRef<SVGRectElement>(null);
   const mainSurfaceRef = useRef<SVGRectElement>(null);
@@ -153,6 +240,7 @@ export function MainWindow() {
       }
 
       const sidebar = root.querySelector<HTMLElement>(".main-line-sidebar");
+      const contentRegion = root.querySelector<HTMLElement>(".main-content-region");
       const sidebarItems = gsap.utils.toArray<HTMLElement>(
         ".main-line-sidebar-item",
         root,
@@ -173,6 +261,10 @@ export function MainWindow() {
         setPxVar(root, "--main-sidebar-left", layout.sidebarLeft);
         setPxVar(root, "--main-sidebar-top", layout.sidebarTop);
         setPxVar(root, "--main-sidebar-width", layout.sidebarWidth);
+        setPxVar(root, "--main-content-bottom", layout.contentBottom);
+        setPxVar(root, "--main-content-left", layout.contentLeft);
+        setPxVar(root, "--main-content-right", layout.contentRight);
+        setPxVar(root, "--main-content-top", layout.contentTop);
       };
 
       const renderSettledLayout = (layout = getMainLayout()) => {
@@ -183,6 +275,7 @@ export function MainWindow() {
         gsap.set(transitionBlue, { autoAlpha: 0 });
         gsap.set(sidebar, { autoAlpha: 1, x: 0 });
         gsap.set(sidebarItems, { autoAlpha: 1, x: 0, y: 0 });
+        gsap.set(contentRegion, { autoAlpha: 1, y: 0 });
         root.setAttribute("data-main-window-stage", "settled");
       };
 
@@ -194,6 +287,7 @@ export function MainWindow() {
         gsap.set(transitionBlue, { autoAlpha: 1 });
         gsap.set(sidebar, { autoAlpha: 0, x: -18 });
         gsap.set(sidebarItems, { autoAlpha: 0, x: -12, y: 4 });
+        gsap.set(contentRegion, { autoAlpha: 0, y: 16 });
         root.setAttribute("data-main-window-stage", "intro");
       };
 
@@ -260,6 +354,16 @@ export function MainWindow() {
               y: 0,
             },
             1.2,
+          )
+          .to(
+            contentRegion,
+            {
+              autoAlpha: 1,
+              duration: 0.5,
+              ease: LINE_DRAW_EASE,
+              y: 0,
+            },
+            1.34,
           );
       };
 
@@ -284,6 +388,7 @@ export function MainWindow() {
           topSurface,
           mainSurface,
           sidebar,
+          contentRegion,
           ...sidebarItems,
         ]);
       };
@@ -318,8 +423,15 @@ export function MainWindow() {
       <MainLineSidebar
         activeKey={activeNavKey}
         items={MAIN_NAV_ITEMS}
-        onSelect={(item) => setActiveNavKey(item.key)}
+        onSelect={(item) => setActiveNavKey(item.key as MainNavKey)}
       />
+      <section className="main-content-region" aria-live="polite">
+        {activeNavKey === "dashboard" ? (
+          <OverviewDashboard onNavigate={setActiveNavKey} />
+        ) : (
+          <MainModulePlaceholder activeNavKey={activeNavKey} />
+        )}
+      </section>
     </main>
   );
 }
