@@ -16,7 +16,7 @@
   --main-sidebar-blue-soft: #8fa4ff;
   --main-content-bottom: clamp(44px, 5.88vh, 64px);
   --main-content-left: clamp(292px, 21.2vw, 342px);
-  --main-content-right: clamp(54px, 5.24vw, 96px);
+  --main-content-right: clamp(32px, 3.4vw, 60px);
   --main-content-top: clamp(110px, 14.35vh, 150px);
   width: 100%;
   height: 100dvh;
@@ -272,7 +272,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 12px;
-  width: min(100%, 1240px);
+  width: 100%;
   height: 100%;
   min-height: 0;
   overflow: auto;
@@ -391,8 +391,8 @@
 
 .overview-grid {
   display: grid;
-  grid-template-columns: minmax(500px, 1.12fr) minmax(320px, 0.88fr);
-  gap: 16px;
+  grid-template-columns: minmax(700px, 1fr) minmax(300px, 360px);
+  gap: 14px;
   min-height: 0;
 }
 
@@ -505,7 +505,7 @@
 
 .overview-map-frame {
   position: relative;
-  height: clamp(250px, 39vh, 430px);
+  height: clamp(320px, 46vh, 520px);
   min-height: 0;
   overflow: visible;
   border: 1px solid rgba(49, 82, 244, 0.2);
@@ -541,20 +541,43 @@
 }
 
 .overview-r4-hot-zone {
+  --hot-rail-alpha: 0;
   position: absolute;
   top: 0;
   bottom: 0;
   left: var(--hot-left);
   width: var(--hot-width);
-  border-inline: 1px solid rgba(255, 255, 255, 0.5);
+  box-sizing: border-box;
+  overflow: hidden;
+  border-inline: 1px solid rgba(49, 82, 244, 0.4);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08)),
-    rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(12px) saturate(145%);
+    linear-gradient(
+      90deg,
+      rgba(49, 82, 244, 0.02) 0%,
+      rgba(255, 255, 255, 0.36) 46%,
+      rgba(49, 82, 244, 0.12) 100%
+    ),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.1)),
+    rgba(49, 82, 244, 0.1);
+  backdrop-filter: blur(16px) saturate(175%) brightness(1.05);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+    inset 0 0 36px rgba(49, 82, 244, 0.2),
+    0 0 30px rgba(49, 82, 244, 0.14);
   opacity: 0;
-  transform: scaleX(0.92);
-  transform-origin: center;
   will-change: opacity, transform;
+}
+
+.overview-r4-hot-zone::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.overview-r4-hot-zone::before {
+  inset: 18px 6px;
+  border-inline: 1px solid rgba(255, 255, 255, 0.72);
+  opacity: var(--hot-rail-alpha);
 }
 
 .overview-chain-svg {
@@ -606,18 +629,50 @@
 }
 
 .overview-r4-layer-label {
-  fill: rgba(49, 82, 244, 0.78);
-  font-size: 11px;
+  fill: rgba(49, 82, 244, 0.96);
+  font-size: 12px;
+  paint-order: stroke fill;
+  stroke: rgba(242, 241, 235, 0.68);
+  stroke-linejoin: round;
+  stroke-width: 1.1px;
 }
 
 .overview-r4-layer-title {
-  fill: rgba(17, 22, 34, 0.64);
-  font-size: 14px;
+  fill: rgba(17, 22, 34, 0.88);
+  font-size: 16px;
+  paint-order: stroke fill;
+  stroke: rgba(242, 241, 235, 0.72);
+  stroke-linejoin: round;
+  stroke-width: 1.2px;
 }
 
 .overview-r4-layer-subtitle {
-  fill: rgba(17, 22, 34, 0.38);
-  font-size: 11px;
+  fill: rgba(17, 22, 34, 0.66);
+  font-size: 12px;
+  paint-order: stroke fill;
+  stroke: rgba(242, 241, 235, 0.68);
+  stroke-linejoin: round;
+  stroke-width: 1px;
+}
+
+.overview-r4-layer-info {
+  opacity: 1;
+}
+
+.overview-r4-layer-info-divider {
+  stroke: rgba(17, 22, 34, 0.12);
+  stroke-dasharray: 2 8;
+  stroke-linecap: round;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.overview-r4-attack-start-guide {
+  stroke: rgba(49, 82, 244, 0.08);
+  stroke-dasharray: 1 12;
+  stroke-linecap: round;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .overview-r4-layer-separator {
@@ -1039,7 +1094,7 @@
   }
 
   .overview-map-frame {
-    height: clamp(220px, 34vh, 340px);
+    height: clamp(280px, 42vh, 400px);
   }
 
   .overview-chain-svg {
@@ -1150,7 +1205,7 @@
   }
 
   .overview-map-frame {
-    height: clamp(240px, 54vh, 400px);
+    height: clamp(300px, 58vh, 460px);
   }
 
   .overview-map-footer {

@@ -14,9 +14,16 @@ import {
   createClockwiseRoundedRectPath,
   findHoverStepIndex,
   hoverBands,
+  R4_ATTACK_CHAIN_START_X,
+  R4_GRAPH_BOUNDARY,
   R4_GRAPH_VIEWBOX,
   R4_LAYER_BAND_HEIGHT,
+  R4_LAYER_BAND_WIDTH,
+  R4_LAYER_BAND_X,
   R4_LAYER_BANDS,
+  R4_LAYER_INFO_BOUNDARY_X,
+  R4_LAYER_INFO_TEXT_MAX_WIDTH,
+  R4_LAYER_INFO_TEXT_X,
   R4_STEP_LAYOUTS,
   type R4StepLayout,
 } from "./overview-r4-layout";
@@ -125,6 +132,10 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
             ".overview-r4-layer-band",
             root,
           );
+          const layerInfoGroups = gsap.utils.toArray<SVGGElement>(
+            ".overview-r4-layer-info",
+            root,
+          );
           const separators = gsap.utils.toArray<SVGPathElement>(
             ".overview-r4-layer-separator",
             root,
@@ -146,11 +157,14 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
             root,
           );
 
-          gsap.set(hotZones, { autoAlpha: 0, scaleX: 0.92 });
+          gsap.set(hotZones, {
+            "--hot-rail-alpha": 0,
+            autoAlpha: 0,
+          });
           gsap.set(hoverOutlines, { drawSVG: "0% 0%" } as DrawSVGTweenVars);
 
           if (reduceMotion) {
-            gsap.set([...layerBands, ...nodeGroups], {
+            gsap.set([...layerBands, ...layerInfoGroups, ...nodeGroups], {
               autoAlpha: 1,
               scale: 1,
               y: 0,
@@ -163,6 +177,10 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
           }
 
           gsap.set(layerBands, { autoAlpha: 0 });
+          gsap.set(layerInfoGroups, {
+            autoAlpha: 0,
+            y: -2,
+          });
           gsap.set([...separators, ...routePaths], {
             drawSVG: "0% 0%",
           } as DrawSVGTweenVars);
@@ -183,6 +201,16 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
               duration: 0.44,
               stagger: 0.07,
             })
+            .to(
+              layerInfoGroups,
+              {
+                autoAlpha: 1,
+                duration: 0.32,
+                stagger: 0.07,
+                y: 0,
+              },
+              "<0.08",
+            )
             .to(
               separators,
               {
@@ -253,11 +281,11 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
 
       if (previousStep !== null) {
         gsap.to(hotZones[previousStep], {
+          "--hot-rail-alpha": 0,
           autoAlpha: 0,
           duration: reduceMotion ? 0 : 0.2,
           ease: "power2.out",
           overwrite: "auto",
-          scaleX: 0.92,
         });
         gsap.to(nodeGroups[previousStep], {
           duration: reduceMotion ? 0 : 0.24,
@@ -273,11 +301,11 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
 
       if (activeStep !== null) {
         gsap.to(hotZones[activeStep], {
+          "--hot-rail-alpha": 1,
           autoAlpha: 1,
           duration: reduceMotion ? 0 : 0.24,
           ease: "power2.out",
           overwrite: "auto",
-          scaleX: 1,
         });
         gsap.to(nodeGroups[activeStep], {
           duration: reduceMotion ? 0 : 0.26,
@@ -357,7 +385,7 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
 
       <svg
         className="overview-chain-svg overview-r4-svg"
-        viewBox="0 0 880 340"
+        viewBox="0 0 1000 440"
         role="img"
         aria-label="R4 风险路径从不可信网页进入 Agent，写入持久记忆，再唤起 Agent 并触发邮件发送"
       >
@@ -367,17 +395,6 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
             <stop offset="45%" stopColor="#3152f4" stopOpacity="0.9" />
             <stop offset="100%" stopColor="#f04438" stopOpacity="0.9" />
           </linearGradient>
-          <marker
-            id="overview-r4-arrow"
-            markerHeight="8"
-            markerWidth="9"
-            orient="auto"
-            refX="7.6"
-            refY="4"
-            viewBox="0 0 9 8"
-          >
-            <path d="M0 1 L7.5 4 L0 7" fill="none" stroke="#3152f4" strokeWidth="1.6" />
-          </marker>
           <filter
             id="overview-r4-outline-glow"
             x="-25%"
@@ -395,32 +412,71 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
           </filter>
         </defs>
 
-        <rect className="overview-r4-boundary" x="32" y="26" width="816" height="288" />
+        <rect
+          className="overview-r4-boundary"
+          x={R4_GRAPH_BOUNDARY.x}
+          y={R4_GRAPH_BOUNDARY.y}
+          width={R4_GRAPH_BOUNDARY.width}
+          height={R4_GRAPH_BOUNDARY.height}
+        />
 
         {R4_LAYER_BANDS.map((band) => (
           <g key={band.id} className={`overview-r4-layer is-${band.id}`}>
             <rect
               className={`overview-r4-layer-band is-${band.id}`}
-              x="42"
+              x={R4_LAYER_BAND_X}
               y={band.y}
-              width="796"
+              width={R4_LAYER_BAND_WIDTH}
               height={R4_LAYER_BAND_HEIGHT}
               rx="8"
             />
-            <text className="overview-r4-layer-label" x="58" y={band.y + 26}>
-              {band.layerLabel}
-            </text>
-            <text className="overview-r4-layer-title" x="58" y={band.y + 49}>
-              {band.title}
-            </text>
-            <text className="overview-r4-layer-subtitle" x="58" y={band.y + 68}>
-              {band.subtitle}
-            </text>
           </g>
         ))}
 
-        <path className="overview-r4-layer-separator" d="M48 123 H832" fill="none" />
-        <path className="overview-r4-layer-separator" d="M48 217 H832" fill="none" />
+        <path
+          className="overview-r4-layer-info-divider"
+          d={`M${R4_LAYER_INFO_BOUNDARY_X} 34 V394`}
+          fill="none"
+        />
+        <path
+          className="overview-r4-attack-start-guide"
+          d={`M${R4_ATTACK_CHAIN_START_X} 34 V394`}
+          fill="none"
+        />
+        <path className="overview-r4-layer-separator" d="M48 151 H952" fill="none" />
+        <path className="overview-r4-layer-separator" d="M48 277 H952" fill="none" />
+
+        <g className="overview-r4-layer-info-layer">
+          {R4_LAYER_BANDS.map((band) => (
+            <g key={`${band.id}-info`} className="overview-r4-layer-info">
+              <text
+                className="overview-r4-layer-label"
+                x={R4_LAYER_INFO_TEXT_X}
+                y={band.y + 26}
+              >
+                {band.layerLabel}
+              </text>
+              <text
+                className="overview-r4-layer-title"
+                x={R4_LAYER_INFO_TEXT_X}
+                y={band.y + 49}
+              >
+                {band.title}
+              </text>
+              <text
+                className="overview-r4-layer-subtitle"
+                lengthAdjust="spacingAndGlyphs"
+                textLength={
+                  band.id === "memory-tool" ? R4_LAYER_INFO_TEXT_MAX_WIDTH : undefined
+                }
+                x={R4_LAYER_INFO_TEXT_X}
+                y={band.y + 68}
+              >
+                {band.subtitle}
+              </text>
+            </g>
+          ))}
+        </g>
 
         <g className="overview-r4-routes" aria-hidden="true">
           {routeSegments.map((route) => (
@@ -429,7 +485,6 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
               className={`overview-r4-route-segment is-${route.id}`}
               d={route.d}
               fill="none"
-              markerEnd="url(#overview-r4-arrow)"
               stroke="url(#overview-r4-route-stroke)"
             />
           ))}
@@ -442,7 +497,7 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
             const Icon = NODE_ICONS[layout.icon];
             const rectPath = createClockwiseRoundedRectPath(layout);
             const iconX = layout.x - 12;
-            const iconY = layout.y - 25;
+            const iconY = layout.y - 34;
 
             return (
               <g
@@ -471,7 +526,7 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
                 <text
                   className="overview-r4-node-label"
                   x={layout.x}
-                  y={layout.y + 8}
+                  y={layout.y + 14}
                   textAnchor="middle"
                 >
                   {node.displayLabel}
@@ -479,7 +534,7 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
                 <text
                   className="overview-r4-node-caption"
                   x={layout.x}
-                  y={layout.y + 28}
+                  y={layout.y + 34}
                   textAnchor="middle"
                 >
                   {layout.caption}
