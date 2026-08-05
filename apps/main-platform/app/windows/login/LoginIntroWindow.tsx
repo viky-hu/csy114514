@@ -205,7 +205,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         Math.min(Math.max(value, min), max);
       const clampX = (value: number) => clamp(value, 0, window.innerWidth);
       const getTopProgressThreshold = () => 1 / Math.max(window.innerHeight, 1);
-      const panelWidthInPx = 10 * (96 / 2.54);
+      const panelWidthInPx = 11 * (96 / 2.54);
       const getExpandedWidth = () =>
         snapToDevicePixel(Math.min(Math.max(window.innerWidth * 0.074, 72), 122));
       const getPanelWidth = () =>
