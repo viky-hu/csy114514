@@ -2,14 +2,17 @@
 
 Platform Line responsibility: manifest -> AttackGraph (nodes/edges with security
 labels per docs/security-model.md section 3). Risk-path matching
-(risk_path_ids) is filled by the Security Line RiskMatcher once integrated
-(csy之work/backend/attack_graph/risk_matcher.py).
+(risk_path_ids) is performed by the Security Line RiskMatcher
+(backend/attack_graph/risk_matcher.py) with patterns loaded by the Security KB
+loader (backend/knowledge/kb_loader.py).
 """
 
 from __future__ import annotations
 
+from backend.attack_graph.risk_matcher import fill_risk_path_ids
 from backend.app.domain.agent_manifest import AgentManifest
 from backend.app.domain.attack_graph import AttackGraph, Edge, GraphNode
+from backend.knowledge.kb_loader import load_risk_patterns
 
 
 # Tool semantics: tool name -> (node_type, labels, is_external)
@@ -166,10 +169,11 @@ def build_attack_graph(manifest: AgentManifest) -> AttackGraph:
         _edge("e_email_read_data_to_agent", "n_tool_email_read", agent_node_id, "PASS_DATA",
               "Email content passed to agent — may contain malicious prompts or sensitive data")
 
-    return AttackGraph(
+    graph = AttackGraph(
         graph_id=f"graph-{manifest.agent_id}",
         agent_id=manifest.agent_id,
         nodes=list(nodes.values()),
         edges=edges,
-        risk_path_ids=[],
     )
+    graph.risk_path_ids = fill_risk_path_ids(graph, load_risk_patterns(), max_depth=4)
+    return graph

@@ -100,8 +100,19 @@ def test_no_memory_tools_produce_no_memory_node():
     assert all(n.node_type != "MEMORY" for n in graph.nodes)
 
 
-def test_risk_path_ids_empty_until_risk_matcher_lands():
+def test_risk_path_ids_filled_for_corpmate():
     graph = build_attack_graph(CORPMATE_MANIFEST)
+    assert graph.risk_path_ids == ["R1", "R2", "R3", "R4"]
+
+
+def test_benign_agent_has_no_risk_paths():
+    manifest = AgentManifest(
+        agent_id="benign",
+        name="Benign",
+        capabilities=["chat", "email.list"],
+        data_sources=[],
+    )
+    graph = build_attack_graph(manifest)
     assert graph.risk_path_ids == []
 
 
