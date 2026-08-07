@@ -38,3 +38,19 @@ test("main workspace CSS fallback mirrors the tighter sidebar boundary", () => {
   assert.doesNotMatch(mainStyles, /--main-sidebar-width:\s*clamp\(260px,\s*20\.6vw,\s*300px\);/);
   assert.doesNotMatch(mainStyles, /--main-content-left:\s*clamp\(310px,\s*25\.7vw,\s*480px\);/);
 });
+
+test("main workspace fades content pages out before replacing them", () => {
+  assert.match(mainWindowSource, /renderedNavKey/);
+  assert.match(mainWindowSource, /contentPageRef/);
+  assert.match(mainWindowSource, /contentSwapTimelineRef/);
+  assert.match(mainWindowSource, /handleMainNavSelect/);
+  assert.match(mainWindowSource, /main-content-page-shell/);
+  assert.match(mainWindowSource, /setRenderedNavKey\(nextNavKey\)/);
+  assert.match(mainWindowSource, /duration: 0\.22/);
+  assert.match(mainWindowSource, /duration: 0\.38/);
+  assert.doesNotMatch(
+    mainWindowSource,
+    /dependencies: \[activeNavKey, renderedNavKey\]/,
+  );
+  assert.match(mainStyles, /\.main-content-page-shell/);
+});

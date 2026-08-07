@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { LINE_DRAW_EASE } from "../shared/animation";
 import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
 import { OverviewDashboard } from "./overview/OverviewDashboard";
+import { securityProfileFixtureViewModel } from "./profile/profile-fixtures";
+import { SecurityProfileGraph } from "./profile/SecurityProfileGraph";
 
 gsap.registerPlugin(useGSAP);
 
@@ -219,13 +221,79 @@ function MainModulePlaceholder({
   );
 }
 
+function MainWindowContent({
+  activeNavKey,
+  onNavigate,
+}: {
+  activeNavKey: MainNavKey;
+  onNavigate: (key: MainNavKey) => void;
+}) {
+  if (activeNavKey === "dashboard") {
+    return <OverviewDashboard onNavigate={onNavigate} />;
+  }
+
+  if (activeNavKey === "profile") {
+    return <SecurityProfileGraph viewModel={securityProfileFixtureViewModel} />;
+  }
+
+  return <MainModulePlaceholder activeNavKey={activeNavKey} />;
+}
+
 export function MainWindow() {
   const [activeNavKey, setActiveNavKey] = useState<MainNavKey>("dashboard");
+  const [renderedNavKey, setRenderedNavKey] = useState<MainNavKey>("dashboard");
   const rootRef = useRef<HTMLElement>(null);
+  const contentPageRef = useRef<HTMLDivElement>(null);
+  const contentSwapTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const topSurfaceRef = useRef<SVGRectElement>(null);
   const mainSurfaceRef = useRef<SVGRectElement>(null);
   const separatorRef = useRef<SVGRectElement>(null);
   const transitionBlueRef = useRef<SVGRectElement>(null);
+
+  const handleMainNavSelect = useCallback(
+    (nextNavKey: MainNavKey) => {
+      if (nextNavKey === activeNavKey) {
+        return;
+      }
+
+      const pageShell = contentPageRef.current;
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      contentSwapTimelineRef.current?.kill();
+      setActiveNavKey(nextNavKey);
+
+      if (!pageShell || prefersReducedMotion) {
+        if (pageShell) {
+          gsap.set(pageShell, {
+            autoAlpha: 1,
+            pointerEvents: "auto",
+            y: 0,
+          });
+        }
+        setRenderedNavKey(nextNavKey);
+        return;
+      }
+
+      contentSwapTimelineRef.current = gsap.timeline({
+        onComplete: () => {
+          setRenderedNavKey(nextNavKey);
+          contentSwapTimelineRef.current = null;
+        },
+      });
+
+      contentSwapTimelineRef.current
+        .set(pageShell, { pointerEvents: "none" })
+        .to(pageShell, {
+          autoAlpha: 0,
+          duration: 0.22,
+          ease: "power2.in",
+          y: 8,
+        });
+    },
+    [activeNavKey],
+  );
 
   useGSAP(
     () => {
@@ -382,6 +450,7 @@ export function MainWindow() {
       return () => {
         window.removeEventListener("resize", handleResize);
         introTimeline?.kill();
+        contentSwapTimelineRef.current?.kill();
         gsap.killTweensOf([
           transitionBlue,
           separator,
@@ -394,6 +463,53 @@ export function MainWindow() {
       };
     },
     { scope: rootRef },
+  );
+
+  useGSAP(
+    () => {
+      const pageShell = contentPageRef.current;
+
+      if (!pageShell) {
+        return;
+      }
+
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      if (prefersReducedMotion) {
+        gsap.set(pageShell, {
+          autoAlpha: 1,
+          pointerEvents: "auto",
+          y: 0,
+        });
+        return;
+      }
+
+      const timeline = gsap.timeline({
+        defaults: { ease: LINE_DRAW_EASE },
+      });
+
+      timeline
+        .fromTo(
+          pageShell,
+          {
+            autoAlpha: 0,
+            y: 10,
+          },
+          {
+            autoAlpha: 1,
+            duration: 0.38,
+            y: 0,
+          },
+        )
+        .set(pageShell, { pointerEvents: "auto" });
+
+      return () => {
+        timeline.kill();
+      };
+    },
+    { dependencies: [renderedNavKey], scope: rootRef },
   );
 
   return (
@@ -423,14 +539,19 @@ export function MainWindow() {
       <MainLineSidebar
         activeKey={activeNavKey}
         items={MAIN_NAV_ITEMS}
-        onSelect={(item) => setActiveNavKey(item.key as MainNavKey)}
+        onSelect={(item) => handleMainNavSelect(item.key as MainNavKey)}
       />
       <section className="main-content-region" aria-live="polite">
-        {activeNavKey === "dashboard" ? (
-          <OverviewDashboard onNavigate={setActiveNavKey} />
-        ) : (
-          <MainModulePlaceholder activeNavKey={activeNavKey} />
-        )}
+        <div
+          key={renderedNavKey}
+          ref={contentPageRef}
+          className="main-content-page-shell"
+        >
+          <MainWindowContent
+            activeNavKey={renderedNavKey}
+            onNavigate={handleMainNavSelect}
+          />
+        </div>
       </section>
     </main>
   );
