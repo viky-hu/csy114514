@@ -138,13 +138,22 @@ test("security profile column labels use overview-style foreground text lines", 
   assert.match(mainStyles, /paint-order: stroke fill/);
 });
 
-test("security profile route styling keeps default relationships quiet and hover routes primary", () => {
+test("security profile route styling keeps a unified blue-purple gradient while hover routes stay primary", () => {
   assert.match(graphSource, /data-profile-route-tone/);
   assert.match(graphSource, /data-profile-visual-intent/);
   assert.match(graphSource, /is-route-tone-/);
+  assert.match(graphSource, /stroke="url\(#security-profile-route-stroke\)"/);
+  assert.match(graphSource, /stopColor="#4f7cff"/);
+  assert.match(graphSource, /stopColor="#3b82f6"/);
+  assert.match(graphSource, /stopColor="#6d5ef7"/);
+  assert.match(graphSource, /stopColor="#8b5cf6"/);
+  assert.match(graphSource, /stopColor="#a855f7"/);
   assert.match(mainStyles, /\.security-profile-route\s*\{[\s\S]*opacity:\s*0\.2;/);
   assert.match(mainStyles, /\.security-profile-route\.is-active\s*\{[\s\S]*opacity:\s*0\.88;/);
-  assert.match(mainStyles, /\.security-profile-route\.is-route-tone-red/);
-  assert.match(mainStyles, /\.security-profile-route\.is-route-tone-green/);
-  assert.match(mainStyles, /\.security-profile-route\.is-route-tone-amber/);
+  assert.match(mainStyles, /\.security-profile-route\s*\{[\s\S]*stroke-opacity:\s*0\.72;/);
+  assert.match(mainStyles, /\.security-profile-route\.is-active\s*\{[\s\S]*stroke-opacity:\s*1;/);
+  assert.match(mainStyles, /\.security-profile-hover-outline\s*\{[\s\S]*stroke-opacity:\s*0\.96;/);
+  assert.doesNotMatch(mainStyles, /\.security-profile-route\.is-route-tone-red/);
+  assert.doesNotMatch(mainStyles, /\.security-profile-route\.is-route-tone-green/);
+  assert.doesNotMatch(mainStyles, /\.security-profile-route\.is-route-tone-amber/);
 });

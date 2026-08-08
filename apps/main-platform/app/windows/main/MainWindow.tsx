@@ -4,10 +4,16 @@ import { useCallback, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { LINE_DRAW_EASE } from "../shared/animation";
+import { AttackGraphWorkspace } from "./anatomy/AnatomyGraph";
 import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
 import { OverviewDashboard } from "./overview/OverviewDashboard";
 import { securityProfileFixtureViewModel } from "./profile/profile-fixtures";
 import { SecurityProfileGraph } from "./profile/SecurityProfileGraph";
+import {
+  EvaluationReportWorkspace,
+  EvaluationRunWorkspace,
+  EvaluationWorkspaceProvider,
+} from "./evaluation";
 
 gsap.registerPlugin(useGSAP);
 
@@ -234,6 +240,18 @@ function MainWindowContent({
 
   if (activeNavKey === "profile") {
     return <SecurityProfileGraph viewModel={securityProfileFixtureViewModel} />;
+  }
+
+  if (activeNavKey === "anatomy") {
+    return <AttackGraphWorkspace onNavigate={onNavigate} />;
+  }
+
+  if (activeNavKey === "run") {
+    return <EvaluationRunWorkspace onNavigate={onNavigate} />;
+  }
+
+  if (activeNavKey === "report") {
+    return <EvaluationReportWorkspace onNavigate={onNavigate} />;
   }
 
   return <MainModulePlaceholder activeNavKey={activeNavKey} />;
@@ -541,18 +559,20 @@ export function MainWindow() {
         items={MAIN_NAV_ITEMS}
         onSelect={(item) => handleMainNavSelect(item.key as MainNavKey)}
       />
-      <section className="main-content-region" aria-live="polite">
-        <div
-          key={renderedNavKey}
-          ref={contentPageRef}
-          className="main-content-page-shell"
-        >
-          <MainWindowContent
-            activeNavKey={renderedNavKey}
-            onNavigate={handleMainNavSelect}
-          />
-        </div>
-      </section>
+      <EvaluationWorkspaceProvider onNavigate={handleMainNavSelect}>
+        <section className="main-content-region">
+          <div
+            key={renderedNavKey}
+            ref={contentPageRef}
+            className="main-content-page-shell"
+          >
+            <MainWindowContent
+              activeNavKey={renderedNavKey}
+              onNavigate={handleMainNavSelect}
+            />
+          </div>
+        </section>
+      </EvaluationWorkspaceProvider>
     </main>
   );
 }

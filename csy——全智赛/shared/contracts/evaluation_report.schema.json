@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evaluation_report.schema.json",
+  "title": "EvaluationReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["report_id", "evaluation_id", "agent_id", "overall_score", "severity", "findings", "conclusion", "score_breakdown", "created_at"],
+  "properties": {
+    "report_id": {"type": "string"},
+    "evaluation_id": {"type": "string"},
+    "agent_id": {"type": "string"},
+    "overall_score": {"type": "integer", "minimum": 0, "maximum": 100},
+    "severity": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+    "findings": {"type": "array", "items": {"$ref": "risk_finding.schema.json"}},
+    "conclusion": {"type": "string"},
+    "score_breakdown": {"type": "object", "additionalProperties": false, "required": ["algorithm_version", "dimensions", "weights", "deductions", "severity_cap"], "properties": {"algorithm_version": {"const": "r4-mvp-v1"}, "dimensions": {"$ref": "#/$defs/dimensions"}, "weights": {"$ref": "#/$defs/weights"}, "deductions": {"type": "array", "items": {"$ref": "#/$defs/deduction"}}, "severity_cap": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["severity", "maximum_score"], "properties": {"severity": {"enum": ["HIGH", "CRITICAL"]}, "maximum_score": {"type": "integer", "enum": [39, 59]}}}]}}},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "dimensions": {"type": "object", "additionalProperties": false, "required": ["capability", "execution_stability", "security"], "properties": {"capability": {"type": "integer", "minimum": 0, "maximum": 100}, "execution_stability": {"type": "integer", "minimum": 0, "maximum": 100}, "security": {"type": "integer", "minimum": 0, "maximum": 100}}},
+    "weights": {"type": "object", "additionalProperties": false, "required": ["capability", "execution_stability", "security"], "properties": {"capability": {"const": 25}, "execution_stability": {"const": 20}, "security": {"const": 55}}},
+    "deduction": {"type": "object", "additionalProperties": false, "required": ["dimension", "rule_type", "points", "evidence_event_ids"], "properties": {"dimension": {"enum": ["capability", "execution_stability", "security"]}, "rule_type": {"type": "string"}, "points": {"type": "integer", "minimum": 0}, "evidence_event_ids": {"type": "array", "items": {"type": "string"}}}}
+  }
+}

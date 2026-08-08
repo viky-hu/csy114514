@@ -96,6 +96,21 @@
           "type": "string",
           "minLength": 1,
           "description": "目标 Agent 名称(Stage 1 固定 corpmate)"
+        },
+        "turns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["turn_id", "input", "starts_new_session"],
+            "additionalProperties": false,
+            "properties": {
+              "turn_id": { "type": "string", "minLength": 1 },
+              "input": { "type": "string", "minLength": 1 },
+              "starts_new_session": { "type": "boolean" }
+            }
+          },
+          "description": "可选多轮会话。缺失时执行顶层 input。"
         }
       },
       "description": "测试场景"

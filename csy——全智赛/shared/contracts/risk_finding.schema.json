@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "risk_finding.schema.json",
+  "title": "RiskFinding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["finding_id", "evaluation_id", "risk_type", "severity", "risk_pattern_id", "description", "evidence", "created_at"],
+  "properties": {
+    "finding_id": {"type": "string"},
+    "evaluation_id": {"type": "string"},
+    "risk_type": {"type": "string"},
+    "severity": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+    "risk_pattern_id": {"type": "string"},
+    "attack_path_id": {"type": ["string", "null"]},
+    "description": {"type": "string"},
+    "evidence": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["event_id", "description"], "properties": {"event_id": {"type": "string"}, "description": {"type": "string"}}}},
+    "rule_types": {"type": "array", "items": {"type": "string"}},
+    "remediation": {"type": ["string", "null"]},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

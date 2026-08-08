@@ -1,5 +1,6 @@
 """Test global frozen enums — values must match CODING_AGENT_RULE §2.1."""
 import pytest
+
 from backend.app.domain.enums import (
     EdgeType,
     EventType,
@@ -69,7 +70,9 @@ class TestEventType:
             "RUN_STARTED", "ANATOMY_READY", "RISK_PATH_FOUND",
             "TEST_STARTED", "SEED_SELECTED", "MUTATION_CREATED",
             "TOOL_CALLED", "MEMORY_WRITTEN", "JUDGE_DECISION",
-            "FINDING_CREATED", "RUN_FINISHED",
+            "FINDING_CREATED", "RUN_FINISHED", "PREFLIGHT_COMPLETED",
+            "PREFLIGHT_FAILED", "AGENT_INVOKED", "AGENT_RESPONDED",
+            "TOOL_RESULT", "RUN_FAILED",
         }
         assert {e.value for e in EventType} == expected
 

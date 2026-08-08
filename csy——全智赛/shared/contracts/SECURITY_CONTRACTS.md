@@ -4,7 +4,7 @@
 > 任何模块引用这三个结构时, 以本文件为准。
 > 变更本文件需三人书面确认(依据 CODING_AGENT_RULE §4)。
 
-版本: v1.0 (Phase 0 冻结)
+版本: v1.1 (R4 MVP 契约变更)
 日期: 2026-07-31
 发布人: 陈书扬 (Security & Evaluation Owner)
 
@@ -469,3 +469,12 @@ TestCase           ← 属于 → 8 个冻结 Contract 之一
 ③ 新增 attack_type / delivery_method 枚举值 → Security Line 内部变更 → 陈书扬确认 + 群同步
 ④ 修改 judge_rules 内容 → 不破坏 Contract → 陈书扬确认即可
 ```
+
+## 8.1 R4 MVP 已批准变更 (2026-08-08)
+
+- `TestCase.scenario.turns` 新增为可选多轮会话数组；旧用例继续执行顶层 `input`。
+- `tc_pipi_001` 使用两个 `starts_new_session=true` 的真实 Agent 会话，共享同一 Sandbox 持久记忆。
+- 运行、事件、Finding 与 Report 的新增契约分别以同目录
+  `evaluation_run.schema.json`、`execution_event.schema.json`、
+  `risk_finding.schema.json`、`evaluation_report.schema.json` 为准。
+- 本变更已按 `CODING_AGENT_RULE §4` 在实施任务中取得三位 owner 的书面确认。

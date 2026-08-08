@@ -586,9 +586,11 @@ export function SecurityProfileGraph({ viewModel }: SecurityProfileGraphProps) {
                   y1="0"
                   y2="0"
                 >
-                  <stop offset="0%" stopColor="#3152f4" stopOpacity="0.32" />
-                  <stop offset="54%" stopColor="#3152f4" stopOpacity="0.78" />
-                  <stop offset="100%" stopColor="#f04438" stopOpacity="0.72" />
+                  <stop offset="0%" stopColor="#4f7cff" stopOpacity="0.82" />
+                  <stop offset="28%" stopColor="#3b82f6" stopOpacity="0.96" />
+                  <stop offset="55%" stopColor="#6d5ef7" stopOpacity="0.98" />
+                  <stop offset="78%" stopColor="#8b5cf6" stopOpacity="0.94" />
+                  <stop offset="100%" stopColor="#a855f7" stopOpacity="0.9" />
                 </linearGradient>
                 <filter
                   id="security-profile-outline-glow"
@@ -600,9 +602,9 @@ export function SecurityProfileGraph({ viewModel }: SecurityProfileGraphProps) {
                   <feDropShadow
                     dx="0"
                     dy="0"
-                    floodColor="#ffffff"
-                    floodOpacity="0.72"
-                    stdDeviation="3.2"
+                    floodColor="#b9d6ff"
+                    floodOpacity="0.62"
+                    stdDeviation="3.4"
                   />
                 </filter>
                 <clipPath
@@ -683,6 +685,7 @@ export function SecurityProfileGraph({ viewModel }: SecurityProfileGraphProps) {
                       activeRouteIds.has(segment.id) ? "is-active" : ""
                     }`}
                     d={segment.d}
+                    stroke="url(#security-profile-route-stroke)"
                     data-profile-route-id={segment.id}
                     data-profile-route-tone={segment.routeTone}
                     data-profile-visual-intent={segment.visualIntent}
@@ -730,6 +733,7 @@ export function SecurityProfileGraph({ viewModel }: SecurityProfileGraphProps) {
                         d={rectPath}
                         data-profile-column-id={node.columnId}
                         filter="url(#security-profile-outline-glow)"
+                        stroke="url(#security-profile-route-stroke)"
                       />
                       <Icon
                         aria-hidden="true"

@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 
 import pytest
+
 from backend.app.domain.agent_manifest import AgentManifest
 from backend.app.domain.agent_profile import AgentProfile
 from backend.app.domain.attack_graph import AttackGraph
@@ -409,14 +410,19 @@ class TestEvaluationRun:
         data = {
             "run_id": "run-001",
             "agent_id": "corpmate-v0",
-            "test_case_ids": ["tc_ipi_001", "tc_ipi_002"],
-            "status": "pending",
+            "test_case_ids": ["tc_pipi_001"],
+            "status": "ready",
+            "created_at": NOW.isoformat(),
             "started_at": None,
             "finished_at": None,
+            "current_stage": "web_content_injection",
+            "last_event_seq": 1,
+            "report_available": False,
+            "error": None,
         }
         result = _round_trip(EvaluationRun, data)
         assert result["run_id"] == "run-001"
-        assert len(result["test_case_ids"]) == 2
+        assert result["status"] == "ready"
 
 
 class TestEvaluationReport:
@@ -438,22 +444,36 @@ class TestEvaluationReport:
             "report_id": "report-001",
             "evaluation_id": "eval-001",
             "agent_id": "corpmate-v0",
-            "overall_score": 35.0,
+            "overall_score": 39,
             "severity": "CRITICAL",
             "findings": [finding],
             "conclusion": "CRITICAL risk found. Do not deploy.",
+            "score_breakdown": {
+                "algorithm_version": "r4-mvp-v1",
+                "dimensions": {"capability": 100, "execution_stability": 100, "security": 0},
+                "weights": {"capability": 25, "execution_stability": 20, "security": 55},
+                "deductions": [],
+                "severity_cap": {"severity": "CRITICAL", "maximum_score": 39},
+            },
             "created_at": NOW.isoformat(),
         }
         result = _round_trip(EvaluationReport, data)
         assert result["report_id"] == "report-001"
-        assert result["overall_score"] == 35.0
+        assert result["overall_score"] == 39
         assert len(result["findings"]) == 1
 
     def test_score_bounds(self):
         data = {
             "report_id": "r", "evaluation_id": "e", "agent_id": "a",
             "overall_score": 150.0, "severity": "LOW", "findings": [],
-            "conclusion": "", "created_at": NOW.isoformat(),
+            "conclusion": "",
+            "score_breakdown": {
+                "algorithm_version": "r4-mvp-v1",
+                "dimensions": {"capability": 100, "execution_stability": 100, "security": 100},
+                "weights": {"capability": 25, "execution_stability": 20, "security": 55},
+                "deductions": [], "severity_cap": None,
+            },
+            "created_at": NOW.isoformat(),
         }
         with pytest.raises(ValueError):
             EvaluationReport.model_validate(data)

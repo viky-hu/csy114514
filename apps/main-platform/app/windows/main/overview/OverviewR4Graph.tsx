@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
@@ -27,6 +27,13 @@ import {
   R4_STEP_LAYOUTS,
   type R4StepLayout,
 } from "./overview-r4-layout";
+import {
+  calculateMeetViewport,
+  clientPointToSvgUserPoint,
+  measureSvgViewportMetrics,
+  svgUserRectToFrameStyle,
+  type SvgViewportMetrics,
+} from "./overview-r4-svg-viewport";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
@@ -42,7 +49,13 @@ type NodeStyleVars = CSSProperties &
   Record<"--node-height" | "--node-left" | "--node-top" | "--node-width", string>;
 
 type HotZoneStyleVars = CSSProperties &
-  Record<"--hot-left" | "--hot-width", string>;
+  Record<"--hot-height" | "--hot-left" | "--hot-top" | "--hot-width", string>;
+
+const INITIAL_SVG_VIEWPORT = calculateMeetViewport({
+  frameHeight: 0,
+  frameWidth: 0,
+  viewBox: R4_GRAPH_VIEWBOX,
+});
 
 const NODE_ICONS: Record<R4StepLayout["icon"], LucideIcon> = {
   agent: Bot,
@@ -77,27 +90,47 @@ function formatSecurityLabels(labels: string[]) {
     : "无";
 }
 
-function getNodeOverlayStyle(layout: R4StepLayout): NodeStyleVars {
+function getNodeOverlayStyle(
+  layout: R4StepLayout,
+  metrics: SvgViewportMetrics,
+): NodeStyleVars {
+  const rect = svgUserRectToFrameStyle(
+    {
+      bottom: layout.y + layout.height / 2,
+      left: layout.x - layout.width / 2,
+      right: layout.x + layout.width / 2,
+      top: layout.y - layout.height / 2,
+    },
+    metrics,
+  );
+
   return {
-    "--node-height": `${(layout.height / R4_GRAPH_VIEWBOX.height) * 100}%`,
-    "--node-left": `${
-      ((layout.x - layout.width / 2) / R4_GRAPH_VIEWBOX.width) * 100
-    }%`,
-    "--node-top": `${
-      ((layout.y - layout.height / 2) / R4_GRAPH_VIEWBOX.height) * 100
-    }%`,
-    "--node-width": `${(layout.width / R4_GRAPH_VIEWBOX.width) * 100}%`,
+    "--node-height": `${rect.height}px`,
+    "--node-left": `${rect.left}px`,
+    "--node-top": `${rect.top}px`,
+    "--node-width": `${rect.width}px`,
   };
 }
 
 function getHotZoneStyle(
   band: (typeof hoverBands)[number],
+  metrics: SvgViewportMetrics,
 ): HotZoneStyleVars {
+  const rect = svgUserRectToFrameStyle(
+    {
+      bottom: R4_GRAPH_VIEWBOX.height,
+      left: band.xStart,
+      right: band.xEnd,
+      top: 0,
+    },
+    metrics,
+  );
+
   return {
-    "--hot-left": `${(band.xStart / R4_GRAPH_VIEWBOX.width) * 100}%`,
-    "--hot-width": `${
-      ((band.xEnd - band.xStart) / R4_GRAPH_VIEWBOX.width) * 100
-    }%`,
+    "--hot-height": `${rect.height}px`,
+    "--hot-left": `${rect.left}px`,
+    "--hot-top": `${rect.top}px`,
+    "--hot-width": `${rect.width}px`,
   };
 }
 
@@ -107,10 +140,69 @@ function isReducedMotion() {
 
 export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const activeStepRef = useRef<number | null>(null);
   const animatedStepRef = useRef<number | null>(null);
   const [activeStep, setActiveStep] = useState<number | null>(null);
+  const [svgViewport, setSvgViewport] =
+    useState<SvgViewportMetrics>(INITIAL_SVG_VIEWPORT);
   const routeSegments = useMemo(() => buildOrthogonalRouteSegments(), []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const svg = svgRef.current;
+
+    if (!root || !svg) {
+      return;
+    }
+
+    let animationFrame: number | null = null;
+
+    const refreshSvgViewport = () => {
+      const nextViewport = measureSvgViewportMetrics(svg, root, R4_GRAPH_VIEWBOX);
+
+      setSvgViewport((previousViewport) => {
+        if (
+          Math.abs(previousViewport.height - nextViewport.height) < 0.01 &&
+          Math.abs(previousViewport.offsetLeft - nextViewport.offsetLeft) < 0.01 &&
+          Math.abs(previousViewport.offsetTop - nextViewport.offsetTop) < 0.01 &&
+          Math.abs(previousViewport.scale - nextViewport.scale) < 0.0001 &&
+          Math.abs(previousViewport.width - nextViewport.width) < 0.01
+        ) {
+          return previousViewport;
+        }
+
+        return nextViewport;
+      });
+    };
+
+    const scheduleRefresh = () => {
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+      }
+
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        refreshSvgViewport();
+      });
+    };
+
+    refreshSvgViewport();
+
+    const resizeObserver = new ResizeObserver(scheduleRefresh);
+    resizeObserver.observe(root);
+    resizeObserver.observe(svg);
+    window.addEventListener("resize", scheduleRefresh);
+
+    return () => {
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+      }
+
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleRefresh);
+    };
+  }, []);
 
   useGSAP(
     () => {
@@ -346,18 +438,21 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
   }, []);
 
   const setActiveStepFromClientX = useCallback(
-    (clientX: number) => {
-      const root = rootRef.current;
+    (clientX: number, clientY: number) => {
+      const svg = svgRef.current;
 
-      if (!root) {
+      if (!svg) {
         return;
       }
 
-      const bounds = root.getBoundingClientRect();
-      const viewBoxX =
-        ((clientX - bounds.left) / bounds.width) * R4_GRAPH_VIEWBOX.width;
+      const svgPoint = clientPointToSvgUserPoint(svg, clientX, clientY);
 
-      activateStep(findHoverStepIndex(viewBoxX));
+      if (!svgPoint) {
+        activateStep(null);
+        return;
+      }
+
+      activateStep(findHoverStepIndex(svgPoint.x));
     },
     [activateStep],
   );
@@ -366,9 +461,13 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
     <div
       ref={rootRef}
       className="overview-map-frame overview-r4-graph"
-      onPointerEnter={(event) => setActiveStepFromClientX(event.clientX)}
+      onPointerEnter={(event) =>
+        setActiveStepFromClientX(event.clientX, event.clientY)
+      }
       onPointerLeave={() => activateStep(null)}
-      onPointerMove={(event) => setActiveStepFromClientX(event.clientX)}
+      onPointerMove={(event) =>
+        setActiveStepFromClientX(event.clientX, event.clientY)
+      }
     >
       <div className="overview-r4-hot-zone-layer" aria-hidden="true">
         {hoverBands.map((band) => (
@@ -378,12 +477,13 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
               activeStep === band.stepIndex ? " is-active" : ""
             }`}
             data-step-index={band.stepIndex}
-            style={getHotZoneStyle(band)}
+            style={getHotZoneStyle(band, svgViewport)}
           />
         ))}
       </div>
 
       <svg
+        ref={svgRef}
         className="overview-chain-svg overview-r4-svg"
         viewBox="0 0 1000 440"
         role="img"
@@ -560,7 +660,7 @@ export function OverviewR4Graph({ nodes }: OverviewR4GraphProps) {
               onBlur={() => activateStep(null)}
               onFocus={() => activateStep(index)}
               role="group"
-              style={getNodeOverlayStyle(layout)}
+              style={getNodeOverlayStyle(layout, svgViewport)}
               tabIndex={0}
             >
               <div id={detailId} className="overview-node-popover" role="tooltip">

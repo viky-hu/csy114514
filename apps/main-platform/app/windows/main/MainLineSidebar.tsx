@@ -199,9 +199,9 @@ export function MainLineSidebar({
       const lastIndex = items.length - 1;
       let nextIndex = index;
 
-      if (event.key === "ArrowDown") {
+      if (event.key === "ArrowDown" || event.key === "ArrowRight") {
         nextIndex = index === lastIndex ? 0 : index + 1;
-      } else if (event.key === "ArrowUp") {
+      } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
         nextIndex = index === 0 ? lastIndex : index - 1;
       } else if (event.key === "Home") {
         nextIndex = 0;

@@ -25,8 +25,8 @@ async def generic_exception_handler(request: Request, exc: Exception):
         content={
             "error": {
                 "code": "INTERNAL_ERROR",
-                "message": str(exc),
-                "details": [],
+                "message": "An internal error occurred.",
+                "details": {},
             }
         },
     )

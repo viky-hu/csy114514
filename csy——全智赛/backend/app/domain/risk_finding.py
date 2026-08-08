@@ -20,4 +20,6 @@ class RiskFinding(BaseModel):
     attack_path_id: str | None = Field(default=None, description="关联的 AttackPath ID")
     description: str = Field(..., description="风险描述")
     evidence: list[FindingEvidence] = Field(default_factory=list, description="证据列表")
+    rule_types: list[str] = Field(default_factory=list, description="命中的规则类型")
+    remediation: str | None = Field(default=None, description="处置建议")
     created_at: datetime = Field(default_factory=lambda: datetime.now().astimezone())

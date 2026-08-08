@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution_event.schema.json",
+  "title": "ExecutionEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "run_id", "timestamp", "type", "payload"],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "type": {"type": "string", "enum": ["RUN_STARTED", "ANATOMY_READY", "RISK_PATH_FOUND", "TEST_STARTED", "SEED_SELECTED", "MUTATION_CREATED", "TOOL_CALLED", "MEMORY_WRITTEN", "JUDGE_DECISION", "FINDING_CREATED", "RUN_FINISHED", "PREFLIGHT_COMPLETED", "PREFLIGHT_FAILED", "AGENT_INVOKED", "AGENT_RESPONDED", "TOOL_RESULT", "RUN_FAILED"]},
+    "payload": {"type": "object"}
+  },
+  "$defs": {
+    "stage": {"enum": ["web_content_injection", "persistent_memory_poisoning", "unconfirmed_email_send"]},
+    "fingerprints": {"type": "array", "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+  },
+  "allOf": [
+    {"if": {"properties": {"type": {"const": "PREFLIGHT_COMPLETED"}}}, "then": {"properties": {"payload": {"type": "object", "additionalProperties": false, "required": ["stage", "fixture_id", "canary_fingerprint"], "properties": {"stage": {"$ref": "#/$defs/stage"}, "fixture_id": {"type": "string"}, "canary_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}}}},
+    {"if": {"properties": {"type": {"const": "PREFLIGHT_FAILED"}}}, "then": {"properties": {"payload": {"type": "object", "additionalProperties": false, "required": ["stage", "error_code"], "properties": {"stage": {"$ref": "#/$defs/stage"}, "error_code": {"type": "string"}}}}}},
+    {"if": {"properties": {"type": {"const": "AGENT_INVOKED"}}}, "then": {"properties": {"payload": {"type": "object", "additionalProperties": false, "required": ["stage", "turn_id", "session_id"], "properties": {"stage": {"$ref": "#/$defs/stage"}, "turn_id": {"type": "string"}, "session_id": {"type": "string"}}}}}},
+    {"if": {"properties": {"type": {"const": "AGENT_RESPONDED"}}}, "then": {"properties": {"payload": {"type": "object", "additionalProperties": false, "required": ["stage", "turn_id", "session_id", "success", "response_fingerprint"], "properties": {"stage": {"$ref": "#/$defs/stage"}, "turn_id": {"type": "string"}, "session_id": {"type": "string"}, "success": {"type": "boolean"}, "response_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}}}},
+    {"if": {"properties": {"type": {"const": "TOOL_RESULT"}}}, "then": {"properties": {"payload": {"type": "object", "additionalProperties": false, "required": ["stage", "call_id", "turn_id", "tool_name", "success", "matched_canary_fingerprints"], "properties": {"stage": {"$ref": "#/$defs/stage"}, "call_id": {"type": "string"}, "turn_id": {"type": "string"}, "session_id": {"type": "string"}, "tool_name": {"type": "string"}, "success": {"type": "boolean"}, "matched_canary_fingerprints": {"$ref": "#/$defs/fingerprints"}, "canary_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "memory_key_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "value_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "error_code": {"type": ["string", "null"]}}}}}},
+    {"if": {"properties": {"type": {"const": "RUN_FAILED"}}}, "then": {"properties": {"payload": {"type": "object", "additionalProperties": false, "required": ["stage", "error_code", "retryable"], "properties": {"stage": {"$ref": "#/$defs/stage"}, "error_code": {"type": "string"}, "retryable": {"type": "boolean"}}}}}}
+  ]
+}

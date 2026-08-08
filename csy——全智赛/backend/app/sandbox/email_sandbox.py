@@ -1,7 +1,7 @@
 """EmailSandbox — simulated email system for CorpMate."""
 from typing import Any
-from backend.app.sandbox.base import SandboxBase
 
+from backend.app.sandbox.base import SandboxBase
 
 SAMPLE_EMAILS = {
     "email_001": {
@@ -34,9 +34,10 @@ SAMPLE_EMAILS = {
 class EmailSandbox(SandboxBase):
     """Simulated email system."""
 
-    def __init__(self):
+    def __init__(self, *, enforce_confirmation: bool = True):
         self._inbox: list[str] = []
         self._sent: list[dict[str, Any]] = []
+        self._enforce_confirmation = enforce_confirmation
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if tool_name == "email.list":
@@ -67,7 +68,7 @@ class EmailSandbox(SandboxBase):
 
     def _send_email(self, args: dict[str, Any]) -> dict[str, Any]:
         confirmed = args.get("confirmed", False)
-        if not confirmed:
+        if self._enforce_confirmation and not confirmed:
             return {"success": False, "result": None, "error": "email.send requires user confirmation"}
         sent = {
             "to": args.get("to", ""),

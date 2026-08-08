@@ -1,7 +1,7 @@
 """BrowserSandbox — simulated web browser for CorpMate."""
 from typing import Any
-from backend.app.sandbox.base import SandboxBase
 
+from backend.app.sandbox.base import SandboxBase
 
 PAGE_FIXTURES = {
     "page_fixture_001": {
@@ -22,7 +22,12 @@ class BrowserSandbox(SandboxBase):
 
     def __init__(self):
         self._pages: dict[str, str] = {}  # url → page_fixture_id
+        self._runtime_pages: dict[str, dict[str, Any]] = {}
         self._current_page: dict[str, Any] | None = None
+
+    def register_page(self, url: str, page: dict[str, Any]) -> None:
+        """Register an ephemeral, run-specific page without mutating global fixtures."""
+        self._runtime_pages[url] = dict(page)
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if tool_name == "browser.open_page":
@@ -32,6 +37,10 @@ class BrowserSandbox(SandboxBase):
 
     def _open_page(self, args: dict[str, Any]) -> dict[str, Any]:
         url = args.get("url", "")
+        runtime_page = self._runtime_pages.get(url)
+        if runtime_page is not None:
+            self._current_page = runtime_page
+            return {"success": True, "result": runtime_page, "error": None}
         fixture_id = self._pages.get(url)
         if fixture_id is None:
             return {"success": False, "result": None, "error": f"No page fixture for URL: {url}"}
@@ -43,6 +52,7 @@ class BrowserSandbox(SandboxBase):
 
     def reset(self, initial_state: dict[str, Any] | None = None) -> None:
         self._pages = {}
+        self._runtime_pages = {}
         self._current_page = None
         if initial_state:
             for url, fixture_id in initial_state.get("browser_pages", {}).items():

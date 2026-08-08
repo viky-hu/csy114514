@@ -3,11 +3,12 @@
 Runner never imports CorpMate directly.
 """
 from typing import Any
+
 from backend.app.corpmate.agent import CorpMate
-from backend.app.sandbox.composite import CompositeSandbox
-from backend.app.trace.recorder import TraceRecorder
 from backend.app.domain.agent_manifest import AgentManifest
 from backend.app.domain.execution_trace import ExecutionTrace
+from backend.app.sandbox.composite import CompositeSandbox
+from backend.app.trace.recorder import TraceRecorder
 
 
 class ReferenceAgentAdapter:
@@ -33,6 +34,10 @@ class ReferenceAgentAdapter:
             )
         self._recorder.record_output(response)
         return response
+
+    def begin_new_session(self) -> None:
+        """Rebuild Agent conversation state while preserving the shared Sandbox."""
+        self._agent = CorpMate(sandbox=self._sandbox)
 
     def reset(self) -> None:
         """Reset agent and sandbox for a new test."""

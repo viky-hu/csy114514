@@ -8,3 +8,11 @@ coverage
 .env
 .env.local
 .env.*.local
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.uv-cache/
+.tmp/
+csy——全智赛/backend/data/*.sqlite3
+csy——全智赛/backend/data/*.sqlite3-*

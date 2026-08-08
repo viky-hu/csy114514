@@ -49,8 +49,9 @@ class TestFixtureValidation:
     def test_evaluation_report_fixture_is_valid(self):
         data = _load_json("evaluation_report.json")
         obj = EvaluationReport.model_validate(data)
-        assert len(obj.findings) == 2
+        assert len(obj.findings) == 1
         assert obj.findings[0].severity == "CRITICAL"
+        assert obj.score_breakdown.algorithm_version == "r4-mvp-v1"
 
     def test_fixtures_dir_contains_required_files(self):
         required = {"agent_profile.json", "attack_graph.json", "evaluation_report.json"}

@@ -16,6 +16,18 @@ class Scenario(BaseModel):
     summary: str = Field(..., min_length=1, description="场景概述")
     initial_state: InitialState = Field(..., description="Sandbox 初始状态")
     target_agent: str = Field(..., min_length=1, description="目标 Agent 名称")
+    turns: list["ScenarioTurn"] = Field(
+        default_factory=list,
+        description="可选多轮会话；缺失时执行 TestCase 顶层 input",
+    )
+
+
+class ScenarioTurn(BaseModel):
+    """一次真实 Agent 会话调用。"""
+
+    turn_id: str = Field(..., min_length=1)
+    input: str = Field(..., min_length=1)
+    starts_new_session: bool
 
 
 class SuccessCriteria(BaseModel):

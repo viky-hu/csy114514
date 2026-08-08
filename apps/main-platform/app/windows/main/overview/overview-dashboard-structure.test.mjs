@@ -58,6 +58,11 @@ const layoutSource = readFileSync(
   "utf8",
 );
 
+const viewportSource = readFileSync(
+  new URL("./overview-r4-svg-viewport.ts", import.meta.url),
+  "utf8",
+);
+
 const mainStyles = readFileSync(
   new URL("../../../styles/window-3-main.css", import.meta.url),
   "utf8",
@@ -97,6 +102,15 @@ test("R4 graph uses layered orthogonal SVG structure with x-axis hot zones", () 
   assert.doesNotMatch(dashboardSource, /overview-node-tags/);
   assert.doesNotMatch(dashboardSource, /overview-node-role/);
   assert.match(graphSource, /overview-node-popover/);
+  assert.match(graphSource, /const svgRef = useRef<SVGSVGElement>\(null\);/);
+  assert.match(graphSource, /clientPointToSvgUserPoint/);
+  assert.match(viewportSource, /getScreenCTM\(\)\?\.inverse\(\)/);
+  assert.match(viewportSource, /calculateMeetViewport/);
+  assert.match(viewportSource, /svgUserRectToFrameStyle/);
+  assert.doesNotMatch(
+    graphSource,
+    /\(\(clientX - bounds\.left\) \/ bounds\.width\) \* R4_GRAPH_VIEWBOX\.width/,
+  );
   assert.match(mainStyles, /\.overview-dashboard \{[\s\S]*overflow: auto;/);
   assert.match(mainStyles, /height: clamp\(320px,\s*46vh,\s*520px\);/);
   assert.match(mainStyles, /height: clamp\(280px,\s*42vh,\s*400px\);/);
@@ -169,7 +183,7 @@ test("R4 hover bands exactly match the measured node horizontal bounds", () => {
     /export const hoverBands = R4_STEP_LAYOUTS\.map\(\(layout, index\) => \{\s*const currentBounds = getNodeBounds\(layout\);[\s\S]*xStart: currentBounds\.left,[\s\S]*xEnd: currentBounds\.right,/,
   );
   assert.match(layoutSource, /return null;/);
-  assert.match(graphSource, /activateStep\(findHoverStepIndex\(viewBoxX\)\)/);
+  assert.match(graphSource, /activateStep\(findHoverStepIndex\(svgPoint\.x\)\)/);
 });
 
 test("R4 graph expands vertical SVG space and uses fixed node content slots", () => {
