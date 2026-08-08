@@ -22,6 +22,7 @@ def register_agent(manifest: AgentManifest) -> AgentProfile:
         capability_profile={
             "tool_count": len(manifest.capabilities),
             "data_sources": manifest.data_sources,
+            "memory_type": manifest.memory.get("type"),
             "memory": manifest.memory,
         },
         security_assets={
@@ -31,6 +32,12 @@ def register_agent(manifest: AgentManifest) -> AgentProfile:
             "persistent_stores": (
                 ["memory"] if manifest.memory else []
             ),
+            "sensitive_tools": [
+                t for t in manifest.capabilities if t == "email.read"
+            ],
+            "untrusted_sources": [
+                t for t in manifest.capabilities if t == "browser.open_page"
+            ],
         },
     )
     _profiles[manifest.agent_id] = profile

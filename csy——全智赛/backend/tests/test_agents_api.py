@@ -75,3 +75,14 @@ async def test_get_agent_graph_returns_attack_graph(client):
 async def test_get_agent_graph_unknown_id_returns_404(client):
     response = await client.get("/agents/nonexistent/graph")
     assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_post_agents_profile_fields_match_frontend_overview(client):
+    """SR2 联调: AgentProfile 补齐前端 overview 需要的字段."""
+    await client.post("/agents", json=VALID_MANIFEST)
+    response = await client.get("/agents/corpmate-v0")
+    data = response.json()
+    assert data["capability_profile"]["memory_type"] == "persistent"
+    assert "sensitive_tools" in data["security_assets"]
+    assert "untrusted_sources" in data["security_assets"]
+    assert data["security_assets"]["dangerous_tools"] == ["email.send"]
