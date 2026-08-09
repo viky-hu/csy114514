@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
@@ -24,7 +24,7 @@ import type {
   AnatomyPathStatus,
   AnatomyViewModel,
 } from "./anatomy-data";
-import { anatomyPreviewViewModel } from "./anatomy-fixtures";
+import { DEFAULT_ANATOMY_AGENT_ID, anatomyPreviewViewModel } from "./anatomy-fixtures";
 import {
   ANATOMY_ACTIVE_NODE_DURATION,
   ANATOMY_ACTIVE_NODE_Y,
@@ -38,11 +38,18 @@ import {
   getActiveAnatomyRouteNodeIds,
 } from "./anatomy-graph-layout";
 import type { AnatomyGraphNodeLayout } from "./anatomy-graph-layout";
+import {
+  defaultAnatomyRepository,
+  type AnatomyRepository,
+  type AnatomyRepositoryResult,
+} from "./anatomy-repository";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
 type AttackGraphWorkspaceProps = {
+  agentId?: string;
   onNavigate: (key: "run") => void;
+  repository?: AnatomyRepository;
 };
 
 type DrawSVGTweenVars = gsap.TweenVars & {
@@ -60,6 +67,7 @@ type CanonicalNode = {
   labels: string[];
   layout: AnatomyGraphNodeLayout;
   name: string;
+  nodeId: string;
   nodeType: string;
 };
 
@@ -155,7 +163,25 @@ function findGraphNode(
     labels: node?.labels ?? [],
     layout,
     name: node?.metadata.name ?? layoutId,
+    nodeId: node?.node_id ?? layoutId,
     nodeType: node?.node_type ?? layout.role.toUpperCase(),
+  };
+}
+
+function selectAnatomyPath(
+  viewModel: AnatomyViewModel,
+  selectedPathId: string,
+): AnatomyViewModel {
+  if (viewModel.selectedPathId === selectedPathId) {
+    return viewModel;
+  }
+
+  return {
+    ...viewModel,
+    selectedPath:
+      viewModel.paths.find((path) => path.id === selectedPathId) ??
+      viewModel.selectedPath,
+    selectedPathId,
   };
 }
 
@@ -203,13 +229,19 @@ function getVisibleActiveNodeIds(selectedPath: AnatomyPath | null) {
 }
 
 function AnatomyInspector({
+  dataSourceLabel,
+  errorMessage,
   mode,
   onVerify,
   path,
+  selectedNode,
 }: {
+  dataSourceLabel: string;
+  errorMessage: string | null;
   mode: AnatomyMode;
   onVerify: () => void;
   path: AnatomyPath | null;
+  selectedNode: CanonicalNode | null;
 }) {
   if (!path) {
     return (
@@ -232,6 +264,52 @@ function AnatomyInspector({
         <h2>{path.id} · {path.name}</h2>
         <p>{path.story}</p>
       </div>
+
+      <section className="anatomy-detail-block">
+        <span>数据来源</span>
+        <p>{dataSourceLabel}</p>
+        {errorMessage ? <p className="anatomy-source-error">{errorMessage}</p> : null}
+      </section>
+
+      <section className="anatomy-detail-block">
+        <span>节点详情</span>
+        {selectedNode ? (
+          <>
+            <dl className="anatomy-node-detail-list">
+              <div>
+                <dt>节点</dt>
+                <dd>{selectedNode.displayName}</dd>
+              </div>
+              <div>
+                <dt>原始 ID</dt>
+                <dd>{selectedNode.nodeId}</dd>
+              </div>
+              <div>
+                <dt>类型</dt>
+                <dd>{selectedNode.nodeType}</dd>
+              </div>
+              <div>
+                <dt>名称</dt>
+                <dd>{selectedNode.name}</dd>
+              </div>
+            </dl>
+            <div className="anatomy-label-chip-row" aria-label="安全标签">
+              {selectedNode.labels.length > 0 ? (
+                selectedNode.labels.map((label) => (
+                  <span key={label} className="anatomy-label-chip">
+                    {label}
+                  </span>
+                ))
+              ) : (
+                <span className="anatomy-label-chip is-empty">无安全标签</span>
+              )}
+            </div>
+            <p>{selectedNode.description || "该节点暂无 description 元数据。"}</p>
+          </>
+        ) : (
+          <p>选择图中的节点后查看节点类型、原始 ID、名称和安全标签。</p>
+        )}
+      </section>
 
       <section className="anatomy-detail-block">
         <span>如何验证</span>
@@ -320,23 +398,29 @@ function AnatomyInspector({
   );
 }
 
-export function AttackGraphWorkspace({ onNavigate }: AttackGraphWorkspaceProps) {
+export function AttackGraphWorkspace({
+  agentId = DEFAULT_ANATOMY_AGENT_ID,
+  onNavigate,
+  repository = defaultAnatomyRepository,
+}: AttackGraphWorkspaceProps) {
   const rootRef = useRef<HTMLElement>(null);
   const [selectedPathId, setSelectedPathId] = useState("R4");
-  const previewViewModel = useMemo(
-    () =>
-      selectedPathId === anatomyPreviewViewModel.selectedPathId
-        ? anatomyPreviewViewModel
-        : {
-            ...anatomyPreviewViewModel,
-            selectedPath:
-              anatomyPreviewViewModel.paths.find((path) => path.id === selectedPathId) ??
-              anatomyPreviewViewModel.selectedPath,
-            selectedPathId,
-          },
-    [selectedPathId],
+  const [selectedNodeId, setSelectedNodeId] = useState("tool-email-send");
+  const [repositoryResult, setRepositoryResult] = useState<AnatomyRepositoryResult>({
+    source: "mock",
+    viewModel: anatomyPreviewViewModel,
+  });
+  const [isLoadingGraph, setIsLoadingGraph] = useState(false);
+  const viewModel = useMemo(
+    () => selectAnatomyPath(repositoryResult.viewModel, selectedPathId),
+    [repositoryResult.viewModel, selectedPathId],
   );
-  const viewModel = previewViewModel;
+  const dataSourceLabel =
+    repositoryResult.source === "api"
+      ? "API 图谱"
+      : repositoryResult.errorMessage
+        ? "接口不可用，当前保留 Fixture 预览"
+        : "Fixture 预览";
   const routeSegments = useMemo(() => buildAnatomyRouteSegments(), []);
   const activeRouteIds = useMemo(
     () =>
@@ -367,6 +451,35 @@ export function AttackGraphWorkspace({ onNavigate }: AttackGraphWorkspaceProps) 
         .map((layoutId) => findGraphNode(viewModel, layoutId)),
     [viewModel],
   );
+  const selectedNode = useMemo(
+    () =>
+      graphNodes.find((node) => node.id === selectedNodeId) ??
+      graphNodes[0] ??
+      null,
+    [graphNodes, selectedNodeId],
+  );
+
+  useEffect(() => {
+    let ignore = false;
+
+    setIsLoadingGraph(true);
+    repository
+      .load({ agentId, selectedPathId })
+      .then((result) => {
+        if (!ignore) {
+          setRepositoryResult(result);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoadingGraph(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [agentId, repository, selectedPathId]);
 
   const verifySelectedPath = useCallback(() => {
     const path = viewModel.selectedPath;
@@ -533,7 +646,9 @@ export function AttackGraphWorkspace({ onNavigate }: AttackGraphWorkspaceProps) 
         <div className="anatomy-header-copy">
           <div className="anatomy-heading-line">
             <span className="overview-kicker">攻击图谱</span>
-            <span className="anatomy-inline-badge">未接入后端</span>
+            <span className="anatomy-inline-badge">
+              {isLoadingGraph ? "读取图谱" : dataSourceLabel}
+            </span>
           </div>
           <h1>{viewModel.agent.name} 风险路径工作台</h1>
           <p>
@@ -665,6 +780,9 @@ export function AttackGraphWorkspace({ onNavigate }: AttackGraphWorkspaceProps) 
                   key={`${node.id}-hitbox`}
                   aria-label={`${node.displayName} 节点`}
                   className="anatomy-node-hitbox"
+                  data-selected={node.id === selectedNode?.id}
+                  onClick={() => setSelectedNodeId(node.id)}
+                  onFocus={() => setSelectedNodeId(node.id)}
                   style={getNodeHitboxStyle(node.layout)}
                   title={`${node.name}${node.description ? `：${node.description}` : ""}`}
                   type="button"
@@ -694,9 +812,12 @@ export function AttackGraphWorkspace({ onNavigate }: AttackGraphWorkspaceProps) 
 
         <div className="anatomy-side anatomy-reveal">
           <AnatomyInspector
-            mode="preview"
+            dataSourceLabel={dataSourceLabel}
+            errorMessage={repositoryResult.errorMessage ?? null}
+            mode={viewModel.mode}
             onVerify={verifySelectedPath}
             path={viewModel.selectedPath}
+            selectedNode={selectedNode}
           />
         </div>
       </div>

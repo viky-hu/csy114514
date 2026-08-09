@@ -1872,8 +1872,12 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  cursor: help;
+  cursor: pointer;
   pointer-events: auto;
+}
+
+.anatomy-node-hitbox[data-selected="true"] {
+  background: rgba(49, 82, 244, 0.055);
 }
 
 .anatomy-node-hitbox:focus-visible {
@@ -2001,6 +2005,73 @@
   color: rgba(49, 82, 244, 0.72);
   font-family: var(--main-body-font);
   font-size: 13px;
+}
+
+.anatomy-source-error {
+  border-left: 2px solid rgba(240, 68, 122, 0.44);
+  padding-left: 9px;
+}
+
+.anatomy-node-detail-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(96px, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--anatomy-line);
+  border-left: 1px solid var(--anatomy-line);
+}
+
+.anatomy-node-detail-list div {
+  display: grid;
+  gap: 4px;
+  min-height: 48px;
+  align-content: center;
+  border-right: 1px solid var(--anatomy-line);
+  border-bottom: 1px solid var(--anatomy-line);
+  padding: 7px;
+}
+
+.anatomy-node-detail-list dt,
+.anatomy-node-detail-list dd {
+  margin: 0;
+  font-family: var(--main-body-font);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.anatomy-node-detail-list dt {
+  color: rgba(22, 24, 32, 0.48);
+}
+
+.anatomy-node-detail-list dd {
+  color: rgba(14, 18, 30, 0.86);
+  word-break: break-word;
+}
+
+.anatomy-label-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.anatomy-label-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid rgba(49, 82, 244, 0.28);
+  border-radius: 4px;
+  padding: 0 7px;
+  background: rgba(49, 82, 244, 0.055);
+  color: rgba(49, 82, 244, 0.88);
+  font-family: var(--main-body-font);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.anatomy-label-chip.is-empty {
+  border-color: rgba(17, 22, 34, 0.16);
+  background: rgba(17, 22, 34, 0.045);
+  color: rgba(17, 22, 34, 0.52);
 }
 
 .anatomy-verify-button {

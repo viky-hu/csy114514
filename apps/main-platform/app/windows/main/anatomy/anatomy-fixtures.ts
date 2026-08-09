@@ -1,14 +1,14 @@
-import agentProfile from "../../../../../../csy——全智赛/shared/fixtures/agent_profile.json";
-import attackGraph from "../../../../../../csy——全智赛/shared/fixtures/attack_graph.json";
-import evaluationReport from "../../../../../../csy——全智赛/shared/fixtures/evaluation_report.json";
-import attackSeeds from "../../../../../../csy——全智赛/shared/examples/security/attack_seeds.json";
-import riskPatterns from "../../../../../../csy——全智赛/shared/examples/security/risk_patterns.json";
-import testCases from "../../../../../../csy——全智赛/shared/examples/security/security_testcases.json";
+import agentProfile from "../../../../../../csy——全智赛/shared/fixtures/agent_profile.json" with { type: "json" };
+import attackGraph from "../../../../../../csy——全智赛/shared/fixtures/attack_graph.json" with { type: "json" };
+import evaluationReport from "../../../../../../csy——全智赛/shared/fixtures/evaluation_report.json" with { type: "json" };
+import attackSeeds from "../../../../../../csy——全智赛/shared/examples/security/attack_seeds.json" with { type: "json" };
+import riskPatterns from "../../../../../../csy——全智赛/shared/examples/security/risk_patterns.json" with { type: "json" };
+import testCases from "../../../../../../csy——全智赛/shared/examples/security/security_testcases.json" with { type: "json" };
 
 import {
   createAnatomyViewModel,
   type AnatomyInput,
-} from "./anatomy-data";
+} from "./anatomy-data.ts";
 
 export const DEFAULT_ANATOMY_AGENT_ID = "corpmate-v0";
 export const DEFAULT_ANATOMY_EVALUATION_ID = "eval-001";

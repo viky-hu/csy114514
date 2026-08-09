@@ -63,14 +63,14 @@ test("creates the anatomy preview model with R4 selected and verified status fro
     viewModel.paths.map((path) => [path.id, path.status]),
     [
       ["R4", "verified"],
-      ["R1", "verified"],
+      ["R1", "potential"],
       ["R2", "potential"],
       ["R3", "potential"],
     ],
   );
   assert.deepEqual(viewModel.statusCounts, {
-    potential: 2,
-    verified: 2,
+    potential: 3,
+    verified: 1,
   });
   assert.deepEqual(
     viewModel.selectedPath?.steps.map((step) => [step.stage, step.label]),

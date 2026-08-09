@@ -39,6 +39,12 @@ test("anatomy graph keeps a focused workbench header and SVG route choreography"
   assert.match(graphSource, /anatomy-stage-pill/);
   assert.match(graphSource, /anatomy-path-card/);
   assert.match(graphSource, /anatomy-verify-button/);
+  assert.match(graphSource, /repository = defaultAnatomyRepository/);
+  assert.match(graphSource, /selectedNodeId/);
+  assert.match(graphSource, /onClick=\{\(\) => setSelectedNodeId\(node\.id\)\}/);
+  assert.match(graphSource, /onFocus=\{\(\) => setSelectedNodeId\(node\.id\)\}/);
+  assert.match(graphSource, /anatomy-label-chip/);
+  assert.match(graphSource, /数据来源/);
   assert.match(graphSource, /ANATOMY_PHASE_RAIL_PATH/);
   assert.match(graphSource, /ANATOMY_PHASE_LABEL_Y/);
   assert.match(graphSource, /ANATOMY_ACTIVE_NODE_DURATION/);
@@ -53,6 +59,7 @@ test("anatomy graph keeps a focused workbench header and SVG route choreography"
   assert.match(graphSource, /发送邮件/);
   assert.doesNotMatch(graphSource, /示例预览/);
   assert.doesNotMatch(graphSource, /真实接入/);
+  assert.doesNotMatch(graphSource, /const viewModel = previewViewModel/);
   assert.doesNotMatch(graphSource, /anatomy-mode-panel/);
   assert.doesNotMatch(graphSource, /anatomy-filter-chip/);
   assert.doesNotMatch(graphSource, /anatomy-boundary/);
@@ -97,6 +104,8 @@ test("anatomy graph keeps a focused workbench header and SVG route choreography"
   assert.match(mainStyles, /\.anatomy-path-card strong \{[\s\S]*font-size: 14px;/);
   assert.match(mainStyles, /\.anatomy-path-card em \{[\s\S]*font-size: 12px;/);
   assert.match(mainStyles, /\.anatomy-status-badge \{[\s\S]*font-size: 13px;/);
+  assert.match(mainStyles, /\.anatomy-label-chip/);
+  assert.match(mainStyles, /\.anatomy-node-detail-list/);
   assert.match(mainStyles, /\.anatomy-inspector-heading h2 \{[\s\S]*font-size: 23px;/);
   assert.match(mainStyles, /\.anatomy-inspector-heading p,[\s\S]*\.anatomy-detail-block p \{[\s\S]*font-size: 13px;/);
   assert.match(mainStyles, /\.anatomy-detail-block > span \{[\s\S]*font-size: 13px;/);

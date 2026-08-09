@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { buildAgentEvalBackendUrl } from "../../../../lib/server/backend";
+import {
+  backendUnavailableResponse,
+  buildAgentEvalBackendUrl,
+} from "../../../../lib/server/backend";
 
 export const runtime = "nodejs";
 
@@ -40,12 +43,6 @@ export async function GET(_request: Request, context: RouteContext) {
 
     return NextResponse.json(payload, { status: upstream.status });
   } catch {
-    return NextResponse.json(
-      {
-        code: "AGENT_GRAPH_UNAVAILABLE",
-        message: "Agent graph backend is not connected.",
-      },
-      { status: 503 },
-    );
+    return backendUnavailableResponse();
   }
 }
