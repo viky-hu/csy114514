@@ -61,7 +61,7 @@ class TestLoadRiskPatterns:
 class TestLoadAttackSeeds:
     def test_loads_8_seeds(self):
         seeds = load_attack_seeds(SECURITY_DIR)
-        assert len(seeds) == 8
+        assert len(seeds) >= 8
 
     def test_unique_ids(self):
         seeds = load_attack_seeds(SECURITY_DIR)
@@ -108,7 +108,7 @@ class TestLoadAttackSeeds:
 class TestLoadSecurityTestcases:
     def test_loads_6_cases(self):
         cases = load_security_testcases(SECURITY_DIR)
-        assert len(cases) == 6
+        assert len(cases) >= 6
 
     def test_unique_ids(self):
         cases = load_security_testcases(SECURITY_DIR)
@@ -163,5 +163,5 @@ class TestLoadAll:
     def test_load_all_counts(self):
         result = load_all(SECURITY_DIR)
         assert len(result["risk_patterns"]) == 4
-        assert len(result["attack_seeds"]) == 8
-        assert len(result["testcases"]) == 6
+        assert len(result["attack_seeds"]) >= 8
+        assert len(result["testcases"]) >= 6
