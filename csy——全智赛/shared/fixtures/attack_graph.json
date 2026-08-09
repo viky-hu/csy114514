@@ -30,6 +30,15 @@
       }
     },
     {
+      "node_id": "n_tool_email_list",
+      "node_type": "TOOL",
+      "labels": [],
+      "metadata": {
+        "name": "email.list",
+        "description": "List email inbox — returns email metadata"
+      }
+    },
+    {
       "node_id": "n_tool_email_send",
       "node_type": "TOOL",
       "labels": ["DANGEROUS"],
@@ -99,6 +108,13 @@
       "target_node_id": "n_tool_email_read",
       "edge_type": "READ_FROM",
       "metadata": {"description": "Email tool reads email data"}
+    },
+    {
+      "edge_id": "e_email_read_data_to_agent",
+      "source_node_id": "n_tool_email_read",
+      "target_node_id": "n_agent_corpmate",
+      "edge_type": "PASS_DATA",
+      "metadata": {"description": "Email content passed to agent — may contain malicious prompts or sensitive data"}
     }
   ],
   "risk_path_ids": ["R1", "R2", "R3", "R4"],

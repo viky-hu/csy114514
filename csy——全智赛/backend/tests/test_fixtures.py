@@ -28,8 +28,8 @@ class TestFixtureValidation:
     def test_attack_graph_fixture_is_valid(self):
         data = _load_json("attack_graph.json")
         obj = AttackGraph.model_validate(data)
-        assert len(obj.nodes) == 6
-        assert len(obj.edges) == 6
+        assert len(obj.nodes) == 7
+        assert len(obj.edges) == 7
         assert "R4" in obj.risk_path_ids
 
     def test_attack_graph_all_nodes_have_valid_types(self):

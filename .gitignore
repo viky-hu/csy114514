@@ -16,3 +16,12 @@ __pycache__/
 .tmp/
 csy——全智赛/backend/data/*.sqlite3
 csy——全智赛/backend/data/*.sqlite3-*
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Logs
+*.log

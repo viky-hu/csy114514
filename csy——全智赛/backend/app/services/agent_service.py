@@ -1,32 +1,47 @@
-"""Agent service — currently mock: reads from shared/fixtures/."""
-import json
-from pathlib import Path
+"""Agent service — registers agents and builds their AttackGraph (P2-0a).
 
+Profiles are stored in memory (mock, no database in Stage 1). The attack graph
+is now generated from the manifest instead of read from fixture.
+"""
 from backend.app.domain.agent_manifest import AgentManifest
 from backend.app.domain.agent_profile import AgentProfile
 from backend.app.domain.attack_graph import AttackGraph
-
-FIXTURES_DIR = Path(__file__).parent.parent.parent.parent / "shared" / "fixtures"
+from backend.app.services.graph_builder import build_attack_graph
 
 # In-memory store (mock, no database in Stage 1)
 _profiles: dict[str, AgentProfile] = {}
 _graphs: dict[str, AttackGraph] = {}
 
 
-def _load_fixture(filename: str) -> dict:
-    path = FIXTURES_DIR / filename
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def register_agent(manifest: AgentManifest) -> AgentProfile:
     """Register a new agent from its manifest. Returns populated profile."""
-    fixture_data = _load_fixture("agent_profile.json")
-    profile = AgentProfile.model_validate({
-        **fixture_data,
-        "agent_id": manifest.agent_id,
-        "manifest": manifest.model_dump(mode="json"),
-    })
+    profile = AgentProfile(
+        profile_id=f"profile-{manifest.agent_id}",
+        agent_id=manifest.agent_id,
+        manifest=manifest,
+        capability_profile={
+            "tool_count": len(manifest.capabilities),
+            "data_sources": manifest.data_sources,
+            "memory_type": manifest.memory.get("type"),
+            "memory": manifest.memory,
+        },
+        security_assets={
+            "dangerous_tools": [
+                t for t in manifest.capabilities if t == "email.send"
+            ],
+            "persistent_stores": (
+                ["memory"] if manifest.memory else []
+            ),
+            "sensitive_tools": [
+                t for t in manifest.capabilities if t == "email.read"
+            ],
+            "untrusted_sources": [
+                t for t in manifest.capabilities if t == "browser.open_page"
+            ],
+        },
+    )
     _profiles[manifest.agent_id] = profile
+    _graphs[manifest.agent_id] = build_attack_graph(manifest)
     return profile
 
 
@@ -36,12 +51,7 @@ def get_agent(agent_id: str) -> AgentProfile | None:
 
 
 def get_attack_graph(agent_id: str) -> AttackGraph | None:
-    """Get attack graph for an agent."""
+    """Get generated attack graph for an agent."""
     if agent_id not in _profiles:
         return None
-    fixture_data = _load_fixture("attack_graph.json")
-    graph = AttackGraph.model_validate({
-        **fixture_data,
-        "agent_id": agent_id,
-    })
-    return graph
+    return _graphs.get(agent_id)
