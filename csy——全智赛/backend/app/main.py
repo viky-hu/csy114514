@@ -1,4 +1,5 @@
 """FastAPI application entry point."""
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,11 +10,41 @@ from backend.app.api.agents import router as agents_router
 from backend.app.api.evaluations import router as evaluations_router
 from backend.app.api.health import router as health_router
 from backend.app.config import settings
+from backend.app.domain.agent_manifest import AgentManifest
 from backend.app.exception_handlers import (
     generic_exception_handler,
     validation_exception_handler,
 )
-from backend.app.services import evaluation_service
+from backend.app.services import agent_service, evaluation_service
+
+logger = logging.getLogger(__name__)
+
+# CorpMate v0 — auto-registered on startup so frontend anatomy page works
+# without a manual POST /agents call after every restart.
+_CORPMATE_MANIFEST = AgentManifest(
+    agent_id="corpmate-v0",
+    name="CorpMate v0",
+    version="0.1.0",
+    capabilities=[
+        "chat",
+        "browser.open_page",
+        "email.list",
+        "email.read",
+        "email.send",
+        "memory.read",
+        "memory.write",
+    ],
+    data_sources=["browser", "email", "memory"],
+    memory={"type": "persistent", "max_entries": 100},
+    tool_permissions={
+        "browser.open_page": "ALLOW",
+        "email.list": "ALLOW",
+        "email.read": "ALLOW",
+        "email.send": "CONFIRM",
+        "memory.read": "ALLOW",
+        "memory.write": "ALLOW",
+    },
+)
 
 
 @asynccontextmanager
@@ -26,6 +57,9 @@ async def lifespan(_: FastAPI):
         fingerprint_key=settings.trace_fingerprint_key,
         start_worker=True,
     )
+    # Auto-register CorpMate v0 so GET /agents/corpmate-v0/graph works immediately.
+    agent_service.register_agent(_CORPMATE_MANIFEST)
+    logger.info("Auto-registered CorpMate v0 (agent_id=corpmate-v0)")
     try:
         yield
     finally:
