@@ -2,12 +2,12 @@
 
 > 起草日期: 2026-08-10
 > 起草人: 陈书扬 (Security & Evaluation Owner)
-> 状态: **2/3 已签字，待胡继天确认**
+> 状态: **✅ 三人全部签字确认 (2026-08-10)**
 > 
 > 签字栏:
 > - [x] 陈书扬 (Security Line) — 日期: 2026-08-10 (起草人)
 > - [x] 步嘉城 (Platform Line) — 日期: 2026-08-10
-> - [ ] 胡继天 (Frontend Line) — 日期: ____
+> - [x] 胡继天 (Frontend Line) — 日期: 2026-08-10
 
 ---
 
@@ -337,16 +337,22 @@ Breaking Change: 否 (现有 fixture 同时提供 input + turns，仍有效)
 
 | # | 变更 | 陈书扬 | 步嘉城 | 胡继天 |
 |---|------|--------|--------|--------|
-| L1 | AgentManifest 双字段结构 | ✅ 2026-08-10 | ✅ 2026-08-10 | □ |
-| L2 | risk_path_ids 文档注释 | ✅ 2026-08-10 | ✅ 2026-08-10 | □ |
-| L3 | TestCase CollectionWarning | ✅ 2026-08-10 | ✅ 2026-08-10 | □ |
-| L4 | ScenarioTurn + env_delta | ✅ 2026-08-10 | ✅ 2026-08-10 | □ |
+| L1 | AgentManifest 双字段结构 | ✅ 2026-08-10 | ✅ 2026-08-10 | ✅ 2026-08-10 |
+| L2 | risk_path_ids 文档注释 | ✅ 2026-08-10 | ✅ 2026-08-10 | ✅ 2026-08-10 |
+| L3 | TestCase CollectionWarning | ✅ 2026-08-10 | ✅ 2026-08-10 | ✅ 2026-08-10 |
+| L4 | ScenarioTurn + env_delta | ✅ 2026-08-10 | ✅ 2026-08-10 | ✅ 2026-08-10 |
 
 **步嘉城签字备注** (2026-08-10):
 - L1: 确认保留 capabilities + tool_permissions 双字段
 - L2: 确认 API JSON 字段名 risk_path_ids 不变，加文档说明
 - L3: 确认
 - L4: 确认按 P2-0 适配 + 向后兼容，保 190 全绿。已明确无 inputs 字段，用 scenario.turns
+
+**胡继天签字备注** (2026-08-10):
+- L1-L4: 全部确认
+- Frontend 后续以 OpenAPI schema 为准，消费 ScenarioTurn.input、ScenarioTurn.env_delta、turn_count 等派生展示字段
+- 个人计划 (`stage2_plan_for_胡继天.md`) 里残留的 `inputs` 旧表述需随 L4 一起术语同步
+- 可以开始 D8 开发
 
 **签字后各线动作:**
 

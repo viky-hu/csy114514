@@ -4,9 +4,10 @@
 > 任何模块引用这三个结构时, 以本文件为准。
 > 变更本文件需三人书面确认(依据 CODING_AGENT_RULE §4)。
 
-版本: v1.1 (R4 MVP 契约变更)
-日期: 2026-07-31
+版本: v1.1 (Stage 2 Day 0 变更 L1/L2/L4)
+日期: 2026-08-10
 发布人: 陈书扬 (Security & Evaluation Owner)
+变更: 三人签字生效 — 新增 §9 (AgentManifest/risk_path_ids/ScenarioTurn+env_delta)
 
 ---
 
@@ -336,7 +337,7 @@ file_content           文件内容中嵌入
 | 4 | risk_type | string | 是 | §1.1 枚举 | 风险类型 |
 | 5 | severity | string | 是 | §1.2 枚举 | 严重等级 |
 | 6 | scenario | object | 是 | 见 §4.2 | 测试场景 |
-| 7 | input | string | 是 | | 发送给 Agent 的用户输入 |
+| 7 | input | string \| null | 条件必填 | scenario.turns 为空时必填 | 单轮模式的用户输入 (L4: 改为 Optional) |
 | 8 | expected_behavior | string | 是 | | 期望的安全行为描述 |
 | 9 | forbidden_actions | string[] | 是 | 值为工具名 | Agent 禁止执行的动作 |
 | 10 | judge_policy | string | 是 | §1.5 枚举 | 判定策略 |
@@ -351,6 +352,27 @@ file_content           文件内容中嵌入
 | summary | string | 是 | 场景一句话概述 |
 | initial_state | object | 是 | Sandbox 初始状态(见 §4.4) |
 | target_agent | string | 是 | 目标 Agent 名称(Stage 1 固定为 "corpmate") |
+| turns | ScenarioTurn[] | 否 | 多轮会话 (L4 新增, 缺失时用顶层 input 单轮模式) |
+
+### ScenarioTurn 子结构 (L4 新增)
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| turn_id | string | 是 | 轮次唯一标识 |
+| input | string | 是 | 本轮用户输入 |
+| starts_new_session | bool | 是 | 是否开启新会话 |
+| env_delta | EnvDelta \| null | 否 | 本轮环境增量变更 (不传则保持上一轮状态) |
+
+### EnvDelta 子结构 (L4 新增)
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| browser_pages | dict[str, str] \| null | 否 | 新增/更新的浏览器页面 (URL → fixture_id) |
+| memory | list[str] \| null | 否 | 新增的记忆条目 |
+| email_inbox | list[str] \| null | 否 | 新增的邮件 fixture ID |
+
+> env_delta 是**增量**而非全量替换。Runner 在每轮执行前将 delta 合并到当前 Sandbox 状态。
+> Memory 在 turn 间持久化 (不 reset)，这是多轮攻击链 (R4) 的基础。
 
 ## 4.3 success_criteria 子结构
 
@@ -388,6 +410,9 @@ file_content           文件内容中嵌入
 ③ attack_seed_ids 若不为空, 每项必须引用 attack_seeds.json 中已存在的 id
 ④ judge_policy = rule 时, 由 RuleJudge 执行判定
 ⑤ severity 应与 risk_type 的默认 severity 一致或更高(不允许降低)
+⑥ input 和 scenario.turns 至少提供一个 (L4 新增)
+⑦ scenario.turns 非空时, 顶层 input 被忽略 (Runner 按 turns 循环执行)
+⑧ env_delta 为增量合并, 不替换 Sandbox 已有状态
 ```
 
 ---
@@ -470,11 +495,64 @@ TestCase           ← 属于 → 8 个冻结 Contract 之一
 ④ 修改 judge_rules 内容 → 不破坏 Contract → 陈书扬确认即可
 ```
 
-## 8.1 R4 MVP 已批准变更 (2026-08-08)
+---
 
-- `TestCase.scenario.turns` 新增为可选多轮会话数组；旧用例继续执行顶层 `input`。
-- `tc_pipi_001` 使用两个 `starts_new_session=true` 的真实 Agent 会话，共享同一 Sandbox 持久记忆。
-- 运行、事件、Finding 与 Report 的新增契约分别以同目录
-  `evaluation_run.schema.json`、`execution_event.schema.json`、
-  `risk_finding.schema.json`、`evaluation_report.schema.json` 为准。
-- 本变更已按 `CODING_AGENT_RULE §4` 在实施任务中取得三位 owner 的书面确认。
+# 9. Stage 2 补充契约 (Day 0 变更单 L1/L2/L4, 2026-08-10 三人签字生效)
+
+## 9.1 AgentManifest 正式结构 (L1)
+
+> design V0.2 §4 中的 `tools` 数组已正式废弃。代码实现的双字段结构为唯一权威。
+
+```python
+class AgentManifest(BaseModel):
+    capabilities: list[str]                # 能力清单 (Runner/Graph Builder 遍历用)
+    tool_permissions: dict[str, str]       # 权限映射 (值域: ALLOW | CONFIRM | DENY)
+```
+
+| 字段 | 类型 | 职责 | 消费方 |
+|------|------|------|--------|
+| capabilities | list[str] | Agent 可执行的能力列表 (如 "browser.open_page", "email.send") | Runner 遍历、Graph Builder 生成节点 |
+| tool_permissions | dict[str, str] | 每个能力的权限级别 (ALLOW / CONFIRM / DENY) | RuleJudge 判定 CONFIRMATION_MISSING |
+
+> 两个字段职责不同，缺一不可。`capabilities` 是能力清单，`tool_permissions` 是权限映射。
+
+## 9.2 risk_path_ids 语义说明 (L2)
+
+> ⚠️ `AttackGraph.risk_path_ids` 存储的是 **RiskPattern.id** (如 "R1", "R4")，
+> 不是 AttackPath.id (如 "path-r4-001")。
+> 字段名中的 "path" 指风险模式路径，非攻击图路径。
+> 此字段名已被 CODING_AGENT_RULE 冻结，不可改名。
+
+| 字段 | 存储内容 | 示例值 | 注意 |
+|------|---------|--------|------|
+| risk_path_ids | RiskPattern.id 列表 | `["R1", "R4"]` | **不是** AttackPath.id |
+| AttackPath.id | 攻击图路径标识 | `"path-r4-001"` | 独立的图遍历产物 |
+
+API JSON 字段名保持 `risk_path_ids` 不变，与 Pydantic model 一致。
+
+## 9.3 TestCase 多轮机制 (L4)
+
+> 代码已有 `Scenario.turns[]` 机制 (backend/app/domain/test_scenario.py)。
+> Stage 2 不新增 `inputs` 字段，在现有 ScenarioTurn 上新增 `env_delta`。
+
+**向后兼容规则:**
+
+```text
+① TestCase.input 改为 Optional (有 scenario.turns 时可省略)
+② scenario.turns 非空时, Runner 按 turns 循环执行, 顶层 input 被忽略
+③ scenario.turns 为空时, 顶层 input 必填, 走单轮模式
+④ 现有 tc_pipi_001 (同时有 input + turns) 仍有效, input 字段被 turns 覆盖
+⑤ env_delta 为增量合并, Memory 在 turn 间持久化 (不 reset)
+```
+
+**Runner 执行伪代码:**
+
+```text
+turns = scenario.turns if non-empty else [{ input: input, ... }]  # 单轮包装
+for turn in turns:
+    if turn.env_delta:
+        sandbox.apply_delta(turn.env_delta)    # 增量合并
+    trace_turn = adapter.invoke(turn.input)
+    trace.add_turn(trace_turn)
+    # Memory 跨 turn 持久化, 不 reset
+```

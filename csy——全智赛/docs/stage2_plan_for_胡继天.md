@@ -82,7 +82,7 @@ TestCaseSummary:
     risk_type: string            # "persistent_indirect_prompt_injection"
     severity: string             # "CRITICAL"
     target_risk_pattern: string  # "R4"
-    turn_count: number           # 2 (inputs 数组长度)
+    turn_count: number           # 2 (scenario.turns 数组长度)
     description: string          # 人可读描述
 ```
 
@@ -212,7 +212,7 @@ EvidenceItem:
 ```text
 ① 等 Platform 更新 OpenAPI schema
 ② 重新生成 backend-api.d.ts
-③ 确认 TestCase 类型新增 inputs 字段
+③ 确认 TestCase 类型: input Optional + scenario.turns + env_delta (L4)
 ④ TestCase 选择器组件骨架 (可先用 mock 数据)
 ```
 

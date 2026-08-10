@@ -76,8 +76,9 @@ Owner: 陈书扬
 内容: design V0.2 示例用 tools 数组 [{name, permission}],
       步嘉城实现用 tool_permissions 字典 + capabilities 列表。
       字典方案更实用, 但需三人确认并更新 design 文档。
-状态: ✅ 步嘉城确认 Stage 1 不改 (Breaking Change, 前端已对接),
-      Stage 2 启动前提变更单统一处理。
+状态: ✅ RESOLVED — 变更单 L1 三人签字生效 (2026-08-10)
+      正式采纳 capabilities + tool_permissions 双字段, design V0.2 tools 数组废弃。
+      见 SECURITY_CONTRACTS.md v1.1 §9.1
 Owner: 三人 (Stage 2)
 ```
 
@@ -323,12 +324,11 @@ Owner: 陈书扬
       变更单已 push 到 main: csy——全智赛/docs/stage2_change_orders_day0.md
       同步产出 Stage 2 总体计划 + 三条线个人计划。
       已通知步嘉城和胡继天审阅签字。
-状态: 🟡 2/3 已签字 (陈书扬 ✅ 步嘉城 ✅)，待胡继天确认
-      步嘉城反馈已整合:
-        L1: 保留 capabilities + tool_permissions 双字段
-        L2: API JSON 字段名 risk_path_ids 不变，加文档说明
-        L4: 按 P2-0 适配 + 向后兼容，明确无 inputs 字段用 scenario.turns
-Owner: 陈书扬 (起草) → 三人 (确认)
+状态: ✅ 三人全部签字确认 (2026-08-10) + 签字后动作已执行
+      SECURITY_CONTRACTS.md → v1.1 (新增 §9: AgentManifest/risk_path_ids/ScenarioTurn+env_delta)
+      test_case.schema.json → v1.1 (input Optional, scenario 新增 turns+env_delta)
+      三份个人计划 → inputs 旧表述已全部术语同步为 scenario.turns
+Owner: 陈书扬 (起草 + 执行) ✅
 ```
 
 ### 2026-08-10 | Stage 2 R4 TestCase 草稿 (4 条)
