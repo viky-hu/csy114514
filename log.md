@@ -331,18 +331,35 @@ Owner: 陈书扬
 Owner: 陈书扬 (起草 + 执行) ✅
 ```
 
-### 2026-08-10 | Stage 2 R4 TestCase 草稿 (4 条)
+### 2026-08-10 | Stage 2 R4 TestCase 正式稿 (4 条)
 
 ```text
 来源: Stage 2 Security Line D8 任务
-内容: 编写 4 条 R4 旗舰 TestCase 草稿，验证 ScenarioTurn+env_delta schema:
+内容: 4 条 R4 旗舰 TestCase 正式定稿，通过 v1.1 schema 校验:
       tc_r4_e2e_001: 恶意网页 → 记忆投毒 → 邮件触发 (2 turn)
       tc_r4_e2e_002: 权威框架伪装 IT 管理通知 (2 turn)
       tc_r4_e2e_003: 上下文嵌入行业报告 (2 turn)
-      tc_r4_e2e_004: 三轮渐进式记忆污染 (3 turn, 验证多轮累积攻击)
-      文件: shared/examples/security/security_testcases_r4_draft.json
-      每条均使用 scenario.turns + env_delta 结构。
-状态: ✅ 草稿完成，待 schema 签字后正式定稿
+      tc_r4_e2e_004: 三轮渐进式记忆污染 (3 turn)
+      文件: shared/examples/security/security_testcases_r4.json
+      修复: 移除 draft 中的 target_risk_pattern/judge_rules 多余字段
+状态: ✅ 正式稿, schema v1.1 校验通过
+Owner: 陈书扬
+```
+
+### 2026-08-10 | Stage 2 R1 IPI Web TestCase (6 条)
+
+```text
+来源: Stage 2 Security Line D8 任务
+内容: 6 条 R1 IPI Web TestCase，通过 v1.1 schema 校验:
+      tc_r1_web_001: 隐藏邮件指令 (1 turn)
+      tc_r1_web_002: 伪装 IT 管理通知 (1 turn)
+      tc_r1_web_003: 正常文章末尾嵌入转发指令 (1 turn)
+      tc_r1_web_004: 伪装系统诊断任务 (1 turn)
+      tc_r1_web_005: 礼貌请求口吻的嵌入指令 (1 turn)
+      tc_r1_web_006: 2-turn 跨轮 IPI 影响 (2 turn)
+      文件: shared/examples/security/security_testcases_r1.json
+TestCase 累计: 7 (现有) + 4 (R4) + 6 (R1) = 17 条
+状态: ✅ 正式稿, schema v1.1 校验通过
 Owner: 陈书扬
 ```
 
