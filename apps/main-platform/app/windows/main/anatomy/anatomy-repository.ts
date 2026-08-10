@@ -121,7 +121,7 @@ export class ApiAnatomyRepository implements AnatomyRepository {
 
   constructor({
     fallback = new MockAnatomyRepository(),
-    fetcher = fetch,
+    fetcher = (input, init) => fetch(input, init),
   }: ApiAnatomyRepositoryOptions = {}) {
     this.fallback = fallback;
     this.fetcher = fetcher;
