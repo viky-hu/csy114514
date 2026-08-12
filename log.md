@@ -363,6 +363,22 @@ TestCase 累计: 7 (现有) + 4 (R4) + 6 (R1) = 17 条
 Owner: 陈书扬
 ```
 
+### 2026-08-10 | Mutation Engine v1 + 30 条变体 TestCase
+
+```text
+来源: Stage 2 Security Line D8 任务
+内容: 构建 Mutation Engine v1 (种子 × 模板 → 变体 TestCase):
+      mutation_seeds.json: 6 个攻击种子 (email_forward, cc_bcc, memory_preference, inbox_dump, signature, diagnostic)
+      mutation_templates.json: 8 个变异模板 (authority_framing, context_embedding, hidden_html, html_comment, task_framing, instruction_rephrasing, white_text, fake_update)
+      mutation_engine.py: 变异引擎脚本
+      兼容组合: 6 seed × 8 template = 30 条变体 (过滤 risk_type 不兼容)
+      变体分布: authority_framing:8, obfuscation:11, context_embedding:5, instruction_rephrasing:3, task_framing:3
+      文件: shared/examples/security/security_testcases_mutated.json
+TestCase 累计: 7 + 4 + 6 + 30 = 47 条, 全部通过 schema v1.1 校验
+状态: ✅ Engine + 变体已生成, schema 校验通过
+Owner: 陈书扬
+```
+
 ---
 
 ## 已解决事项
