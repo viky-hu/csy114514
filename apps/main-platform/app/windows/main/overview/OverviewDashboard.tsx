@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import {
@@ -11,12 +11,18 @@ import {
   Network,
 } from "lucide-react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
-import { overviewFixtureViewModel } from "./overview-fixtures";
+import { DEFAULT_AGENT_ID } from "../../shared/agent-config";
+import { createOverviewViewModel, type OverviewInput } from "./overview-data";
+import {
+  overviewFixtureInput,
+  overviewFixtureViewModel,
+} from "./overview-fixtures";
 import { OverviewR4Graph } from "./OverviewR4Graph";
 
 gsap.registerPlugin(useGSAP);
 
 type OverviewDashboardProps = {
+  activeAgentId?: string;
   onNavigate: (key: OverviewNavKey) => void;
 };
 
@@ -94,9 +100,60 @@ function isOverviewNavKey(key: string): key is OverviewNavKey {
   return key === "anatomy" || key === "profile" || key === "report" || key === "run";
 }
 
-export function OverviewDashboard({ onNavigate }: OverviewDashboardProps) {
-  const viewModel = overviewFixtureViewModel;
+export function OverviewDashboard({
+  activeAgentId = DEFAULT_AGENT_ID,
+  onNavigate,
+}: OverviewDashboardProps) {
+  const [viewModel, setViewModel] = useState(overviewFixtureViewModel);
   const rootRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadOverviewAgent = async () => {
+      try {
+        const [profileResponse, graphResponse] = await Promise.all([
+          fetch(`/api/agents/${encodeURIComponent(activeAgentId)}`, {
+            signal: controller.signal,
+          }),
+          fetch(`/api/agents/${encodeURIComponent(activeAgentId)}/graph`, {
+            signal: controller.signal,
+          }),
+        ]);
+
+        if (!profileResponse.ok || !graphResponse.ok) {
+          throw new Error("Agent overview source unavailable");
+        }
+
+        const [agentProfile, attackGraph] = (await Promise.all([
+          profileResponse.json(),
+          graphResponse.json(),
+        ])) as [OverviewInput["agentProfile"], OverviewInput["attackGraph"]];
+
+        if (!controller.signal.aborted) {
+          setViewModel(
+            createOverviewViewModel({
+              agentProfile,
+              attackGraph,
+              evaluationReport: overviewFixtureInput.evaluationReport,
+            }),
+          );
+        }
+      } catch (error) {
+        if (
+          controller.signal.aborted ||
+          (error instanceof DOMException && error.name === "AbortError")
+        ) {
+          return;
+        }
+        setViewModel(overviewFixtureViewModel);
+      }
+    };
+
+    void loadOverviewAgent();
+
+    return () => controller.abort();
+  }, [activeAgentId]);
 
   useGSAP(
     () => {

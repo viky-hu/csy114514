@@ -462,9 +462,13 @@ export function AttackGraphWorkspace({
   useEffect(() => {
     let ignore = false;
 
-    setIsLoadingGraph(true);
-    repository
-      .load({ agentId, selectedPathId })
+    void Promise.resolve()
+      .then(() => {
+        if (!ignore) {
+          setIsLoadingGraph(true);
+        }
+        return repository.load({ agentId, selectedPathId });
+      })
       .then((result) => {
         if (!ignore) {
           setRepositoryResult(result);

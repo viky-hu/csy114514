@@ -6,6 +6,12 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Mouse, X } from "lucide-react";
 import { LINE_DRAW_EASE } from "../shared/animation";
+import {
+  CORPMATE_AGENT_DRAFT,
+  DEFAULT_AGENT_ID,
+  buildAgentManifest,
+  type AgentDraftState,
+} from "../shared/agent-config";
 import { AgentConnectDraft } from "./AgentConnectDraft";
 import { LoginForm } from "./LoginForm";
 
@@ -32,13 +38,17 @@ const LOADING_LABEL = "Loading...";
 const LOADING_BOXES = [1, 2, 3, 4] as const;
 
 interface LoginIntroWindowProps {
-  onAgentEntryComplete?: () => void;
+  onAgentEntryComplete?: (agentId: string) => void;
   onSignIn: (isAdmin: boolean, account: string, nodeType?: string) => void;
 }
 
 export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroWindowProps) {
   const [panelStage, setPanelStage] = useState<PanelStage>("idle");
   const [agentEntryStage, setAgentEntryStage] = useState<AgentEntryStage>("idle");
+  const [agentDraft, setAgentDraft] =
+    useState<AgentDraftState>(CORPMATE_AGENT_DRAFT);
+  const [agentSaveError, setAgentSaveError] = useState<string | null>(null);
+  const [isAgentSaving, setIsAgentSaving] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isScrollReady, setIsScrollReady] = useState(false);
   const ctaPrimaryLabel = isAuthenticated ? CTA_AUTHENTICATED_PRIMARY : CTA_LOGIN_PRIMARY;
@@ -52,7 +62,8 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
   const isScrollReadyRef = useRef(false);
   const pendingAuthenticatedCloseRef = useRef(false);
   const requestAuthenticatedCloseRef = useRef<() => void>(() => undefined);
-  const beginAgentLoadingRef = useRef<() => void>(() => undefined);
+  const beginAgentLoadingRef = useRef<(agentId?: string) => void>(() => undefined);
+  const completedAgentIdRef = useRef(DEFAULT_AGENT_ID);
   const syncCtaLayoutRef = useRef<() => void>(() => undefined);
   const pageRef = useRef<HTMLElement>(null);
   const ctaRef = useRef<HTMLButtonElement>(null);
@@ -103,6 +114,43 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
   const handleMockSignIn = (isAdmin: boolean, account: string, nodeType?: string) => {
     onSignIn(isAdmin, account, nodeType);
     requestAuthenticatedCloseRef.current();
+  };
+
+  const getAgentErrorMessage = (value: unknown, fallback: string) => {
+    if (!value || typeof value !== "object") {
+      return fallback;
+    }
+    const error = (value as { error?: { message?: unknown } }).error;
+    return typeof error?.message === "string" ? error.message : fallback;
+  };
+
+  const saveAgentManifest = async () => {
+    if (isAgentSaving || agentEntryStageRef.current !== "idle") {
+      return;
+    }
+
+    const manifest = buildAgentManifest(agentDraft);
+    setIsAgentSaving(true);
+    setAgentSaveError(null);
+
+    try {
+      const response = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(manifest),
+      });
+      const body = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getAgentErrorMessage(body, "Agent 接入失败"));
+      }
+
+      beginAgentLoadingRef.current(manifest.agent_id);
+    } catch (error) {
+      setAgentSaveError(error instanceof Error ? error.message : "Agent 接入失败");
+    } finally {
+      setIsAgentSaving(false);
+    }
   };
 
   useLayoutEffect(() => {
@@ -1127,7 +1175,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             setAgentEntryStageValue("done");
             renderLockedAgentEntryPage();
             loadingTimeline = null;
-            onAgentEntryComplete?.();
+            onAgentEntryComplete?.(completedAgentIdRef.current);
           },
         });
 
@@ -1139,11 +1187,12 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         });
       };
 
-      const beginAgentLoading = withContextSafe(() => {
+      const beginAgentLoading = withContextSafe((agentId = DEFAULT_AGENT_ID) => {
         if (agentEntryStageRef.current !== "idle") {
           return;
         }
 
+        completedAgentIdRef.current = agentId;
         clearIdleTimer();
         clearPointerTweens();
         clearBandTween();
@@ -1450,8 +1499,8 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
           <button
             type="button"
             className="login-agent-bracket-button"
-            disabled={agentEntryStage !== "idle"}
-            onClick={() => beginAgentLoadingRef.current()}
+            disabled={agentEntryStage !== "idle" || isAgentSaving}
+            onClick={() => void saveAgentManifest()}
           >
             <span className="login-agent-bracket" aria-hidden="true">
               [
@@ -1464,8 +1513,8 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
           <button
             type="button"
             className="login-agent-bracket-button is-secondary"
-            disabled={agentEntryStage !== "idle"}
-            onClick={() => beginAgentLoadingRef.current()}
+            disabled={agentEntryStage !== "idle" || isAgentSaving}
+            onClick={() => beginAgentLoadingRef.current(DEFAULT_AGENT_ID)}
           >
             <span className="login-agent-bracket" aria-hidden="true">
               [
@@ -1476,7 +1525,17 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             </span>
           </button>
         </div>
-        <AgentConnectDraft />
+        <AgentConnectDraft
+          draft={agentDraft}
+          footer={
+            agentSaveError ? (
+              <p className="login-agent-field-error" role="alert">
+                {agentSaveError}
+              </p>
+            ) : null
+          }
+          onDraftChange={setAgentDraft}
+        />
       </div>
 
       <div

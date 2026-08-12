@@ -1,171 +1,70 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Braces, CheckCircle2, Github, Package, RefreshCw, Server } from "lucide-react";
-
-type HttpMethod = "POST" | "GET" | "PUT" | "PATCH";
-type Permission = "ALLOW" | "CONFIRM" | "DENY";
-type MemoryType = "none" | "ephemeral" | "persistent";
-
-interface CapabilityDefinition {
-  name: string;
-  nodeType?: "SOURCE" | "TOOL" | "MEMORY";
-  labels?: Array<"UNTRUSTED" | "SENSITIVE" | "DANGEROUS" | "PERSISTENT">;
-  defaultPermission?: Permission;
-}
+import {
+  CAPABILITY_DEFINITIONS,
+  CORPMATE_AGENT_DRAFT,
+  DATA_SOURCE_DEFINITIONS,
+  HTTP_METHODS,
+  TOOL_DEFINITIONS,
+  buildAgentManifest,
+  getAgentDraftRiskAssets,
+  parseAgentHeaders,
+  type AgentDraftState,
+  type HttpMethod,
+  type MemoryType,
+  type Permission,
+} from "../shared/agent-config";
 
 interface SummaryItem {
   label: string;
   value: string;
 }
 
-const HTTP_METHODS: HttpMethod[] = ["POST", "GET", "PUT", "PATCH"];
-
-const CAPABILITY_DEFINITIONS: CapabilityDefinition[] = [
-  { name: "chat" },
-  {
-    name: "browser.open_page",
-    nodeType: "SOURCE",
-    labels: ["UNTRUSTED"],
-    defaultPermission: "ALLOW",
-  },
-  { name: "email.list", nodeType: "TOOL", defaultPermission: "ALLOW" },
-  {
-    name: "email.read",
-    nodeType: "TOOL",
-    labels: ["SENSITIVE"],
-    defaultPermission: "ALLOW",
-  },
-  {
-    name: "email.send",
-    nodeType: "TOOL",
-    labels: ["DANGEROUS"],
-    defaultPermission: "CONFIRM",
-  },
-  {
-    name: "memory.read",
-    nodeType: "MEMORY",
-    labels: ["PERSISTENT"],
-    defaultPermission: "ALLOW",
-  },
-  {
-    name: "memory.write",
-    nodeType: "MEMORY",
-    labels: ["PERSISTENT"],
-    defaultPermission: "ALLOW",
-  },
-];
-
-const DATA_SOURCE_DEFINITIONS = ["browser", "email", "memory"] as const;
-const TOOL_DEFINITIONS = CAPABILITY_DEFINITIONS.filter(
-  (capability) => capability.defaultPermission,
-);
-
-const DEFAULT_HEADERS = '{\n  "Content-Type": "application/json"\n}';
-const DEFAULT_REQUEST_TEMPLATE = '{\n  "message": "{{input}}"\n}';
-
-const createEnabledRecord = (names: readonly string[]) =>
-  Object.fromEntries(names.map((name) => [name, true])) as Record<string, boolean>;
-
-const createPermissionRecord = () =>
-  Object.fromEntries(
-    TOOL_DEFINITIONS.map((capability) => [
-      capability.name,
-      capability.defaultPermission ?? "ALLOW",
-    ]),
-  ) as Record<string, Permission>;
-
-function parseHeaders(value: string) {
-  if (!value.trim()) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-      return "Headers 必须是 JSON 对象";
-    }
-
-    return parsed as Record<string, unknown>;
-  } catch {
-    return "Headers JSON 无法解析";
-  }
-}
+type AgentConnectDraftProps = {
+  draft: AgentDraftState;
+  footer?: ReactNode;
+  onDraftChange: (draft: AgentDraftState) => void;
+};
 
 function formatList(items: string[]) {
   return items.length > 0 ? items.join(" / ") : "无";
 }
 
-export function AgentConnectDraft() {
-  const [agentId, setAgentId] = useState("corpmate-v0");
-  const [agentName, setAgentName] = useState("CorpMate v0");
-  const [version, setVersion] = useState("0.1.0");
-  const [endpoint, setEndpoint] = useState("http://127.0.0.1:8000/chat");
-  const [method, setMethod] = useState<HttpMethod>("POST");
-  const [headers, setHeaders] = useState(DEFAULT_HEADERS);
-  const [requestTemplate, setRequestTemplate] = useState(DEFAULT_REQUEST_TEMPLATE);
-  const [responsePath, setResponsePath] = useState("$.content");
-  const [enabledCapabilities, setEnabledCapabilities] = useState(() =>
-    createEnabledRecord(CAPABILITY_DEFINITIONS.map((capability) => capability.name)),
-  );
-  const [enabledDataSources, setEnabledDataSources] = useState(() =>
-    createEnabledRecord(DATA_SOURCE_DEFINITIONS),
-  );
-  const [memoryType, setMemoryType] = useState<MemoryType>("persistent");
-  const [memoryMaxEntries, setMemoryMaxEntries] = useState("100");
-  const [toolPermissions, setToolPermissions] = useState(createPermissionRecord);
-
+export function AgentConnectDraft({
+  draft,
+  footer,
+  onDraftChange,
+}: AgentConnectDraftProps) {
   const selectedCapabilities = CAPABILITY_DEFINITIONS.filter(
-    (capability) => enabledCapabilities[capability.name],
+    (capability) => draft.enabledCapabilities[capability.name],
   );
-  const selectedCapabilityNames = selectedCapabilities.map((capability) => capability.name);
   const selectedDataSources = DATA_SOURCE_DEFINITIONS.filter(
-    (source) => enabledDataSources[source],
+    (source) => draft.enabledDataSources[source],
   );
   const selectedPermissionEntries = TOOL_DEFINITIONS.filter(
-    (capability) => enabledCapabilities[capability.name],
+    (capability) => draft.enabledCapabilities[capability.name],
   ).map((capability): [string, Permission] => [
     capability.name,
-    toolPermissions[capability.name] ?? "ALLOW",
+    draft.toolPermissions[capability.name] ?? "ALLOW",
   ]);
-  const parsedHeaderResult = useMemo(() => parseHeaders(headers), [headers]);
-  const memoryLimit = Number.parseInt(memoryMaxEntries, 10);
-  const manifestPreview = {
-    agent_id: agentId.trim() || "agent-draft",
-    name: agentName.trim() || "未命名 Agent",
-    version: version.trim() || "0.1.0",
-    capabilities: selectedCapabilityNames,
-    data_sources: selectedDataSources,
-    memory:
-      memoryType === "none"
-        ? {}
-        : {
-            type: memoryType,
-            ...(Number.isFinite(memoryLimit) && memoryLimit > 0
-              ? { max_entries: memoryLimit }
-              : {}),
-          },
-    tool_permissions: Object.fromEntries(selectedPermissionEntries),
-  };
+  const parsedHeaderResult = useMemo(
+    () => parseAgentHeaders(draft.headers),
+    [draft.headers],
+  );
+  const manifestPreview = buildAgentManifest(draft);
   const adapterPreview = {
-    endpoint: endpoint.trim(),
-    method,
-    headers: typeof parsedHeaderResult === "string" ? headers : parsedHeaderResult,
-    request_template: requestTemplate,
-    response_path: responsePath.trim(),
+    endpoint: draft.endpoint.trim(),
+    headers:
+      typeof parsedHeaderResult === "string"
+        ? draft.headers
+        : parsedHeaderResult,
+    method: draft.method,
+    request_template: draft.requestTemplate,
+    response_path: draft.responsePath.trim(),
   };
-  const securityAssetDraft = {
-    sensitive_tools: selectedCapabilities
-      .filter((capability) => capability.labels?.includes("SENSITIVE"))
-      .map((capability) => capability.name),
-    dangerous_tools: selectedCapabilities
-      .filter((capability) => capability.labels?.includes("DANGEROUS"))
-      .map((capability) => capability.name),
-    persistent_stores:
-      memoryType === "persistent" && selectedDataSources.includes("memory") ? ["memory"] : [],
-    untrusted_sources: selectedDataSources.includes("browser") ? ["browser"] : [],
-  };
+  const securityAssetDraft = getAgentDraftRiskAssets(draft);
   const headersError = typeof parsedHeaderResult === "string" ? parsedHeaderResult : "";
   const selectedToolCount = selectedCapabilities.filter(
     (capability) => capability.defaultPermission,
@@ -176,7 +75,7 @@ export function AgentConnectDraft() {
   const summaryItems: SummaryItem[] = [
     { label: "工具数", value: String(selectedToolCount) },
     { label: "数据源", value: String(selectedDataSources.length) },
-    { label: "记忆", value: memoryType },
+    { label: "记忆", value: draft.memoryType },
     { label: "确认门", value: String(confirmPermissionCount) },
   ];
   const riskItems: SummaryItem[] = [
@@ -188,7 +87,7 @@ export function AgentConnectDraft() {
   const validationItems: SummaryItem[] = [
     {
       label: "Manifest",
-      value: agentId.trim() && agentName.trim() ? "可生成" : "缺少标识",
+      value: draft.agentId.trim() && draft.agentName.trim() ? "可提交" : "缺少标识",
     },
     {
       label: "Headers",
@@ -196,47 +95,39 @@ export function AgentConnectDraft() {
     },
     {
       label: "Adapter",
-      value: endpoint.trim() ? "API 草稿就绪" : "缺少 Endpoint",
+      value: draft.endpoint.trim() ? "本地草稿" : "缺少 Endpoint",
     },
   ];
 
+  const patchDraft = (patch: Partial<AgentDraftState>) => {
+    onDraftChange({ ...draft, ...patch });
+  };
+
   const toggleCapability = (name: string) => {
-    setEnabledCapabilities((current) => ({
-      ...current,
-      [name]: !current[name],
-    }));
+    patchDraft({
+      enabledCapabilities: {
+        ...draft.enabledCapabilities,
+        [name]: !draft.enabledCapabilities[name],
+      },
+    });
   };
 
   const toggleDataSource = (name: string) => {
-    setEnabledDataSources((current) => ({
-      ...current,
-      [name]: !current[name],
-    }));
+    patchDraft({
+      enabledDataSources: {
+        ...draft.enabledDataSources,
+        [name]: !draft.enabledDataSources[name],
+      },
+    });
   };
 
   const updatePermission = (name: string, permission: Permission) => {
-    setToolPermissions((current) => ({
-      ...current,
-      [name]: permission,
-    }));
-  };
-
-  const resetCorpMatePreset = () => {
-    setAgentId("corpmate-v0");
-    setAgentName("CorpMate v0");
-    setVersion("0.1.0");
-    setEndpoint("http://127.0.0.1:8000/chat");
-    setMethod("POST");
-    setHeaders(DEFAULT_HEADERS);
-    setRequestTemplate(DEFAULT_REQUEST_TEMPLATE);
-    setResponsePath("$.content");
-    setEnabledCapabilities(
-      createEnabledRecord(CAPABILITY_DEFINITIONS.map((capability) => capability.name)),
-    );
-    setEnabledDataSources(createEnabledRecord(DATA_SOURCE_DEFINITIONS));
-    setMemoryType("persistent");
-    setMemoryMaxEntries("100");
-    setToolPermissions(createPermissionRecord());
+    patchDraft({
+      toolPermissions: {
+        ...draft.toolPermissions,
+        [name]: permission,
+      },
+    });
   };
 
   return (
@@ -247,7 +138,7 @@ export function AgentConnectDraft() {
           <button
             type="button"
             className="login-agent-text-action"
-            onClick={resetCorpMatePreset}
+            onClick={() => onDraftChange(CORPMATE_AGENT_DRAFT)}
             aria-label="恢复 CorpMate 预设"
           >
             <RefreshCw aria-hidden="true" />
@@ -283,28 +174,42 @@ export function AgentConnectDraft() {
         <div className="login-agent-field-grid is-three">
           <label className="login-agent-field">
             <span>Agent ID</span>
-            <input value={agentId} onChange={(event) => setAgentId(event.target.value)} />
+            <input
+              value={draft.agentId}
+              onChange={(event) => patchDraft({ agentId: event.target.value })}
+            />
           </label>
           <label className="login-agent-field">
             <span>名称</span>
-            <input value={agentName} onChange={(event) => setAgentName(event.target.value)} />
+            <input
+              value={draft.agentName}
+              onChange={(event) => patchDraft({ agentName: event.target.value })}
+            />
           </label>
           <label className="login-agent-field">
             <span>版本</span>
-            <input value={version} onChange={(event) => setVersion(event.target.value)} />
+            <input
+              value={draft.version}
+              onChange={(event) => patchDraft({ version: event.target.value })}
+            />
           </label>
         </div>
 
         <div className="login-agent-field-grid is-api">
           <label className="login-agent-field">
             <span>Endpoint</span>
-            <input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} />
+            <input
+              value={draft.endpoint}
+              onChange={(event) => patchDraft({ endpoint: event.target.value })}
+            />
           </label>
           <label className="login-agent-field">
             <span>Method</span>
             <select
-              value={method}
-              onChange={(event) => setMethod(event.target.value as HttpMethod)}
+              value={draft.method}
+              onChange={(event) =>
+                patchDraft({ method: event.target.value as HttpMethod })
+              }
             >
               {HTTP_METHODS.map((item) => (
                 <option key={item} value={item}>
@@ -319,8 +224,8 @@ export function AgentConnectDraft() {
           <label className="login-agent-field">
             <span>Headers</span>
             <textarea
-              value={headers}
-              onChange={(event) => setHeaders(event.target.value)}
+              value={draft.headers}
+              onChange={(event) => patchDraft({ headers: event.target.value })}
               aria-invalid={headersError ? "true" : "false"}
               spellCheck={false}
             />
@@ -328,8 +233,8 @@ export function AgentConnectDraft() {
           <label className="login-agent-field">
             <span>Request Template</span>
             <textarea
-              value={requestTemplate}
-              onChange={(event) => setRequestTemplate(event.target.value)}
+              value={draft.requestTemplate}
+              onChange={(event) => patchDraft({ requestTemplate: event.target.value })}
               spellCheck={false}
             />
           </label>
@@ -338,14 +243,19 @@ export function AgentConnectDraft() {
         <div className="login-agent-field-grid is-two">
           <label className="login-agent-field">
             <span>Response Path</span>
-            <input value={responsePath} onChange={(event) => setResponsePath(event.target.value)} />
+            <input
+              value={draft.responsePath}
+              onChange={(event) => patchDraft({ responsePath: event.target.value })}
+            />
           </label>
           <label className="login-agent-field">
             <span>Memory</span>
             <span className="login-agent-inline-controls">
               <select
-                value={memoryType}
-                onChange={(event) => setMemoryType(event.target.value as MemoryType)}
+                value={draft.memoryType}
+                onChange={(event) =>
+                  patchDraft({ memoryType: event.target.value as MemoryType })
+                }
               >
                 <option value="none">none</option>
                 <option value="ephemeral">ephemeral</option>
@@ -354,9 +264,11 @@ export function AgentConnectDraft() {
               <input
                 type="number"
                 min="1"
-                value={memoryMaxEntries}
-                disabled={memoryType === "none"}
-                onChange={(event) => setMemoryMaxEntries(event.target.value)}
+                value={draft.memoryMaxEntries}
+                disabled={draft.memoryType === "none"}
+                onChange={(event) =>
+                  patchDraft({ memoryMaxEntries: event.target.value })
+                }
               />
             </span>
           </label>
@@ -369,7 +281,7 @@ export function AgentConnectDraft() {
               <label key={capability.name} className="login-agent-chip">
                 <input
                   type="checkbox"
-                  checked={enabledCapabilities[capability.name]}
+                  checked={draft.enabledCapabilities[capability.name] ?? false}
                   onChange={() => toggleCapability(capability.name)}
                 />
                 <span>{capability.name}</span>
@@ -386,7 +298,7 @@ export function AgentConnectDraft() {
                 <label key={source} className="login-agent-chip">
                   <input
                     type="checkbox"
-                    checked={enabledDataSources[source]}
+                    checked={draft.enabledDataSources[source] ?? false}
                     onChange={() => toggleDataSource(source)}
                   />
                   <span>{source}</span>
@@ -402,8 +314,8 @@ export function AgentConnectDraft() {
                 <label key={tool.name} className="login-agent-permission-row">
                   <span>{tool.name}</span>
                   <select
-                    value={toolPermissions[tool.name] ?? "ALLOW"}
-                    disabled={!enabledCapabilities[tool.name]}
+                    value={draft.toolPermissions[tool.name] ?? "ALLOW"}
+                    disabled={!draft.enabledCapabilities[tool.name]}
                     onChange={(event) =>
                       updatePermission(tool.name, event.target.value as Permission)
                     }
@@ -419,6 +331,7 @@ export function AgentConnectDraft() {
         </div>
 
         {headersError ? <p className="login-agent-field-error">{headersError}</p> : null}
+        {footer}
       </form>
 
       <div className="login-agent-draft-divider" aria-hidden="true" />
@@ -426,7 +339,7 @@ export function AgentConnectDraft() {
       <aside className="login-agent-draft-preview" aria-label="Agent 画像预检">
         <div className="login-agent-draft-toolbar">
           <span>画像预检</span>
-          <span>本地草稿</span>
+          <span>Manifest 真提交 / Adapter 本地草稿</span>
         </div>
 
         <div className="login-agent-profile-grid">
@@ -460,10 +373,10 @@ export function AgentConnectDraft() {
         <div className="login-agent-adapter-card">
           <span>API 接入</span>
           <strong>
-            {method} {endpoint.trim() || "未填写 Endpoint"}
+            {draft.method} {draft.endpoint.trim() || "未填写 Endpoint"}
           </strong>
           <span>Response Path</span>
-          <strong>{responsePath.trim() || "未填写"}</strong>
+          <strong>{draft.responsePath.trim() || "未填写"}</strong>
         </div>
 
         <details className="login-agent-json-details">

@@ -7,8 +7,10 @@ import {
   type OverviewInput,
 } from "./overview-data";
 
-export const overviewFixtureViewModel = createOverviewViewModel({
+export const overviewFixtureInput = {
   agentProfile: agentProfile as OverviewInput["agentProfile"],
   attackGraph: attackGraph as OverviewInput["attackGraph"],
   evaluationReport: evaluationReport as OverviewInput["evaluationReport"],
-});
+};
+
+export const overviewFixtureViewModel = createOverviewViewModel(overviewFixtureInput);

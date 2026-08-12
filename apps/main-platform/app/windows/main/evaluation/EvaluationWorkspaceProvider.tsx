@@ -11,6 +11,11 @@ import {
   type PropsWithChildren,
 } from "react";
 import { readEvaluationHandoff } from "../../shared/evaluation-handoff";
+import { DEFAULT_AGENT_ID } from "../../shared/agent-config";
+import {
+  readStoredEvaluationRunId,
+  storeEvaluationRunId,
+} from "./evaluation-session";
 import {
   eventStage,
   eventText,
@@ -22,8 +27,6 @@ import {
   type SequencedEvent,
 } from "./evaluation-types";
 
-const RUN_ID_STORAGE_KEY = "csy_evaluation_workspace_run_id";
-const DEFAULT_AGENT_ID = "corpmate-v0";
 const TEST_CASE_ID = "tc_pipi_001";
 
 type ProviderState = {
@@ -51,30 +54,12 @@ export type EvaluationWorkspaceNavigate = (key: "run" | "report") => void;
 
 const EvaluationWorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
-function isValidRunId(value: unknown): value is string {
-  return typeof value === "string" && value.length > 2 && value.length <= 160 && /^[a-zA-Z0-9._:-]+$/.test(value);
-}
-
 function getErrorMessage(value: unknown, fallback: string) {
   if (!value || typeof value !== "object") {
     return fallback;
   }
   const error = (value as { error?: { message?: unknown } }).error;
   return typeof error?.message === "string" ? error.message : fallback;
-}
-
-function readStoredRunId() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const value = window.sessionStorage.getItem(RUN_ID_STORAGE_KEY);
-  return isValidRunId(value) ? value : null;
-}
-
-function persistRunId(runId: string) {
-  if (typeof window !== "undefined") {
-    window.sessionStorage.setItem(RUN_ID_STORAGE_KEY, runId);
-  }
 }
 
 function newRequestId() {
@@ -98,7 +83,13 @@ function parseEvent(data: string, lastEventId: string, fallbackRunId: string): S
   }
 }
 
-export function EvaluationWorkspaceProvider({ children }: PropsWithChildren<{ onNavigate?: EvaluationWorkspaceNavigate }>) {
+export function EvaluationWorkspaceProvider({
+  activeAgentId = DEFAULT_AGENT_ID,
+  children,
+}: PropsWithChildren<{
+  activeAgentId?: string;
+  onNavigate?: EvaluationWorkspaceNavigate;
+}>) {
   const [state, setState] = useState<ProviderState>({
     run: null,
     events: [],
@@ -171,7 +162,7 @@ export function EvaluationWorkspaceProvider({ children }: PropsWithChildren<{ on
       throw new Error(getErrorMessage(body, "测评任务创建失败"));
     }
     const run = body as EvaluationRun;
-    persistRunId(run.run_id);
+    storeEvaluationRunId(run.run_id);
     setRun(run, false);
     return run;
   }, [setRun]);
@@ -179,19 +170,19 @@ export function EvaluationWorkspaceProvider({ children }: PropsWithChildren<{ on
   const retryEvaluation = useCallback(async () => {
     closeStream();
     const handoff = readEvaluationHandoff();
-    const agentId = handoff && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : DEFAULT_AGENT_ID;
+    const agentId = handoff && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : activeAgentId;
     setState((current) => ({ ...current, isBootstrapping: true, error: null }));
     try {
       await createEvaluation(agentId);
     } catch (error) {
       setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "无法创建新的测评" }));
     }
-  }, [closeStream, createEvaluation]);
+  }, [activeAgentId, closeStream, createEvaluation]);
 
   useEffect(() => {
     const controller = new AbortController();
     const bootstrap = async () => {
-      const storedRunId = readStoredRunId();
+      const storedRunId = readStoredEvaluationRunId();
       if (storedRunId) {
         try {
           const response = await fetch(`/api/evaluations/${encodeURIComponent(storedRunId)}`, { signal: controller.signal });
@@ -211,7 +202,7 @@ export function EvaluationWorkspaceProvider({ children }: PropsWithChildren<{ on
       }
       try {
         const handoff = readEvaluationHandoff();
-        const agentId = handoff && handoff.testCaseId === TEST_CASE_ID && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : DEFAULT_AGENT_ID;
+        const agentId = handoff && handoff.testCaseId === TEST_CASE_ID && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : activeAgentId;
         await createEvaluation(agentId, controller.signal, bootstrapRequestIdRef.current);
       } catch (error) {
         if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) {
@@ -221,7 +212,7 @@ export function EvaluationWorkspaceProvider({ children }: PropsWithChildren<{ on
     };
     void bootstrap();
     return () => controller.abort();
-  }, [createEvaluation, setRun]);
+  }, [activeAgentId, createEvaluation, setRun]);
 
   const runStatus = state.run?.status;
 

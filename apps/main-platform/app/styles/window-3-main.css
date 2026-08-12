@@ -227,6 +227,274 @@
   pointer-events: auto;
 }
 
+.agent-interface-page {
+  --agent-panel-line: rgba(49, 82, 244, 0.2);
+  --agent-text-strong: rgba(17, 22, 34, 0.94);
+  --agent-text: rgba(17, 22, 34, 0.78);
+  --agent-text-muted: rgba(17, 22, 34, 0.52);
+  --agent-soft-surface: rgba(255, 255, 255, 0.62);
+  --agent-softer-blue: rgba(49, 82, 244, 0.075);
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  color: var(--agent-text);
+}
+
+.agent-interface-page .login-agent-draft {
+  position: static;
+  display: grid;
+  grid-template-columns: minmax(520px, 1.18fr) 1px minmax(330px, 0.82fr);
+  gap: clamp(18px, 2vw, 30px);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  color: var(--agent-text);
+}
+
+.agent-interface-page .login-agent-draft-form,
+.agent-interface-page .login-agent-draft-preview {
+  gap: clamp(12px, 1.35vh, 16px);
+  padding-right: 4px;
+}
+
+.agent-interface-page .login-agent-draft-divider {
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--agent-panel-line) 12%,
+    var(--agent-panel-line) 88%,
+    transparent
+  );
+  box-shadow: none;
+}
+
+.agent-interface-page .login-agent-draft-toolbar,
+.agent-interface-page .login-agent-preview-header {
+  border-bottom-color: var(--agent-panel-line);
+  color: var(--agent-text-strong);
+}
+
+.agent-interface-page .login-agent-text-action,
+.agent-interface-page .login-agent-channel,
+.agent-interface-page .login-agent-chip,
+.agent-interface-page .login-agent-permission-row,
+.agent-interface-page .login-agent-profile-stat,
+.agent-interface-page .login-agent-risk-row,
+.agent-interface-page .login-agent-check-row,
+.agent-interface-page .login-agent-adapter-card,
+.agent-interface-page .login-agent-json-details summary {
+  color: var(--agent-text);
+}
+
+.agent-interface-page .login-agent-text-action {
+  background: transparent;
+  color: var(--main-blue);
+  opacity: 0.9;
+}
+
+.agent-interface-page .login-agent-channel,
+.agent-interface-page .login-agent-field input,
+.agent-interface-page .login-agent-field select,
+.agent-interface-page .login-agent-field textarea,
+.agent-interface-page .login-agent-chip span,
+.agent-interface-page .login-agent-permission-row,
+.agent-interface-page .login-agent-profile-stat,
+.agent-interface-page .login-agent-risk-list,
+.agent-interface-page .login-agent-check-list,
+.agent-interface-page .login-agent-check-row,
+.agent-interface-page .login-agent-adapter-card,
+.agent-interface-page .login-agent-json-details {
+  border-color: var(--agent-panel-line);
+  background: var(--agent-soft-surface);
+  color: var(--agent-text);
+}
+
+.agent-interface-page .login-agent-channel.is-active,
+.agent-interface-page .login-agent-chip input:checked + span,
+.agent-interface-page .login-agent-check-row.is-valid {
+  border-color: rgba(49, 82, 244, 0.44);
+  background: var(--agent-softer-blue);
+  color: rgba(21, 39, 104, 0.92);
+}
+
+.agent-interface-page .login-agent-field > span:first-child,
+.agent-interface-page .login-agent-option-group legend,
+.agent-interface-page .login-agent-profile-stat span,
+.agent-interface-page .login-agent-risk-row span,
+.agent-interface-page .login-agent-check-row span,
+.agent-interface-page .login-agent-adapter-card span,
+.agent-interface-page .login-agent-json-details summary {
+  color: var(--agent-text-muted);
+}
+
+.agent-interface-page .login-agent-field input,
+.agent-interface-page .login-agent-field select,
+.agent-interface-page .login-agent-permission-row select {
+  border-bottom-color: var(--agent-panel-line);
+}
+
+.agent-interface-page .login-agent-field textarea {
+  border-left-color: rgba(49, 82, 244, 0.5);
+  background:
+    linear-gradient(90deg, rgba(49, 82, 244, 0.08), transparent 1px) 0 0 / 100% 22px,
+    rgba(255, 255, 255, 0.7);
+  scrollbar-color: rgba(49, 82, 244, 0.3) transparent;
+}
+
+.agent-interface-page .login-agent-field textarea::-webkit-scrollbar-thumb {
+  background: rgba(49, 82, 244, 0.24);
+}
+
+.agent-interface-page .login-agent-field input:focus,
+.agent-interface-page .login-agent-field textarea:focus,
+.agent-interface-page .login-agent-field select:focus,
+.agent-interface-page .login-agent-permission-row select:focus {
+  border-color: rgba(49, 82, 244, 0.52);
+  border-bottom-color: rgba(49, 82, 244, 0.72);
+}
+
+.agent-interface-page .login-agent-field textarea:focus {
+  background:
+    linear-gradient(90deg, rgba(49, 82, 244, 0.12), transparent 1px) 0 0 / 100% 22px,
+    rgba(255, 255, 255, 0.84);
+}
+
+.agent-interface-page .login-agent-field textarea[aria-invalid="true"] {
+  border-color: rgba(180, 35, 24, 0.34);
+  border-left-color: #b42318;
+}
+
+.agent-interface-page .login-agent-field select option,
+.agent-interface-page .login-agent-permission-row select option {
+  background: #f7f7f4;
+  color: #111622;
+}
+
+.agent-interface-page .login-agent-chip span {
+  border-left-color: rgba(49, 82, 244, 0.42);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.agent-interface-page .login-agent-chip span::before {
+  border-color: rgba(49, 82, 244, 0.38);
+}
+
+.agent-interface-page .login-agent-chip span::after {
+  background: rgba(49, 82, 244, 0.52);
+}
+
+.agent-interface-page .login-agent-chip:hover span {
+  border-color: rgba(49, 82, 244, 0.34);
+  background: rgba(49, 82, 244, 0.045);
+}
+
+.agent-interface-page .login-agent-chip input:checked + span::before {
+  border-color: var(--main-blue);
+  background: var(--main-blue);
+}
+
+.agent-interface-page .login-agent-chip input:focus-visible + span {
+  outline-color: rgba(49, 82, 244, 0.6);
+}
+
+.agent-interface-page .login-agent-profile-stat {
+  min-height: 64px;
+  padding: 12px 14px;
+  border-bottom: 0;
+  border-left: 2px solid rgba(49, 82, 244, 0.28);
+}
+
+.agent-interface-page .login-agent-profile-stat strong,
+.agent-interface-page .login-agent-risk-row strong,
+.agent-interface-page .login-agent-check-row strong,
+.agent-interface-page .login-agent-adapter-card strong {
+  color: var(--agent-text-strong);
+}
+
+.agent-interface-page .login-agent-risk-list,
+.agent-interface-page .login-agent-check-list,
+.agent-interface-page .login-agent-adapter-card {
+  border-top-color: var(--agent-panel-line);
+  background: transparent;
+}
+
+.agent-interface-page .login-agent-risk-row,
+.agent-interface-page .login-agent-check-row {
+  border-bottom-color: var(--agent-panel-line);
+  background: transparent;
+}
+
+.agent-interface-page .login-agent-check-row svg {
+  color: var(--main-blue);
+  stroke: currentColor;
+}
+
+.agent-interface-page .login-agent-adapter-card {
+  border-bottom-color: var(--agent-panel-line);
+}
+
+.agent-interface-page .login-agent-json-details pre {
+  color: var(--agent-text);
+}
+
+.agent-interface-page .login-agent-field-error {
+  margin: 0;
+  color: #b42318;
+}
+
+.agent-interface-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.agent-interface-status {
+  min-height: 18px;
+  color: var(--agent-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.agent-interface-status span {
+  color: #b42318;
+}
+
+.agent-interface-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-interface-save-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(49, 82, 244, 0.5);
+  border-radius: 4px;
+  background: var(--main-blue);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.agent-interface-save-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.agent-interface-save-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .main-content-page-shell {
   width: 100%;
   height: 100%;
@@ -2432,6 +2700,42 @@
 
   .overview-primary-command {
     grid-column: 1 / -1;
+  }
+}
+
+@container main-content (max-width: 980px) {
+  .agent-interface-page .login-agent-draft {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+    padding-right: 8px;
+  }
+
+  .agent-interface-page .login-agent-draft-divider {
+    display: none;
+  }
+
+  .agent-interface-page .login-agent-draft-form,
+  .agent-interface-page .login-agent-draft-preview {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding-right: 0;
+  }
+}
+
+@container main-content (max-width: 720px) {
+  .agent-interface-page .login-agent-channel-row,
+  .agent-interface-page .login-agent-field-grid.is-three,
+  .agent-interface-page .login-agent-field-grid.is-api,
+  .agent-interface-page .login-agent-field-grid.is-two,
+  .agent-interface-page .login-agent-bottom-grid,
+  .agent-interface-page .login-agent-chip-grid,
+  .agent-interface-page .login-agent-permission-grid,
+  .agent-interface-footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-interface-actions {
+    justify-content: flex-end;
   }
 }
 

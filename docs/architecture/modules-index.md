@@ -30,3 +30,12 @@ Shared React UI primitives consumed by application packages. Keep components sma
 ## packages/configs
 
 Shared TypeScript configuration package for Next.js apps and React libraries.
+
+## 2026-08-12 Agent Initial Interface Update
+
+- `app/api/agents/route.ts` and `app/api/agents/[agentId]/route.ts`: same-origin BFF handlers for backend `POST /agents` and `GET /agents/{agent_id}`. They forward generated-contract `AgentManifest`/profile traffic to the backend service and return the shared parseable backend-unavailable error shape on failures.
+- `app/windows/shared/agent-config.ts`: shared Agent draft adapter used by login and main-window configuration surfaces. It owns the CorpMate preset, frozen `AgentManifest` builder, backend profile hydration, local adapter preview parsing, and risk-asset preview helpers. Endpoint, method, headers, request template, and response path remain frontend-only draft fields.
+- `app/windows/login/AgentConnectDraft.tsx`: controlled shared Agent configuration form. Login uses it to submit real Manifest data before entering the main window; the main 初始接口 page reuses it for later configuration or overwrite.
+- `app/windows/main/agent/AgentInterfaceWorkspace.tsx`: main-window 初始接口 workspace. It loads the current Agent profile, keeps recoverable errors visible while preserving editable defaults, posts only frozen Manifest data to `/api/agents`, and asks `MainWindow` to restart into the dashboard on success.
+- `app/windows/main/MainWindow.tsx`: owns `activeAgentId`, passes it into overview/anatomy/evaluation workspaces, clears the persisted evaluation run session after Agent reconfiguration, and replays the existing blue loading-to-line intro after a successful save.
+- `app/windows/main/overview/**`: overview now prefers live `GET /api/agents/{agentId}` and `GET /api/agents/{agentId}/graph` data for Agent/profile/graph summary, while the evaluation report remains fixture-backed until the later Stage 2 report/list API boundary is complete.

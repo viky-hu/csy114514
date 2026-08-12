@@ -4,6 +4,8 @@ import { useCallback, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { LINE_DRAW_EASE } from "../shared/animation";
+import { DEFAULT_AGENT_ID } from "../shared/agent-config";
+import { AgentInterfaceWorkspace } from "./agent/AgentInterfaceWorkspace";
 import { AttackGraphWorkspace } from "./anatomy/AnatomyGraph";
 import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
 import { OverviewDashboard } from "./overview/OverviewDashboard";
@@ -14,6 +16,7 @@ import {
   EvaluationRunWorkspace,
   EvaluationWorkspaceProvider,
 } from "./evaluation";
+import { clearEvaluationWorkspaceSession } from "./evaluation/evaluation-session";
 
 gsap.registerPlugin(useGSAP);
 
@@ -229,13 +232,17 @@ function MainModulePlaceholder({
 
 function MainWindowContent({
   activeNavKey,
+  activeAgentId,
+  onAgentSaved,
   onNavigate,
 }: {
+  activeAgentId: string;
   activeNavKey: MainNavKey;
+  onAgentSaved: (agentId: string) => void;
   onNavigate: (key: MainNavKey) => void;
 }) {
   if (activeNavKey === "dashboard") {
-    return <OverviewDashboard onNavigate={onNavigate} />;
+    return <OverviewDashboard activeAgentId={activeAgentId} onNavigate={onNavigate} />;
   }
 
   if (activeNavKey === "profile") {
@@ -243,7 +250,7 @@ function MainWindowContent({
   }
 
   if (activeNavKey === "anatomy") {
-    return <AttackGraphWorkspace onNavigate={onNavigate} />;
+    return <AttackGraphWorkspace agentId={activeAgentId} onNavigate={onNavigate} />;
   }
 
   if (activeNavKey === "run") {
@@ -254,12 +261,27 @@ function MainWindowContent({
     return <EvaluationReportWorkspace onNavigate={onNavigate} />;
   }
 
+  if (activeNavKey === "agent") {
+    return (
+      <AgentInterfaceWorkspace
+        activeAgentId={activeAgentId}
+        onAgentSaved={onAgentSaved}
+      />
+    );
+  }
+
   return <MainModulePlaceholder activeNavKey={activeNavKey} />;
 }
 
-export function MainWindow() {
+export function MainWindow({
+  initialAgentId = DEFAULT_AGENT_ID,
+}: {
+  initialAgentId?: string;
+}) {
+  const [activeAgentId, setActiveAgentId] = useState(initialAgentId);
   const [activeNavKey, setActiveNavKey] = useState<MainNavKey>("dashboard");
   const [renderedNavKey, setRenderedNavKey] = useState<MainNavKey>("dashboard");
+  const [restartToken, setRestartToken] = useState(0);
   const rootRef = useRef<HTMLElement>(null);
   const contentPageRef = useRef<HTMLDivElement>(null);
   const contentSwapTimelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -312,6 +334,14 @@ export function MainWindow() {
     },
     [activeNavKey],
   );
+
+  const handleAgentSaved = useCallback((agentId: string) => {
+    clearEvaluationWorkspaceSession();
+    setActiveAgentId(agentId);
+    setActiveNavKey("dashboard");
+    setRenderedNavKey("dashboard");
+    setRestartToken((value) => value + 1);
+  }, []);
 
   useGSAP(
     () => {
@@ -480,7 +510,7 @@ export function MainWindow() {
         ]);
       };
     },
-    { scope: rootRef },
+    { dependencies: [restartToken], scope: rootRef },
   );
 
   useGSAP(
@@ -559,7 +589,11 @@ export function MainWindow() {
         items={MAIN_NAV_ITEMS}
         onSelect={(item) => handleMainNavSelect(item.key as MainNavKey)}
       />
-      <EvaluationWorkspaceProvider onNavigate={handleMainNavSelect}>
+      <EvaluationWorkspaceProvider
+        key={activeAgentId}
+        activeAgentId={activeAgentId}
+        onNavigate={handleMainNavSelect}
+      >
         <section className="main-content-region">
           <div
             key={renderedNavKey}
@@ -567,7 +601,9 @@ export function MainWindow() {
             className="main-content-page-shell"
           >
             <MainWindowContent
+              activeAgentId={activeAgentId}
               activeNavKey={renderedNavKey}
+              onAgentSaved={handleAgentSaved}
               onNavigate={handleMainNavSelect}
             />
           </div>
