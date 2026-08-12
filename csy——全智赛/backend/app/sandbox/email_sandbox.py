@@ -78,6 +78,10 @@ class EmailSandbox(SandboxBase):
         self._sent.append(sent)
         return {"success": True, "result": {"sent": True, "email": sent}, "error": None}
 
+    def append_email(self, fixture_id: str) -> None:
+        """L4: 增量追加邮件 fixture ID (env_delta 用, 不产生事件)."""
+        if fixture_id not in self._inbox:
+            self._inbox.append(fixture_id)
     def reset(self, initial_state: dict[str, Any] | None = None) -> None:
         self._inbox = []
         self._sent = []

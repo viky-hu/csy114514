@@ -4,7 +4,8 @@ from collections.abc import Callable
 from typing import Any
 
 from backend.app.sandbox.base import SandboxBase
-from backend.app.sandbox.browser_sandbox import BrowserSandbox
+from backend.app.domain.test_scenario import EnvDelta
+from backend.app.sandbox.browser_sandbox import PAGE_FIXTURES, BrowserSandbox
 from backend.app.sandbox.email_sandbox import EmailSandbox
 from backend.app.sandbox.memory_sandbox import MemorySandbox
 
@@ -155,6 +156,25 @@ class CompositeSandbox(SandboxBase):
         self.memory.reset(state)
         self.browser.reset(state)
 
+    def apply_delta(self, delta: EnvDelta) -> None:
+        """L4: 增量合并 env_delta 到当前 Sandbox 状态 (不 reset, Memory 跨 turn 持久化)."""
+        if delta.browser_pages:
+            for url, page in delta.browser_pages.items():
+                fixture = PAGE_FIXTURES.get(page)
+                if fixture is not None:
+                    self.browser.register_page(url, dict(fixture))
+                else:
+                    self.browser.register_page(
+                        url, {"url": url, "title": "", "content": page}
+                    )
+        if delta.memory:
+            for entry in delta.memory:
+                key, sep, value = entry.partition("=")
+                if key and sep:
+                    self.memory.execute("memory.write", {"key": key, "value": value})
+        if delta.email_inbox:
+            for fixture_id in delta.email_inbox:
+                self.email.append_email(fixture_id)
     def snapshot(self) -> dict[str, Any]:
         return {
             "email": self.email.snapshot(),

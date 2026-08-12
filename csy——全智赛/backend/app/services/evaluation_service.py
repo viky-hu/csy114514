@@ -303,6 +303,8 @@ class EvaluationCoordinator:
                         },
                     )
                 )
+                if turn.env_delta:
+                    sandbox.apply_delta(turn.env_delta)
                 response = adapter.invoke(turn.input)
                 self.store.append_event(
                     _event(
