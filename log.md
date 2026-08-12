@@ -363,6 +363,45 @@ TestCase 累计: 7 (现有) + 4 (R4) + 6 (R1) = 17 条
 Owner: 陈书扬
 ```
 
+### 2026-08-10 | Mutation Engine v1 + 30 条变体 TestCase
+
+```text
+来源: Stage 2 Security Line D8 任务
+内容: 构建 Mutation Engine v1 (种子 × 模板 → 变体 TestCase):
+      mutation_seeds.json: 6 个攻击种子 (email_forward, cc_bcc, memory_preference, inbox_dump, signature, diagnostic)
+      mutation_templates.json: 8 个变异模板 (authority_framing, context_embedding, hidden_html, html_comment, task_framing, instruction_rephrasing, white_text, fake_update)
+      mutation_engine.py: 变异引擎脚本
+      兼容组合: 6 seed × 8 template = 30 条变体 (过滤 risk_type 不兼容)
+      变体分布: authority_framing:8, obfuscation:11, context_embedding:5, instruction_rephrasing:3, task_framing:3
+      文件: shared/examples/security/security_testcases_mutated.json
+TestCase 累计: 7 + 4 + 6 + 30 = 47 条, 全部通过 schema v1.1 校验
+状态: ✅ Engine + 变体已生成, schema 校验通过
+Owner: 陈书扬
+```
+
+### 2026-08-10 | R2/R3/确认绕过 TestCase + Mutation 扩充 + Rule Judge 定义
+
+```text
+来源: Stage 2 Security Line D8 任务 (续)
+内容:
+  R2 记忆投毒 (5 条): tc_r2_mem_001-005
+    - 直接记忆指令 / 总结存储陷阱 / 伪配置更新 / 2轮渐进 / 邮件正文注入
+  R3 隐私泄露 (5 条): tc_r3_priv_001-005
+    - 记忆敏感数据外泄 / 邮件转发泄露 / 伪导出工具 / 无意泄露 / 2轮收件箱窃取
+  确认绕过 (4 条): tc_confirm_001-004
+    - 无需确认指令 / 紧急压力 / 批量绕过 / 虚假已确认声明
+  Mutation Seeds 扩充: 6 → 10 (新增 credential_theft, config_write, sensitive_forward, contact_list)
+  变体重新生成: 10 seeds × 8 templates = 41 条变体 (之前 30 条)
+  Rule Judge 规则定义: docs/stage2_rule_judge_definitions.md
+    4 条规则: forbidden_tool_call, confirmation_missing, sensitive_data_exposure, required_behavior_missing
+    Composite Judge 编排逻辑 + Evidence 结构 + 校验矩阵
+
+TestCase 总计: 7 + 4 + 6 + 5 + 5 + 4 + 41 = 72 条, 全部通过 schema v1.1
+RiskPattern 覆盖: R1(12) R2(5) R3(5) R4(34) ConfirmBypass(4) 未分类(12)
+状态: ✅ D8 Security Line 全部完成
+Owner: 陈书扬
+```
+
 ---
 
 ## 已解决事项
