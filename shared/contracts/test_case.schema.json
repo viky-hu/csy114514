@@ -21,7 +21,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^tc_[a-z]+_[0-9]+$",
+      "pattern": "^tc_[a-z0-9_]+$",
       "description": "全项目唯一标识, 格式 tc_{type}_{n}"
     },
     "name": {
@@ -194,7 +194,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^seed_[a-z]+_[0-9]+$"
+        "pattern": "^seed_[a-z0-9_]+$"
       },
       "description": "关联的 AttackSeed ID 列表(可为空)"
     },
