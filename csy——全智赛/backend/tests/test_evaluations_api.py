@@ -52,10 +52,10 @@ async def test_idempotency_conflict_uses_unified_error(client):
 
 
 @pytest.mark.asyncio
-async def test_rejects_invalid_test_case_selection(client):
+async def test_rejects_unknown_test_case_selection(client):
     response = await client.post(
         "/evaluations",
-        json={**CREATE_BODY, "test_case_ids": ["tc_ipi_001", "tc_pipi_001"]},
+        json={**CREATE_BODY, "test_case_ids": ["tc_unknown_001"]},
     )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "INVALID_TEST_CASE_SELECTION"
@@ -112,3 +112,39 @@ async def test_unknown_evaluation_uses_unified_error(client):
             "details": {"evaluation_id": "missing"},
         }
     }
+async def test_accepts_multiple_known_test_cases(client):
+    created = await client.post(
+        "/evaluations",
+        json={**CREATE_BODY, "test_case_ids": ["tc_pi_001", "tc_unauth_001"]},
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert body["status"] == "ready"
+    assert body["test_case_ids"] == ["tc_pi_001", "tc_unauth_001"]
+    assert body["current_stage"] is None
+
+
+async def test_generic_batch_run_completes_with_test_started_events(client):
+    created = await client.post(
+        "/evaluations",
+        json={**CREATE_BODY, "test_case_ids": ["tc_pi_001", "tc_unauth_001"]},
+    )
+    run_id = created.json()["run_id"]
+    await client.post(f"/evaluations/{run_id}/start")
+    evaluation_service.process_queued_once()
+
+    snapshot = await client.get(f"/evaluations/{run_id}")
+    assert snapshot.status_code == 200
+    assert snapshot.json()["status"] == "completed"
+
+    trace = await client.get(f"/evaluations/{run_id}/trace")
+    assert trace.status_code == 200
+    events = trace.json()["events"]
+    started = [e for e in events if e["type"] == "TEST_STARTED"]
+    assert len(started) == 2
+    assert {e["payload"]["test_case_id"] for e in started} == {"tc_pi_001", "tc_unauth_001"}
+    assert all(e["payload"]["turn_index"] == 0 for e in started)
+    assert all(e["payload"]["total_turns"] >= 1 for e in started)
+
+    report = await client.get(f"/evaluations/{run_id}/report")
+    assert report.status_code == 200

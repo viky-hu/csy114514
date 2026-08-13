@@ -17,6 +17,11 @@ from backend.app.domain.execution_event import ExecutionEvent
 from backend.app.domain.execution_trace import ExecutionTrace
 from backend.app.domain.test_case import TestCase
 from backend.app.judge.r4_judge import judge_r4_events
+from backend.app.judge.rule_judge import RuleJudge
+from backend.app.domain.judge_result import JudgeResult
+from backend.app.domain.risk_finding import FindingEvidence, RiskFinding
+from backend.app.domain.test_scenario import ScenarioTurn
+from backend.app.knowledge.kb_loader import load_all_test_case_files
 from backend.app.persistence.sqlite_store import (
     IdempotencyConflictError,
     SQLiteEvaluationStore,
@@ -109,7 +114,9 @@ class EvaluationCoordinator:
         agent_id: str,
         test_case_ids: list[str],
     ) -> tuple[EvaluationRun, bool]:
-        if test_case_ids != ["tc_pipi_001"]:
+        known_ids = {raw["id"] for raw in load_all_test_case_files()}
+        unknown = [tid for tid in test_case_ids if tid not in known_ids]
+        if unknown:
             raise InvalidTestCaseSelectionError
         run_id = f"eval-{uuid.uuid4().hex[:16]}"
         run = EvaluationRun(
@@ -118,7 +125,7 @@ class EvaluationCoordinator:
             test_case_ids=test_case_ids,
             status="preflighting",
             created_at=datetime.now(timezone.utc),
-            current_stage="web_content_injection",
+            current_stage="web_content_injection" if test_case_ids == ["tc_pipi_001"] else None,
         )
         created = self.store.create_run(
             run,
@@ -127,6 +134,23 @@ class EvaluationCoordinator:
         )
         if not created.created:
             return created.run, False
+
+        if test_case_ids != ["tc_pipi_001"]:
+            # D10: 通用场景无 seeded fixture/canary, 直接 ready; 执行时按 initial_state + env_delta 构建.
+            return (
+                self.store.mark_ready(
+                    run_id,
+                    _event(
+                        run_id,
+                        EventType.PREFLIGHT_COMPLETED,
+                        {
+                            "stage": "scenario_initial_state",
+                            "test_case_ids": test_case_ids,
+                        },
+                    ),
+                ),
+                True,
+            )
 
         try:
             result = self._preflight.prepare(
@@ -219,6 +243,9 @@ class EvaluationCoordinator:
             self._process_lock.release()
 
     def _execute(self, run: EvaluationRun) -> None:
+        if run.test_case_ids != ["tc_pipi_001"]:
+            self._execute_generic(run)
+            return
         stage = "persistent_memory_poisoning"
         try:
             preflight = self._preflight.prepare(
@@ -384,6 +411,200 @@ class EvaluationCoordinator:
                 stage=stage,
             )
 
+    def _execute_generic(self, run: EvaluationRun) -> None:
+        """D10: 通用多 TestCase 执行路径 (initial_state + turns/env_delta + RuleJudge).
+
+        与 R4 垂直切片路径并存: R4 (tc_pipi_001) 保留原 preflight/canary/judge_r4 链路,
+        其余任意 TestCase 走本路径, 每条 TestCase 独立 reset + 判定.
+        """
+        try:
+            test_cases = self._load_test_cases(run.test_case_ids)
+            canary = derive_canary(self._fingerprint_key, run.run_id)
+
+            def sink(event_type: str, payload: dict) -> str:
+                return self.store.append_event(
+                    _event(run.run_id, EventType(event_type), payload)
+                ).event_id
+
+            sandbox = CompositeSandbox(
+                event_sink=sink,
+                fingerprint_value=lambda value_type, value: fingerprint_value(
+                    self._fingerprint_key, value, value_type=value_type
+                ),
+                canary=canary,
+                canary_fingerprint="",
+                enforce_email_confirmation=False,
+            )
+            adapter = ReferenceAgentAdapter(sandbox=sandbox)
+            all_findings: list[RiskFinding] = []
+            last_judge: JudgeResult | None = None
+
+            for test_case in test_cases:
+                turns = self._resolve_turns(test_case)
+                total_turns = len(turns)
+                self.store.append_event(
+                    _event(
+                        run.run_id,
+                        EventType.TEST_STARTED,
+                        {
+                            "test_case_id": test_case.id,
+                            "turn_index": 0,
+                            "total_turns": total_turns,
+                        },
+                    )
+                )
+                # 每条 TestCase 独立: 清空 agent/sandbox/recorder, 再按 scenario.initial_state 重建
+                adapter.reset()
+                sandbox.reset(test_case.scenario.initial_state.model_dump())
+
+                for index, turn in enumerate(turns):
+                    session_id = f"{run.run_id}-{test_case.id}-session-{index + 1}"
+                    if turn.starts_new_session:
+                        adapter.begin_new_session()
+                    if turn.env_delta:
+                        adapter.apply_env_delta(turn.env_delta)
+                    sandbox.set_execution_context(
+                        turn_id=turn.turn_id,
+                        session_id=session_id,
+                        stage=turn.turn_id,
+                    )
+                    self.store.append_event(
+                        _event(
+                            run.run_id,
+                            EventType.AGENT_INVOKED,
+                            {
+                                "test_case_id": test_case.id,
+                                "turn_index": index,
+                                "total_turns": total_turns,
+                                "turn_id": turn.turn_id,
+                                "session_id": session_id,
+                            },
+                        )
+                    )
+                    response = adapter.invoke(turn.input)
+                    self.store.append_event(
+                        _event(
+                            run.run_id,
+                            EventType.AGENT_RESPONDED,
+                            {
+                                "test_case_id": test_case.id,
+                                "turn_index": index,
+                                "total_turns": total_turns,
+                                "turn_id": turn.turn_id,
+                                "session_id": session_id,
+                                "success": True,
+                                "response_fingerprint": fingerprint_value(
+                                    self._fingerprint_key,
+                                    response,
+                                    value_type="agent_response",
+                                ),
+                            },
+                        )
+                    )
+
+                judge_result = RuleJudge().evaluate(adapter.get_trace(), test_case)
+                last_judge = judge_result
+                findings = self._findings_from_judge(run.run_id, test_case, judge_result)
+                all_findings.extend(findings)
+                self.store.append_event(
+                    _event(
+                        run.run_id,
+                        EventType.JUDGE_DECISION,
+                        {
+                            "test_case_id": test_case.id,
+                            "verdict": judge_result.verdict,
+                            "rule_types": [v.rule_type for v in judge_result.violations],
+                        },
+                    )
+                )
+                for finding in findings:
+                    self.store.append_event(
+                        _event(
+                            run.run_id,
+                            EventType.FINDING_CREATED,
+                            {
+                                "finding_id": finding.finding_id,
+                                "test_case_id": test_case.id,
+                                "severity": finding.severity,
+                                "rule_types": finding.rule_types,
+                            },
+                        )
+                    )
+
+            persisted = self.store.list_events(run.run_id, limit=100)
+            trace_events = [_execution_event(event) for event in persisted]
+            report = build_report(run.run_id, run.agent_id, trace_events, all_findings)
+            terminal_events = [
+                _event(
+                    run.run_id,
+                    EventType.RUN_FINISHED,
+                    {"status": "completed", "report_available": True},
+                )
+            ]
+            self.store.complete_run(
+                run.run_id,
+                judge_result=last_judge,
+                report=report,
+                events=terminal_events,
+            )
+        except Exception:  # noqa: BLE001 - infrastructure failures must become terminal run state
+            self.store.fail_running_run(
+                run.run_id,
+                code="EVALUATION_EXECUTION_FAILED",
+                message="Evaluation infrastructure failed.",
+                retryable=True,
+                stage="generic_execution",
+            )
+
+    @staticmethod
+    def _resolve_turns(test_case: TestCase) -> list[ScenarioTurn]:
+        """turns 非空优先, 否则顶层 input 包装单轮 (与 Runner._resolve_turns 一致)."""
+        if test_case.scenario and test_case.scenario.turns:
+            return test_case.scenario.turns
+        return [
+            ScenarioTurn(
+                turn_id="single",
+                input=test_case.input or "",
+                starts_new_session=True,
+            )
+        ]
+
+    @classmethod
+    def _load_test_cases(cls, test_case_ids: list[str]) -> list[TestCase]:
+        by_id = {raw["id"]: raw for raw in load_all_test_case_files()}
+        return [TestCase.model_validate(by_id[tid]) for tid in test_case_ids]
+
+    @staticmethod
+    def _findings_from_judge(
+        run_id: str,
+        test_case: TestCase,
+        judge_result: JudgeResult,
+    ) -> list[RiskFinding]:
+        """RuleJudge violations -> RiskFinding (risk_pattern_id 从 tags 取 R1-R4)."""
+        risk_pattern_id = ""
+        for tag in test_case.tags:
+            if len(tag) == 2 and tag[0].lower() == "r" and tag[1].isdigit():
+                risk_pattern_id = tag.upper()
+                break
+        findings: list[RiskFinding] = []
+        for violation in judge_result.violations:
+            findings.append(
+                RiskFinding(
+                    finding_id=f"finding-{uuid.uuid4().hex[:12]}",
+                    evaluation_id=run_id,
+                    risk_type=test_case.risk_type,
+                    severity=test_case.severity,
+                    risk_pattern_id=risk_pattern_id or "UNKNOWN",
+                    description=violation.description,
+                    evidence=[
+                        FindingEvidence(event_id=eid, description="RuleJudge evidence")
+                        for eid in violation.evidence_event_ids
+                    ],
+                    rule_types=[violation.rule_type],
+                    remediation="Review agent tool permissions and enforce confirmation for sensitive tools.",
+                )
+            )
+        return findings
     @staticmethod
     def _load_test_case(test_case_id: str) -> TestCase:
         raw_cases = json.loads(_TEST_CASES_PATH.read_text(encoding="utf-8"))

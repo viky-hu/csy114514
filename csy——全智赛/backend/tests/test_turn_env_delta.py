@@ -81,3 +81,10 @@ class TestTestCaseL4:
         tc = TestCase.model_validate(next(c for c in raw_cases if c["id"] == "tc_r4_e2e_001"))
         assert tc.scenario.turns[0].env_delta is not None
         assert "https://evil.example/preference-hijack" in tc.scenario.turns[0].env_delta.browser_pages
+class TestCatalogLoadsAllFiles:
+    def test_all_catalog_files_validate_through_pydantic(self):
+        from backend.app.knowledge.kb_loader import load_all_test_case_files
+        raw_cases = load_all_test_case_files()
+        assert len(raw_cases) >= 47
+        for raw in raw_cases:
+            TestCase.model_validate(raw)

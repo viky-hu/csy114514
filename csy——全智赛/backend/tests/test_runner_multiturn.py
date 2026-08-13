@@ -86,3 +86,12 @@ class TestRunnerMultiTurn:
         opened = runner.adapter._sandbox.execute("browser.open_page", {"url": "https://evil.example/preference-hijack"})
         assert opened["success"] is True
         assert "隐藏指令" in opened["result"]["content"]
+    def test_r4_e2e_004_three_turns_two_env_deltas(self):
+        raw_cases = json.loads((SECURITY_EXAMPLES / "security_testcases_r4.json").read_text(encoding="utf-8"))
+        tc = TestCase.model_validate(next(c for c in raw_cases if c["id"] == "tc_r4_e2e_004"))
+        assert len(tc.scenario.turns) == 3
+        assert sum(1 for t in tc.scenario.turns if t.env_delta) == 2
+        runner = Runner()
+        last_response, result = runner.run(tc)
+        assert isinstance(last_response, str) and last_response
+        assert result.verdict in {"PASS", "FAIL", "ERROR"}

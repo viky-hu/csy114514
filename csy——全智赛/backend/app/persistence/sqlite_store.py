@@ -346,6 +346,27 @@ class SQLiteEvaluationStore:
             fixture_digest=row["fixture_digest"],
         )
 
+    def mark_ready(self, run_id: str, event: ExecutionEvent) -> EvaluationRun:
+        """D10: 非 R4 场景直接置 ready (无 seeded fixture, 无 canary preflight)."""
+        with self._immediate() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE runs
+                SET status = 'ready', current_stage = NULL,
+                    seed_id = NULL, fixture_id = NULL, target_url = NULL,
+                    mutation_version = NULL, fixture_digest = NULL,
+                    error_json = NULL
+                WHERE run_id = ? AND status = 'preflighting'
+                """,
+                (run_id,),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError("run is not preflighting")
+            self._append_event(connection, event)
+            row = connection.execute(
+                "SELECT * FROM runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            return self._run_from_row(row)
     def set_current_stage(self, run_id: str, stage: str) -> None:
         with self._immediate() as connection:
             connection.execute(
