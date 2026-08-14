@@ -5,18 +5,18 @@ import {
   CORPMATE_AGENT_DRAFT,
   buildAgentManifest,
   createAgentDraftFromProfile,
-  parseAgentHeaders,
 } from "./agent-config.ts";
 
+test("CorpMate draft exposes only configuration fields backed by AgentManifest", () => {
+  assert.equal("endpoint" in CORPMATE_AGENT_DRAFT, false);
+  assert.equal("headers" in CORPMATE_AGENT_DRAFT, false);
+  assert.equal("method" in CORPMATE_AGENT_DRAFT, false);
+  assert.equal("requestTemplate" in CORPMATE_AGENT_DRAFT, false);
+  assert.equal("responsePath" in CORPMATE_AGENT_DRAFT, false);
+});
+
 test("buildAgentManifest emits only frozen backend AgentManifest fields", () => {
-  const manifest = buildAgentManifest({
-    ...CORPMATE_AGENT_DRAFT,
-    endpoint: "http://127.0.0.1:9000/chat",
-    headers: '{ "Authorization": "Bearer secret" }',
-    method: "PATCH",
-    requestTemplate: '{ "message": "{{input}}" }',
-    responsePath: "$.answer",
-  });
+  const manifest = buildAgentManifest(CORPMATE_AGENT_DRAFT);
 
   assert.deepEqual(Object.keys(manifest).sort(), [
     "agent_id",
@@ -30,25 +30,24 @@ test("buildAgentManifest emits only frozen backend AgentManifest fields", () => 
   assert.equal(manifest.agent_id, "corpmate-v0");
   assert.equal(manifest.name, "CorpMate v0");
   assert.deepEqual(manifest.memory, { max_entries: 100, type: "persistent" });
+  assert.deepEqual(manifest.data_sources, ["browser", "email"]);
   assert.equal("endpoint" in manifest, false);
   assert.equal("headers" in manifest, false);
   assert.equal("request_template" in manifest, false);
 });
 
-test("parseAgentHeaders reports malformed JSON without affecting Manifest output", () => {
-  assert.deepEqual(parseAgentHeaders(""), {});
-  assert.deepEqual(parseAgentHeaders('{ "Content-Type": "application/json" }'), {
-    "Content-Type": "application/json",
-  });
-  assert.equal(parseAgentHeaders("[]"), "Headers must be a JSON object.");
-  assert.equal(parseAgentHeaders("{ nope"), "Headers JSON cannot be parsed.");
-
+test("memory is configured through Manifest memory instead of a data source", () => {
   const manifest = buildAgentManifest({
     ...CORPMATE_AGENT_DRAFT,
-    headers: "{ nope",
+    enabledDataSources: {
+      browser: true,
+      email: false,
+      memory: true,
+    },
   });
 
-  assert.equal(manifest.agent_id, "corpmate-v0");
+  assert.deepEqual(manifest.data_sources, ["browser"]);
+  assert.deepEqual(manifest.memory, { max_entries: 100, type: "persistent" });
 });
 
 test("createAgentDraftFromProfile hydrates editable state from an AgentProfile", () => {
@@ -68,7 +67,7 @@ test("createAgentDraftFromProfile hydrates editable state from an AgentProfile",
   assert.equal(draft.agentId, "custom-agent");
   assert.equal(draft.agentName, "Custom Agent");
   assert.equal(draft.version, "2.0.0");
-  assert.equal(draft.memoryType, "ephemeral");
+  assert.equal(draft.memoryType, "persistent");
   assert.equal(draft.memoryMaxEntries, "5");
   assert.equal(draft.enabledCapabilities["email.send"], true);
   assert.equal(draft.toolPermissions["email.send"], "DENY");
@@ -76,7 +75,7 @@ test("createAgentDraftFromProfile hydrates editable state from an AgentProfile",
     agent_id: "custom-agent",
     capabilities: ["chat", "email.send"],
     data_sources: ["email"],
-    memory: { max_entries: 5, type: "ephemeral" },
+    memory: { max_entries: 5, type: "persistent" },
     name: "Custom Agent",
     tool_permissions: { "email.send": "DENY" },
     version: "2.0.0",

@@ -2,9 +2,8 @@ import type { components } from "../../lib/contracts/backend-api";
 
 export type AgentManifest = components["schemas"]["AgentManifest"];
 
-export type HttpMethod = "GET" | "PATCH" | "POST" | "PUT";
 export type Permission = "ALLOW" | "CONFIRM" | "DENY";
-export type MemoryType = "ephemeral" | "none" | "persistent";
+export type MemoryType = "none" | "persistent";
 
 export type CapabilityDefinition = {
   defaultPermission?: Permission;
@@ -21,20 +20,13 @@ export type AgentProfilePayload = {
 export type AgentDraftState = {
   agentId: string;
   agentName: string;
-  endpoint: string;
   enabledCapabilities: Record<string, boolean>;
   enabledDataSources: Record<string, boolean>;
-  headers: string;
   memoryMaxEntries: string;
   memoryType: MemoryType;
-  method: HttpMethod;
-  requestTemplate: string;
-  responsePath: string;
   toolPermissions: Record<string, Permission>;
   version: string;
 };
-
-export const HTTP_METHODS: HttpMethod[] = ["POST", "GET", "PUT", "PATCH"];
 
 export const CAPABILITY_DEFINITIONS: CapabilityDefinition[] = [
   { name: "chat" },
@@ -71,11 +63,8 @@ export const CAPABILITY_DEFINITIONS: CapabilityDefinition[] = [
   },
 ];
 
-export const DATA_SOURCE_DEFINITIONS = ["browser", "email", "memory"] as const;
+export const DATA_SOURCE_DEFINITIONS = ["browser", "email"] as const;
 export const DEFAULT_AGENT_ID = "corpmate-v0";
-
-export const DEFAULT_HEADERS = '{\n  "Content-Type": "application/json"\n}';
-export const DEFAULT_REQUEST_TEMPLATE = '{\n  "message": "{{input}}"\n}';
 
 export const TOOL_DEFINITIONS = CAPABILITY_DEFINITIONS.filter(
   (capability) => capability.defaultPermission,
@@ -107,38 +96,15 @@ export function createPermissionRecord(
 export const CORPMATE_AGENT_DRAFT: AgentDraftState = {
   agentId: DEFAULT_AGENT_ID,
   agentName: "CorpMate v0",
-  endpoint: "http://127.0.0.1:8000/chat",
   enabledCapabilities: createEnabledRecord(
     CAPABILITY_DEFINITIONS.map((capability) => capability.name),
   ),
   enabledDataSources: createEnabledRecord(DATA_SOURCE_DEFINITIONS),
-  headers: DEFAULT_HEADERS,
   memoryMaxEntries: "100",
   memoryType: "persistent",
-  method: "POST",
-  requestTemplate: DEFAULT_REQUEST_TEMPLATE,
-  responsePath: "$.content",
   toolPermissions: createPermissionRecord(),
   version: "0.1.0",
 };
-
-export function parseAgentHeaders(value: string) {
-  if (!value.trim()) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-      return "Headers must be a JSON object.";
-    }
-
-    return parsed as Record<string, unknown>;
-  } catch {
-    return "Headers JSON cannot be parsed.";
-  }
-}
 
 export function buildAgentManifest(draft: AgentDraftState): AgentManifest {
   const capabilities = CAPABILITY_DEFINITIONS.filter(
@@ -197,8 +163,8 @@ export function createAgentDraftFromProfile(
   const memory = manifest.memory ?? {};
   const memoryTypeValue = memory.type;
   const memoryType =
-    memoryTypeValue === "ephemeral" || memoryTypeValue === "persistent"
-      ? memoryTypeValue
+    memoryTypeValue === "persistent" || Object.keys(memory).length > 0
+      ? "persistent"
       : "none";
   const maxEntries = memory.max_entries;
 
@@ -230,10 +196,7 @@ export function getAgentDraftRiskAssets(draft: AgentDraftState) {
     dangerous_tools: selectedCapabilities
       .filter((capability) => capability.labels?.includes("DANGEROUS"))
       .map((capability) => capability.name),
-    persistent_stores:
-      draft.memoryType === "persistent" && selectedDataSources.includes("memory")
-        ? ["memory"]
-        : [],
+    persistent_stores: draft.memoryType === "persistent" ? ["memory"] : [],
     sensitive_tools: selectedCapabilities
       .filter((capability) => capability.labels?.includes("SENSITIVE"))
       .map((capability) => capability.name),

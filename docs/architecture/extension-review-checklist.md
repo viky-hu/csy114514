@@ -27,7 +27,7 @@
 ## 2026-08-01 Login Agent Entry Draft
 
 - Ownership: `app/windows/login/LoginIntroWindow.tsx`, `app/windows/login/AgentConnectDraft.tsx`, and `app/styles/window-1-login.css`.
-- Boundary: the second-page entry is a local interactive draft only; it previews API adapter fields and `AgentManifest` data without adding `/api/agents`, posting to the FastAPI backend, or modifying `shared/contracts`.
+- Boundary: the second-page entry is a local interactive Manifest draft only; it previews `AgentManifest` data without showing adapter endpoint/template fields before the backend freezes that contract.
 - Extensibility: the SVG prompt uses the same base-layer/band/inverted-layer clipPath reveal model as the first-page copy, with its coordinates placed in the second viewport and the clip rect spanning the two-viewport Window 1 scroll scene; the HTML draft overlay remains independently faded by scroll progress so the band locking and first-scroll baseline logic stay untouched.
 - Styling: the prompt uses the exact login surface color on the blue band; the draft controls preserve the transparent white-line form language, the top-right actions reuse the login bracket-command button language, the form and profile preview stay separated by a fixed 1px white divider, and Manifest JSON remains collapsed behind details controls.
 - Validation: run `pnpm type-check` and `pnpm build`; manually verify the prompt resolves at the second-page 3cm/3cm baseline over the full blue page and the local profile precheck updates without network traffic.
@@ -115,7 +115,14 @@
 ## 2026-08-12 Main Agent Initial Interface Integration
 
 - Ownership: `app/api/agents/route.ts`, `app/api/agents/[agentId]/route.ts`, `app/windows/shared/agent-config.ts`, `app/windows/login/AgentConnectDraft.tsx`, `app/windows/login/LoginIntroWindow.tsx`, `app/windows/main/agent/AgentInterfaceWorkspace.tsx`, `app/windows/main/MainWindow.tsx`, `app/windows/main/overview/**`, and `app/windows/main/evaluation/**`.
-- Boundary: frontend Agent registration and profile reads go only through same-origin BFF handlers. The submitted payload is the generated-contract `AgentManifest`; endpoint/method/headers/request_template/response_path remain local adapter draft fields and must not be posted to backend `POST /agents`. Backend code and unfrozen adapter persistence are intentionally out of scope.
+- Boundary: frontend Agent registration and profile reads go only through same-origin BFF handlers. The submitted payload is the generated-contract `AgentManifest`; endpoint/method/headers/request_template/response_path are not shown or submitted until backend adapter persistence is frozen. Backend code and unfrozen adapter persistence are intentionally out of scope. The Agent config UI treats `memory` as `manifest.memory`, not as a `data_sources` entry, because the current backend graph builder only gives source semantics to `browser`, `web`, and `email`.
 - Extensibility: `MainWindow` owns `activeAgentId`, login “确认接入” can make the first real `POST /api/agents`, login “稍后再说” keeps `corpmate-v0`, and the main 初始接口 workspace can later configure or overwrite the Agent. Saving clears the old evaluation run session, switches to the dashboard, and replays the existing main-window blue loading/line-collapse intro. Overview consumes live Agent profile/graph with fixture report fallback; Anatomy and Evaluation receive the current Agent id.
 - Styling: the main 初始接口 page reuses the mature login Agent form controls but scopes white-surface color overrides under `.agent-interface-page`; the save action uses lucide icons, a compact command row, and the existing blue/warm main workspace system without adding a new UI library.
 - Validation: run the Agent config/BFF/evaluation-session Node tests, `pnpm type-check`, `pnpm lint`, and `pnpm build`; manually smoke login “稍后再说”, login “确认接入”, main 初始接口 save-and-restart, graph requests with the new `agent_id`, and backend-down recoverable error states.
+
+## 2026-08-14 Backend One-Click Startup Repair
+
+- Ownership: `csy——全智赛/一键启动.bat` owns local Windows process startup; backend application behavior remains in `backend/app/**`.
+- Boundary: the launcher invokes `python -m uvicorn backend.app.main:app`, checks that `fastapi.sse` is available, and does not add a frontend or BFF dependency. The development fingerprint key is injected only into the local process and is not exposed through frontend environment variables.
+- Extensibility: copied virtual environments with stale machine-specific paths are detected and bypassed through the machine Python executable while retaining the project venv site-packages path for this local workspace.
+- Validation: run the launcher from `csy——全智赛`, confirm `http://127.0.0.1:8000/health` returns `{"status":"ok"}`, and confirm the console remains open with the full error if dependency validation or application startup fails.
