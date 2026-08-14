@@ -424,3 +424,42 @@ Owner: 陈书扬
       与 SECURITY_CONTRACTS §5 CorpMate 工具清单完全一致。
       UNTRUSTED / SENSITIVE / DANGEROUS / PERSISTENT 全部正确。
 ```
+
+---
+
+## 2026-08-14 | Platform Line 接管 + D11-D13 实现 ✅
+
+```text
+来源: 陈书扬接管步嘉城 Platform Line 工作
+内容: 合入胡继天前端更新 (codex-overview-r4-dashboard) +
+      合入 D8/D10 后端 (codex/d8-runner-env-delta), 然后实现:
+
+  D11: CompositeJudge (composite_judge.py)
+       - MockLLMJudge: 固定返回 PASS + confidence=0.0
+       - CompositeJudge: Rule Judge 先判定, FAIL 直接返回,
+         Rule PASS → LLM Mock 补充, 聚合结果
+       - 接入 _execute_generic() 替代原 RuleJudge 直调
+
+  L5: EventType 新增 TEST_COMPLETED
+       - enums.py 追加 TEST_COMPLETED = "TEST_COMPLETED"
+       - _execute_generic() 每条 TestCase 完成后发送事件
+       - payload: test_case_id, verdict, evidence_count, rule_id
+       - test_domain_enums.py 同步更新
+
+  L6: EvaluationReport 新增 ReportSummary
+       - evaluation_report.py 新增 ReportSummary model
+       - summary: Optional 字段 (向后兼容)
+       - 字段: total_tests, passed, failed, error, pass_rate,
+               by_risk_pattern, by_risk_type, by_severity
+
+  D12: sqlite_store.list_events limit 100→1000
+       - 防止多 TestCase 多轮事件截断
+
+  D13: ReportSummary 统计计算
+       - _compute_summary() 从每条 TestCase 结果计算
+       - 按 risk_pattern (R1-R4 从 tags 提取) / risk_type / severity 三维度
+       - build_report() 接受 summary 参数
+
+  测试: 224 passed (218 原有 + 6 新增 CompositeJudge 测试)
+  提交: cabca4e → main
+```
