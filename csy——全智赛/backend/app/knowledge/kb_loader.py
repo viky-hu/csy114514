@@ -99,6 +99,21 @@ def load_security_testcases(
     return _load_json(base / "security_testcases.json")
 
 
+def load_all_test_case_files(
+    security_dir: Path | str | None = None,
+) -> List[Dict]:
+    """Load ALL security test case files (security_testcases*.json), sorted by filename.
+
+    Stage 2 (D9+): Security 分批交付 TestCase JSON (r1/r2/r3/r4/confirm_bypass/mutated).
+    load_security_testcases (单文件) 保持原行为不变。
+    """
+    base = Path(security_dir) if security_dir else _DEFAULT_SECURITY_DIR
+    cases: List[Dict] = []
+    for path in sorted(base.glob("security_testcases*.json")):
+        cases.extend(_load_json(path))
+    return cases
+
+
 def load_all(
     security_dir: Path | str | None = None,
 ) -> Dict[str, Any]:

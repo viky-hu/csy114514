@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.api.agents import router as agents_router
 from backend.app.api.evaluations import router as evaluations_router
 from backend.app.api.health import router as health_router
+from backend.app.api.test_cases import router as test_cases_router
 from backend.app.config import settings
 from backend.app.domain.agent_manifest import AgentManifest
 from backend.app.exception_handlers import (
@@ -90,3 +91,4 @@ app.add_exception_handler(Exception, generic_exception_handler)
 app.include_router(health_router)
 app.include_router(agents_router)
 app.include_router(evaluations_router)
+app.include_router(test_cases_router)

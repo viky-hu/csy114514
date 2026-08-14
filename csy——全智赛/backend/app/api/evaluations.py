@@ -81,7 +81,7 @@ async def create_evaluation(req: CreateEvaluationRequest, response: Response):
         return _error(
             422,
             "INVALID_TEST_CASE_SELECTION",
-            "R4 MVP requires exactly tc_pipi_001.",
+            "All test_case_ids must exist in the security TestCase catalog.",
             {"test_case_ids": req.test_case_ids},
         )
     except IdempotencyConflictError:

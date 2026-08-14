@@ -35,6 +35,9 @@ class ReferenceAgentAdapter:
         self._recorder.record_output(response)
         return response
 
+    def apply_env_delta(self, delta) -> None:
+        """L4: 将 env_delta 增量合并到沙箱 (不 reset, 不产生 Trace 事件)."""
+        self._sandbox.apply_delta(delta)
     def begin_new_session(self) -> None:
         """Rebuild Agent conversation state while preserving the shared Sandbox."""
         self._agent = CorpMate(sandbox=self._sandbox)
