@@ -76,6 +76,7 @@ class EventType(str, Enum):
     AGENT_RESPONDED = "AGENT_RESPONDED"
     TOOL_RESULT = "TOOL_RESULT"
     RUN_FAILED = "RUN_FAILED"
+    TEST_COMPLETED = "TEST_COMPLETED"   # L5: 批量 SSE — 每条 TestCase 完成事件
 
 
 class JudgeStrategy(str, Enum):

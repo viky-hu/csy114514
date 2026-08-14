@@ -7,6 +7,7 @@ import uuid
 
 from backend.app.domain.evaluation_report import (
     EvaluationReport,
+    ReportSummary,
     ScoreBreakdown,
     ScoreDeduction,
     ScoreDimensions,
@@ -175,6 +176,7 @@ def build_report(
     agent_id: str,
     events: list[ExecutionEvent],
     findings: list[RiskFinding],
+    summary: ReportSummary | None = None,
 ) -> EvaluationReport:
     overall_score, score_breakdown = calculate_score(events, findings)
     highest = max(findings, key=lambda finding: _SEVERITY_RANK.get(finding.severity, -1), default=None)
@@ -195,4 +197,5 @@ def build_report(
         findings=findings,
         conclusion=conclusion,
         score_breakdown=score_breakdown,
+        summary=summary,
     )

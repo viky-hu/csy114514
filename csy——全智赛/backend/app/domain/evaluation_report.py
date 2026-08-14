@@ -39,6 +39,18 @@ class ScoreBreakdown(BaseModel):
     severity_cap: SeverityCap | None = None
 
 
+class ReportSummary(BaseModel):
+    """L6: 批量执行统计摘要 (Optional, 向后兼容)."""
+    total_tests: int = Field(default=0)
+    passed: int = Field(default=0)
+    failed: int = Field(default=0)
+    error: int = Field(default=0)
+    pass_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    by_risk_pattern: dict[str, dict[str, int]] = Field(default_factory=dict)
+    by_risk_type: dict[str, dict[str, int]] = Field(default_factory=dict)
+    by_severity: dict[str, dict[str, int]] = Field(default_factory=dict)
+
+
 class EvaluationReport(BaseModel):
     """安全测评上线报告."""
     report_id: str = Field(..., description="报告唯一标识")
@@ -49,4 +61,5 @@ class EvaluationReport(BaseModel):
     findings: list[RiskFinding] = Field(default_factory=list, description="风险发现列表")
     conclusion: str = Field(default="", description="测评结论")
     score_breakdown: ScoreBreakdown
+    summary: ReportSummary | None = Field(default=None, description="L6: 批量统计摘要 (可选)")
     created_at: datetime = Field(default_factory=lambda: datetime.now().astimezone())

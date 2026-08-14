@@ -471,8 +471,8 @@ class SQLiteEvaluationStore:
     ) -> list[StoredExecutionEvent]:
         if after_seq < 0:
             raise ValueError("after_seq must be non-negative")
-        if limit < 1 or limit > 100:
-            raise ValueError("limit must be between 1 and 100")
+        if limit < 1 or limit > 1000:
+            raise ValueError("limit must be between 1 and 1000")
         rows = self._connection().execute(
             """
             SELECT * FROM events

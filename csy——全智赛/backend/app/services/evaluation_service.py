@@ -18,6 +18,8 @@ from backend.app.domain.execution_trace import ExecutionTrace
 from backend.app.domain.test_case import TestCase
 from backend.app.judge.r4_judge import judge_r4_events
 from backend.app.judge.rule_judge import RuleJudge
+from backend.app.judge.composite_judge import CompositeJudge
+from backend.app.domain.evaluation_report import ReportSummary
 from backend.app.domain.judge_result import JudgeResult
 from backend.app.domain.risk_finding import FindingEvidence, RiskFinding
 from backend.app.domain.test_scenario import ScenarioTurn
@@ -412,8 +414,9 @@ class EvaluationCoordinator:
             )
 
     def _execute_generic(self, run: EvaluationRun) -> None:
-        """D10: 通用多 TestCase 执行路径 (initial_state + turns/env_delta + RuleJudge).
+        """D10+D11+L5+D13: 通用多 TestCase 执行路径.
 
+        CompositeJudge (Rule + LLM Mock), TEST_COMPLETED 事件, ReportSummary 统计.
         与 R4 垂直切片路径并存: R4 (tc_pipi_001) 保留原 preflight/canary/judge_r4 链路,
         其余任意 TestCase 走本路径, 每条 TestCase 独立 reset + 判定.
         """
@@ -436,8 +439,12 @@ class EvaluationCoordinator:
                 enforce_email_confirmation=False,
             )
             adapter = ReferenceAgentAdapter(sandbox=sandbox)
+            composite_judge = CompositeJudge()
             all_findings: list[RiskFinding] = []
             last_judge: JudgeResult | None = None
+
+            # D13: 统计追踪
+            tc_results: list[dict] = []  # [{verdict, risk_type, severity, risk_pattern}]
 
             for test_case in test_cases:
                 turns = self._resolve_turns(test_case)
@@ -502,7 +509,8 @@ class EvaluationCoordinator:
                         )
                     )
 
-                judge_result = RuleJudge().evaluate(adapter.get_trace(), test_case)
+                # D11: CompositeJudge (Rule + LLM Mock)
+                judge_result = composite_judge.evaluate(adapter.get_trace(), test_case)
                 last_judge = judge_result
                 findings = self._findings_from_judge(run.run_id, test_case, judge_result)
                 all_findings.extend(findings)
@@ -531,9 +539,42 @@ class EvaluationCoordinator:
                         )
                     )
 
-            persisted = self.store.list_events(run.run_id, limit=100)
+                # L5: TEST_COMPLETED 事件
+                self.store.append_event(
+                    _event(
+                        run.run_id,
+                        EventType.TEST_COMPLETED,
+                        {
+                            "test_case_id": test_case.id,
+                            "verdict": judge_result.verdict,
+                            "evidence_count": len(judge_result.evidence),
+                            "rule_id": judge_result.violations[0].rule_type if judge_result.violations else None,
+                        },
+                    )
+                )
+
+                # D13: 记录每条结果用于统计
+                risk_pattern = "OTHER"
+                for tag in (test_case.tags or []):
+                    if tag in ("R1", "R2", "R3", "R4"):
+                        risk_pattern = tag
+                        break
+                tc_results.append({
+                    "verdict": judge_result.verdict,
+                    "risk_type": test_case.risk_type,
+                    "severity": test_case.severity,
+                    "risk_pattern": risk_pattern,
+                })
+
+            # D13: 计算 ReportSummary
+            summary = self._compute_summary(tc_results)
+
+            # D12: limit 100 → 1000 (防止多 TestCase 多轮事件截断)
+            persisted = self.store.list_events(run.run_id, limit=1000)
             trace_events = [_execution_event(event) for event in persisted]
-            report = build_report(run.run_id, run.agent_id, trace_events, all_findings)
+            report = build_report(
+                run.run_id, run.agent_id, trace_events, all_findings, summary=summary
+            )
             terminal_events = [
                 _event(
                     run.run_id,
@@ -555,6 +596,41 @@ class EvaluationCoordinator:
                 retryable=True,
                 stage="generic_execution",
             )
+
+    @staticmethod
+    def _compute_summary(tc_results: list[dict]) -> ReportSummary:
+        """D13: 从每条 TestCase 结果计算批量统计摘要."""
+        from collections import defaultdict
+        total = len(tc_results)
+        passed = sum(1 for r in tc_results if r["verdict"] == "PASS")
+        failed = sum(1 for r in tc_results if r["verdict"] == "FAIL")
+        error = sum(1 for r in tc_results if r["verdict"] == "ERROR")
+        pass_rate = passed / total if total > 0 else 0.0
+
+        by_risk_pattern: dict[str, dict[str, int]] = defaultdict(lambda: {"total": 0, "passed": 0, "failed": 0, "error": 0})
+        by_risk_type: dict[str, dict[str, int]] = defaultdict(lambda: {"total": 0, "passed": 0, "failed": 0, "error": 0})
+        by_severity: dict[str, dict[str, int]] = defaultdict(lambda: {"total": 0, "passed": 0, "failed": 0, "error": 0})
+
+        _verdict_key = {"PASS": "passed", "FAIL": "failed", "ERROR": "error"}
+        for r in tc_results:
+            v = _verdict_key.get(r["verdict"], "error")
+            by_risk_pattern[r["risk_pattern"]]["total"] += 1
+            by_risk_pattern[r["risk_pattern"]][v] += 1
+            by_risk_type[r["risk_type"]]["total"] += 1
+            by_risk_type[r["risk_type"]][v] += 1
+            by_severity[r["severity"]]["total"] += 1
+            by_severity[r["severity"]][v] += 1
+
+        return ReportSummary(
+            total_tests=total,
+            passed=passed,
+            failed=failed,
+            error=error,
+            pass_rate=round(pass_rate, 4),
+            by_risk_pattern=dict(by_risk_pattern),
+            by_risk_type=dict(by_risk_type),
+            by_severity=dict(by_severity),
+        )
 
     @staticmethod
     def _resolve_turns(test_case: TestCase) -> list[ScenarioTurn]:
