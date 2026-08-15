@@ -228,27 +228,28 @@ LLM Mock 行为: 返回 PASS + confidence=0.0，不影响 Rule 判定。
 
 | # | 变更 | 陈书扬 | 步嘉城 | 胡继天 |
 |---|------|--------|--------|--------|
-| L5 | EventType 新增 TEST_COMPLETED | ✅ 2026-08-10 | □ | □ |
-| L6 | EvaluationReport.summary | ✅ 2026-08-10 | □ | □ |
-| L7 | id pattern 放宽 (已改) | ✅ 2026-08-10 | □ | □ |
+| L5 | EventType 新增 TEST_COMPLETED | ✅ 2026-08-10 | ⚠️ 退出 | ✅ 2026-08-14 (陈书扬代签，胡继天授权) |
+| L6 | EvaluationReport.summary | ✅ 2026-08-10 | ⚠️ 退出 | ✅ 2026-08-14 (陈书扬代签，胡继天授权) |
+| L7 | id pattern 放宽 (已改) | ✅ 2026-08-10 | ⚠️ 退出 | ✅ 2026-08-14 (陈书扬代签，胡继天授权) |
 
 **陈书扬备注**:
 - L5: 确认 EventType 新增 TEST_COMPLETED，不影响现有事件
 - L6: summary 为 Optional，不破坏现有 EvaluationReport。D13 校准后定稿
 - L7: 已在代码中修改，变更单追认
+- 2026-08-14: 步嘉城退出项目，陈书扬接管 Platform Line。胡继天授权代签。
 
 **签字后各线动作**:
 
 ```text
-步嘉城 (Platform):
-  ① enums.py 新增 TEST_COMPLETED (L5)
-  ② evaluation_service.py 发送 TEST_COMPLETED + 增强 TEST_STARTED payload (L5)
-  ③ evaluation_report.py 新增 ReportSummary + summary 字段 (L6, D13)
-  ④ sqlite_store.list_events 上限调整 (非变更单，D12 前)
-  ⑤ 更新 test_domain_enums.py 测试 (L5)
+陈书扬 (Platform, 接管步嘉城):
+  ① enums.py 新增 TEST_COMPLETED (L5)                              ✅ 已完成 (cabca4e)
+  ② evaluation_service.py 发送 TEST_COMPLETED + 增强 payload (L5)   ✅ 已完成 (cabca4e)
+  ③ evaluation_report.py 新增 ReportSummary + summary 字段 (L6, D13) ✅ 已完成 (cabca4e)
+  ④ sqlite_store.list_events 上限 100→1000 (D12)                    ✅ 已完成 (cabca4e)
+  ⑤ 更新 test_domain_enums.py 测试 (L5)                             ✅ 已完成 (cabca4e)
 
 胡继天 (Frontend):
-  ① 等 OpenAPI schema 更新后重新生成 types
-  ② Event State Engine 消费 TEST_COMPLETED + test_case_id 字段 (L5, D12)
-  ③ Report 页面消费 summary 字段 (L6, D13)
+  ① 等 OpenAPI schema 更新后重新生成 types          ⏳ 待执行
+  ② Event State Engine 消费 TEST_COMPLETED + test_case_id 字段 (L5, D12)  ⏳ 待执行
+  ③ Report 页面消费 summary 字段 (L6, D13)          ⏳ 待执行
 ```
