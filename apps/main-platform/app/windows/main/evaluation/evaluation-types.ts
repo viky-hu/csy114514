@@ -6,6 +6,7 @@ export type ExecutionTrace = components["schemas"]["ExecutionTrace"];
 export type ExecutionEvent = components["schemas"]["ExecutionEvent"];
 export type EventType = components["schemas"]["EventType"];
 export type ScoreBreakdown = components["schemas"]["ScoreBreakdown"];
+export type ReportSummary = components["schemas"]["ReportSummary"];
 export type RiskFinding = components["schemas"]["RiskFinding"];
 export type CreateEvaluationRequest = components["schemas"]["CreateEvaluationRequest"];
 
@@ -76,6 +77,7 @@ export function eventText(event: SequencedEvent) {
     FINDING_CREATED: "已生成风险发现与证据绑定",
     RUN_FAILED: "运行因基础设施异常终止",
     RUN_FINISHED: "测评运行结束",
+    TEST_COMPLETED: `TestCase 已完成${typeof payload.verdict === "string" ? ` · ${payload.verdict}` : ""}`,
   };
   return messages[event.type] ?? event.type;
 }

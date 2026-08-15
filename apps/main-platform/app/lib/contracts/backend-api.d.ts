@@ -328,6 +328,11 @@ export interface components {
             conclusion: string;
             score_breakdown: components["schemas"]["ScoreBreakdown"];
             /**
+             * Summary
+             * @description L6: 批量统计摘要 (可选)
+             */
+            summary?: components["schemas"]["ReportSummary"] | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -387,7 +392,7 @@ export interface components {
          * @description 事件类型 — §2.1 冻结.
          * @enum {string}
          */
-        EventType: "RUN_STARTED" | "ANATOMY_READY" | "RISK_PATH_FOUND" | "TEST_STARTED" | "SEED_SELECTED" | "MUTATION_CREATED" | "TOOL_CALLED" | "MEMORY_WRITTEN" | "JUDGE_DECISION" | "FINDING_CREATED" | "RUN_FINISHED" | "PREFLIGHT_COMPLETED" | "PREFLIGHT_FAILED" | "AGENT_INVOKED" | "AGENT_RESPONDED" | "TOOL_RESULT" | "RUN_FAILED";
+        EventType: "RUN_STARTED" | "ANATOMY_READY" | "RISK_PATH_FOUND" | "TEST_STARTED" | "SEED_SELECTED" | "MUTATION_CREATED" | "TOOL_CALLED" | "MEMORY_WRITTEN" | "JUDGE_DECISION" | "FINDING_CREATED" | "RUN_FINISHED" | "PREFLIGHT_COMPLETED" | "PREFLIGHT_FAILED" | "AGENT_INVOKED" | "AGENT_RESPONDED" | "TOOL_RESULT" | "RUN_FAILED" | "TEST_COMPLETED";
         /**
          * ExecutionEvent
          * @description 运行时统一事件, 用于 Trace 和 SSE.
@@ -465,6 +470,31 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * ReportSummary
+         * @description L6: 批量执行统计摘要.
+         */
+        ReportSummary: {
+            /** @default 0 */
+            total_tests?: number;
+            /** @default 0 */
+            passed?: number;
+            /** @default 0 */
+            failed?: number;
+            /** @default 0 */
+            error?: number;
+            /**
+             * @default 0
+             * @description 通过率 (0.0-1.0)
+             */
+            pass_rate?: number;
+            /** @description 按 RiskPattern 维度统计 (R1/R2/R3/R4 → {total, passed, failed, error}) */
+            by_risk_pattern?: Record<string, Record<string, number>>;
+            /** @description 按 risk_type 维度统计 */
+            by_risk_type?: Record<string, Record<string, number>>;
+            /** @description 按 severity 维度统计 */
+            by_severity?: Record<string, Record<string, number>>;
         };
         /**
          * RiskFinding
