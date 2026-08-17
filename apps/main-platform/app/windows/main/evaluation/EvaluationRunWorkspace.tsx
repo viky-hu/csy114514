@@ -197,6 +197,6 @@ export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewRep
   return <section className={`evaluation-page evaluation-run-page ${!run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
     <EvaluationWorkspaceStatusAnnouncer />
     <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><span className={`evaluation-run-status is-${run?.status ?? "selection"}`}>{statusText}</span></header>
-    {!run ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={events} /><EvaluationTerminal events={events} /></div></> : <><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} /><div className="evaluation-batch-terminal"><EvaluationTerminal events={events} /></div></>}
+    {!run ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={events} /><EvaluationTerminal events={events} /></div></> : <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} /><EvaluationTerminal events={events} /></div>}
   </section>;
 }
