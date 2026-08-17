@@ -353,7 +353,7 @@ class EvaluationCoordinator:
                     )
                 )
 
-            persisted = self.store.list_events(run.run_id, limit=100)
+            persisted = self.store.list_events(run.run_id, limit=1000)
             trace_events = [_execution_event(event) for event in persisted]
             judge_result, findings = judge_r4_events(
                 run.run_id, "tc_pipi_001", trace_events
@@ -554,11 +554,13 @@ class EvaluationCoordinator:
                 )
 
                 # D13: 记录每条结果用于统计
-                risk_pattern = "OTHER"
-                for tag in (test_case.tags or []):
-                    if tag in ("R1", "R2", "R3", "R4"):
-                        risk_pattern = tag
-                        break
+                _RISK_TYPE_TO_PATTERN = {
+                    "indirect_prompt_injection": "R1",
+                    "memory_poisoning": "R2",
+                    "privacy_leakage": "R3",
+                    "persistent_indirect_prompt_injection": "R4",
+                }
+                risk_pattern = _RISK_TYPE_TO_PATTERN.get(test_case.risk_type, "OTHER")
                 tc_results.append({
                     "verdict": judge_result.verdict,
                     "risk_type": test_case.risk_type,
@@ -698,7 +700,7 @@ class EvaluationCoordinator:
         run = self.get(run_id)
         events = [
             _execution_event(event)
-            for event in self.store.list_events(run_id, limit=100)
+            for event in self.store.list_events(run_id, limit=1000)
         ]
         return ExecutionTrace(
             trace_id=f"trace-{run_id}",
@@ -711,7 +713,7 @@ class EvaluationCoordinator:
         self, run_id: str, *, after_seq: int = 0
     ) -> list[StoredExecutionEvent]:
         self.get(run_id)
-        return self.store.list_events(run_id, after_seq=after_seq, limit=100)
+        return self.store.list_events(run_id, after_seq=after_seq, limit=1000)
 
     def validate_cursor(self, run_id: str, cursor: str | None, after: int) -> int:
         run = self.get(run_id)
