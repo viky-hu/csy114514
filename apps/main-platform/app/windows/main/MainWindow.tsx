@@ -11,6 +11,7 @@ import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
 import { OverviewDashboard } from "./overview/OverviewDashboard";
 import { securityProfileFixtureViewModel } from "./profile/profile-fixtures";
 import { SecurityProfileGraph } from "./profile/SecurityProfileGraph";
+import { AccountSettingsWorkspace, type AccountIdentity } from "./settings/AccountSettingsWorkspace";
 import {
   EvaluationReportWorkspace,
   EvaluationRunWorkspace,
@@ -77,7 +78,7 @@ const MAIN_NAV_ITEMS: MainWindowNavItem[] = [
   { key: "run", label: "测评运行", english: "执行流程" },
   { key: "report", label: "测评报告", english: "证据结论" },
   { key: "agent", label: "初始接口", english: "接口接入" },
-  { key: "setting", label: "设置", english: "系统配置" },
+  { key: "setting", label: "设置", english: "账号中心" },
 ];
 
 const MAIN_MODULE_PLACEHOLDERS: Record<
@@ -110,8 +111,8 @@ const MAIN_MODULE_PLACEHOLDERS: Record<
     label: "测评运行",
   },
   setting: {
-    description: "设置将在此区域承载运行偏好与工作台配置。",
-    english: "系统配置",
+    description: "管理个人身份、访问密码与当前账号会话。",
+    english: "账号中心",
     label: "设置",
   },
 };
@@ -233,12 +234,16 @@ function MainModulePlaceholder({
 function MainWindowContent({
   activeNavKey,
   activeAgentId,
+  accountIdentity,
   onAgentSaved,
+  onLogout,
   onNavigate,
 }: {
   activeAgentId: string;
   activeNavKey: MainNavKey;
+  accountIdentity?: AccountIdentity | null;
   onAgentSaved: (agentId: string) => void;
+  onLogout: () => void;
   onNavigate: (key: MainNavKey) => void;
 }) {
   if (activeNavKey === "dashboard") {
@@ -270,13 +275,21 @@ function MainWindowContent({
     );
   }
 
+  if (activeNavKey === "setting") {
+    return <AccountSettingsWorkspace fallbackIdentity={accountIdentity} onLogout={onLogout} />;
+  }
+
   return <MainModulePlaceholder activeNavKey={activeNavKey} />;
 }
 
 export function MainWindow({
+  accountIdentity = null,
   initialAgentId = DEFAULT_AGENT_ID,
+  onLogout = () => undefined,
 }: {
   initialAgentId?: string;
+  accountIdentity?: AccountIdentity | null;
+  onLogout?: () => void;
 }) {
   const [activeAgentId, setActiveAgentId] = useState(initialAgentId);
   const [activeNavKey, setActiveNavKey] = useState<MainNavKey>("dashboard");
@@ -603,7 +616,9 @@ export function MainWindow({
             <MainWindowContent
               activeAgentId={activeAgentId}
               activeNavKey={renderedNavKey}
+              accountIdentity={accountIdentity}
               onAgentSaved={handleAgentSaved}
+              onLogout={onLogout}
               onNavigate={handleMainNavSelect}
             />
           </div>
