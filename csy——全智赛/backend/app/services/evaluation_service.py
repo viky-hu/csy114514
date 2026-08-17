@@ -574,13 +574,18 @@ class EvaluationCoordinator:
                 )
 
                 # D13: 记录每条结果用于统计
+                # 优先从 tags 提取 risk_pattern (精确), fallback 到 risk_type 映射 (宽泛)
+                _TAG_TO_PATTERN = {"r1": "R1", "r2": "R2", "r3": "R3", "r4": "R4"}
                 _RISK_TYPE_TO_PATTERN = {
                     "indirect_prompt_injection": "R1",
                     "memory_poisoning": "R2",
                     "privacy_leakage": "R3",
                     "persistent_indirect_prompt_injection": "R4",
                 }
-                risk_pattern = _RISK_TYPE_TO_PATTERN.get(test_case.risk_type, "OTHER")
+                risk_pattern = next(
+                    (_TAG_TO_PATTERN[t] for t in test_case.tags if t in _TAG_TO_PATTERN),
+                    _RISK_TYPE_TO_PATTERN.get(test_case.risk_type, "OTHER"),
+                )
                 tc_results.append({
                     "test_case_id": test_case.id,
                     "verdict": judge_result.verdict,
