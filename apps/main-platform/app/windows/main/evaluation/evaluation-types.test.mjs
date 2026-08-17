@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reduceEvaluationEvent } from "./evaluation-types.ts";
+import { eventText, reduceEvaluationEvent } from "./evaluation-types.ts";
 
 function event(seq, type, stage) {
   return {
@@ -32,4 +32,12 @@ test("evaluation event reducer orders events, advances stage, and deduplicates r
   assert.deepEqual(ordered.events.map((item) => item.seq), [1, 2]);
   assert.equal(ordered.activeStage, "persistent_memory_poisoning");
   assert.equal(replayed, ordered);
+});
+
+test("batch lifecycle events have readable terminal text", () => {
+  assert.equal(eventText(event(1, "TEST_STARTED", undefined)), "TestCase 开始执行");
+  assert.equal(
+    eventText({ ...event(2, "TEST_COMPLETED", undefined), payload: { verdict: "PASS" } }),
+    "TestCase 已完成 · PASS",
+  );
 });

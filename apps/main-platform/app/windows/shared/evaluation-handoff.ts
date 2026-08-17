@@ -7,6 +7,7 @@ export type EvaluationHandoff = {
 };
 
 export const EVALUATION_HANDOFF_STORAGE_KEY = "csy_pending_evaluation_testcase";
+export const EVALUATION_HANDOFF_EVENT = "csy:evaluation-handoff";
 
 export function writeEvaluationHandoff(handoff: EvaluationHandoff) {
   if (typeof window === "undefined") {
@@ -17,6 +18,7 @@ export function writeEvaluationHandoff(handoff: EvaluationHandoff) {
     EVALUATION_HANDOFF_STORAGE_KEY,
     JSON.stringify(handoff),
   );
+  window.dispatchEvent(new Event(EVALUATION_HANDOFF_EVENT));
 }
 
 export function readEvaluationHandoff() {

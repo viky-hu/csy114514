@@ -4,8 +4,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.app.knowledge.kb_loader import load_all_test_case_files
 from backend.app.domain.test_case import TestCase
+from backend.app.knowledge.kb_loader import load_all_test_case_files
 
 router = APIRouter(prefix="/test-cases", tags=["test-cases"])
 

@@ -5,8 +5,10 @@ import { gsap } from "gsap";
 import { Check, CircleAlert, CircleDashed, Clipboard, Filter, Play, RotateCcw, TerminalSquare } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
+import { BatchProgressPanel } from "./BatchProgressPanel";
 import { useEvaluationWorkspace, EvaluationWorkspaceStatusAnnouncer, type EvaluationWorkspaceNavigate } from "./EvaluationWorkspaceProvider";
 import { EVALUATION_STAGES, eventText, type EvaluationStage, type SequencedEvent } from "./evaluation-types";
+import { TestCaseSelector } from "./TestCaseSelector";
 
 gsap.registerPlugin(useGSAP);
 
@@ -190,10 +192,11 @@ function EvaluationTerminal({ events }: { events: SequencedEvent[] }) {
 export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewReport?: () => void; onNavigate?: EvaluationWorkspaceNavigate }) {
   const { run, events, activeStage, isBootstrapping, startEvaluation } = useEvaluationWorkspace();
   const stage = activeStage ?? "web_content_injection";
-  return <section className="evaluation-page evaluation-run-page" aria-label="测评运行工作台">
+  const isLegacyR4 = run?.test_case_ids.length === 1 && run.test_case_ids[0] === "tc_pipi_001";
+  const statusText = isBootstrapping ? "连接后端" : run?.status ?? "选择用例";
+  return <section className={`evaluation-page evaluation-run-page ${!run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
     <EvaluationWorkspaceStatusAnnouncer />
-    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">R4 / EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><span className={`evaluation-run-status is-${run?.status ?? "loading"}`}>{isBootstrapping ? "连接后端" : run?.status ?? "准备中"}</span></header>
-    <TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} />
-    <div className="evaluation-run-body"><ProcessColumn stage={stage} events={events} /><EvaluationTerminal events={events} /></div>
+    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><span className={`evaluation-run-status is-${run?.status ?? "selection"}`}>{statusText}</span></header>
+    {!run ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={events} /><EvaluationTerminal events={events} /></div></> : <><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} /><div className="evaluation-batch-terminal"><EvaluationTerminal events={events} /></div></>}
   </section>;
 }

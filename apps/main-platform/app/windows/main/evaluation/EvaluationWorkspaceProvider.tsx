@@ -10,9 +10,10 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { readEvaluationHandoff } from "../../shared/evaluation-handoff";
+import { EVALUATION_HANDOFF_EVENT, readEvaluationHandoff, type EvaluationHandoff } from "../../shared/evaluation-handoff";
 import { DEFAULT_AGENT_ID } from "../../shared/agent-config";
 import {
+  clearEvaluationWorkspaceSession,
   readStoredEvaluationRunId,
   storeEvaluationRunId,
 } from "./evaluation-session";
@@ -25,9 +26,9 @@ import {
   type EvaluationRun,
   type ExecutionTrace,
   type SequencedEvent,
+  type TestCaseSummary,
 } from "./evaluation-types";
-
-const TEST_CASE_ID = "tc_pipi_001";
+import { selectHandoffTestCase } from "./test-case-selection";
 
 type ProviderState = {
   run: EvaluationRun | null;
@@ -36,16 +37,23 @@ type ProviderState = {
   activeStage: ReturnType<typeof eventStage>;
   report: EvaluationReport | null;
   trace: ExecutionTrace | null;
+  testCases: TestCaseSummary[];
+  selectedTestCaseIds: string[];
   isBootstrapping: boolean;
+  isLoadingTestCases: boolean;
   isStarting: boolean;
   isLoadingReport: boolean;
   error: string | null;
   reportError: string | null;
+  testCaseError: string | null;
 };
 
 type WorkspaceContextValue = ProviderState & {
   startEvaluation: () => Promise<void>;
+  prepareEvaluation: () => Promise<void>;
   retryEvaluation: () => Promise<void>;
+  resetEvaluationSelection: () => void;
+  setSelectedTestCaseIds: (ids: string[]) => void;
   loadReport: () => Promise<void>;
   clearReportError: () => void;
 };
@@ -97,15 +105,18 @@ export function EvaluationWorkspaceProvider({
     activeStage: null,
     report: null,
     trace: null,
+    testCases: [],
+    selectedTestCaseIds: [],
     isBootstrapping: true,
+    isLoadingTestCases: true,
     isStarting: false,
     isLoadingReport: false,
     error: null,
     reportError: null,
+    testCaseError: null,
   });
   const sourceRef = useRef<EventSource | null>(null);
   const cursorRef = useRef(0);
-  const bootstrapRequestIdRef = useRef(newRequestId());
 
   const closeStream = useCallback(() => {
     sourceRef.current?.close();
@@ -121,7 +132,8 @@ export function EvaluationWorkspaceProvider({
       run,
       evaluationId: run.run_id,
       events: preserveEvents ? current.events : [],
-      activeStage: run.current_stage ?? current.activeStage,
+      activeStage: preserveEvents ? run.current_stage ?? current.activeStage : run.current_stage ?? null,
+      selectedTestCaseIds: run.test_case_ids,
       error: run.error?.message ?? null,
       isBootstrapping: false,
     }));
@@ -150,11 +162,11 @@ export function EvaluationWorkspaceProvider({
     }
   }, [setRun, state.evaluationId, state.isStarting, state.run]);
 
-  const createEvaluation = useCallback(async (agentId: string, signal?: AbortSignal, requestId = newRequestId()) => {
+  const createEvaluation = useCallback(async (agentId: string, testCaseIds: string[], signal?: AbortSignal, requestId = newRequestId()) => {
     const response = await fetch("/api/evaluations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ request_id: requestId, agent_id: agentId, test_case_ids: [TEST_CASE_ID] }),
+      body: JSON.stringify({ request_id: requestId, agent_id: agentId, test_case_ids: testCaseIds }),
       signal,
     });
     const body = (await response.json()) as EvaluationRun | { error?: { message?: string } };
@@ -167,17 +179,81 @@ export function EvaluationWorkspaceProvider({
     return run;
   }, [setRun]);
 
+  const prepareEvaluation = useCallback(async () => {
+    if (state.selectedTestCaseIds.length === 0 || state.isBootstrapping) return;
+    const handoff = readEvaluationHandoff();
+    const agentId = handoff && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : activeAgentId;
+    setState((current) => ({ ...current, isBootstrapping: true, error: null }));
+    try {
+      await createEvaluation(agentId, state.selectedTestCaseIds);
+    } catch (error) {
+      setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "测评任务创建失败" }));
+    }
+  }, [activeAgentId, createEvaluation, state.isBootstrapping, state.selectedTestCaseIds]);
+
   const retryEvaluation = useCallback(async () => {
     closeStream();
     const handoff = readEvaluationHandoff();
     const agentId = handoff && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : activeAgentId;
     setState((current) => ({ ...current, isBootstrapping: true, error: null }));
     try {
-      await createEvaluation(agentId);
+      const testCaseIds = state.run?.test_case_ids.length ? state.run.test_case_ids : state.selectedTestCaseIds;
+      if (testCaseIds.length === 0) throw new Error("请先选择 TestCase");
+      await createEvaluation(agentId, testCaseIds);
     } catch (error) {
       setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "无法创建新的测评" }));
     }
-  }, [activeAgentId, closeStream, createEvaluation]);
+  }, [activeAgentId, closeStream, createEvaluation, state.run?.test_case_ids, state.selectedTestCaseIds]);
+
+  const resetEvaluationSelection = useCallback(() => {
+    closeStream();
+    clearEvaluationWorkspaceSession();
+    cursorRef.current = 0;
+    setState((current) => ({
+      ...current,
+      run: null,
+      events: [],
+      evaluationId: null,
+      activeStage: null,
+      report: null,
+      trace: null,
+      isBootstrapping: false,
+      isStarting: false,
+      isLoadingReport: false,
+      error: null,
+      reportError: null,
+    }));
+  }, [closeStream]);
+
+  const adoptEvaluationHandoff = useCallback((handoff: EvaluationHandoff) => {
+    closeStream();
+    clearEvaluationWorkspaceSession();
+    cursorRef.current = 0;
+    setState((current) => ({
+      ...current,
+      run: null,
+      events: [],
+      evaluationId: null,
+      activeStage: null,
+      report: null,
+      trace: null,
+      selectedTestCaseIds: selectHandoffTestCase(handoff.testCaseId),
+      isBootstrapping: false,
+      isStarting: false,
+      isLoadingReport: false,
+      error: null,
+      reportError: null,
+    }));
+  }, [closeStream]);
+
+  useEffect(() => {
+    const handleHandoff = () => {
+      const handoff = readEvaluationHandoff();
+      if (handoff) adoptEvaluationHandoff(handoff);
+    };
+    window.addEventListener(EVALUATION_HANDOFF_EVENT, handleHandoff);
+    return () => window.removeEventListener(EVALUATION_HANDOFF_EVENT, handleHandoff);
+  }, [adoptEvaluationHandoff]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -200,19 +276,38 @@ export function EvaluationWorkspaceProvider({
           // A fresh create below gives the workspace a recoverable state.
         }
       }
-      try {
-        const handoff = readEvaluationHandoff();
-        const agentId = handoff && handoff.testCaseId === TEST_CASE_ID && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : activeAgentId;
-        await createEvaluation(agentId, controller.signal, bootstrapRequestIdRef.current);
-      } catch (error) {
-        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) {
-          setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "测评工作台初始化失败" }));
-        }
-      }
+      if (!controller.signal.aborted) setState((current) => ({ ...current, isBootstrapping: false }));
     };
     void bootstrap();
     return () => controller.abort();
-  }, [activeAgentId, createEvaluation, setRun]);
+  }, [setRun]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadTestCases = async () => {
+      try {
+        const response = await fetch("/api/test-cases", { signal: controller.signal });
+        const body = (await response.json()) as TestCaseSummary[] | { error?: { message?: string } };
+        if (!response.ok || !Array.isArray(body)) throw new Error(getErrorMessage(body, "TestCase 列表读取失败"));
+        if (controller.signal.aborted) return;
+        const handoff = readEvaluationHandoff();
+        const handoffId = handoff && typeof handoff.testCaseId === "string" && body.some((item) => item.id === handoff.testCaseId) ? handoff.testCaseId : null;
+        setState((current) => ({
+          ...current,
+          testCases: body,
+          selectedTestCaseIds: current.selectedTestCaseIds.length ? current.selectedTestCaseIds : handoffId ? [handoffId] : body.slice(0, 10).map((item) => item.id),
+          isLoadingTestCases: false,
+          testCaseError: null,
+        }));
+      } catch (error) {
+        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) {
+          setState((current) => ({ ...current, isLoadingTestCases: false, testCaseError: error instanceof Error ? error.message : "TestCase 列表读取失败" }));
+        }
+      }
+    };
+    void loadTestCases();
+    return () => controller.abort();
+  }, []);
 
   const runStatus = state.run?.status;
 
@@ -290,7 +385,10 @@ export function EvaluationWorkspaceProvider({
   }, [loadReport, state.isLoadingReport, state.report, state.run?.status]);
 
   const clearReportError = useCallback(() => setState((current) => ({ ...current, reportError: null })), []);
-  const value = useMemo(() => ({ ...state, startEvaluation, retryEvaluation, loadReport, clearReportError }), [clearReportError, loadReport, retryEvaluation, startEvaluation, state]);
+  const setSelectedTestCaseIds = useCallback((ids: string[]) => {
+    setState((current) => ({ ...current, selectedTestCaseIds: [...new Set(ids)] }));
+  }, []);
+  const value = useMemo(() => ({ ...state, startEvaluation, prepareEvaluation, retryEvaluation, resetEvaluationSelection, setSelectedTestCaseIds, loadReport, clearReportError }), [clearReportError, loadReport, prepareEvaluation, resetEvaluationSelection, retryEvaluation, setSelectedTestCaseIds, startEvaluation, state]);
 
   return <EvaluationWorkspaceContext.Provider value={value}>{children}</EvaluationWorkspaceContext.Provider>;
 }

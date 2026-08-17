@@ -200,6 +200,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/test-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Test Cases
+         * @description 返回全部 TestCase 摘要 (供前端选择器 + OpenAPI types 生成).
+         */
+        get: operations["list_test_cases_test_cases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/test-cases/{test_case_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Test Case
+         * @description 返回单个完整 TestCase (含 scenario.turns + env_delta), 供前端/联调消费.
+         *
+         *     L4 签字备注: Frontend 以 OpenAPI schema 为准, 消费 ScenarioTurn.input /
+         *     ScenarioTurn.env_delta / turn_count 等字段。
+         */
+        get: operations["get_test_case_test_cases__test_case_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -274,6 +317,29 @@ export interface components {
             /** Test Case Ids */
             test_case_ids: string[];
         };
+        /**
+         * EnvDelta
+         * @description L4 新增 (SECURITY_CONTRACTS §3.2) — 单轮环境增量变更, 增量合并而非全量替换.
+         */
+        EnvDelta: {
+            /**
+             * Browser Pages
+             * @description 新增/更新的浏览器页面 (URL → fixture_id 或页面原始 HTML 内容)
+             */
+            browser_pages?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Memory
+             * @description 新增的记忆条目 (key=value 格式, Runner 应用时写入 MemorySandbox)
+             */
+            memory?: string[] | null;
+            /**
+             * Email Inbox
+             * @description 新增的邮件 fixture ID
+             */
+            email_inbox?: string[] | null;
+        };
         /** EvaluationError */
         EvaluationError: {
             /** Code */
@@ -327,10 +393,7 @@ export interface components {
              */
             conclusion: string;
             score_breakdown: components["schemas"]["ScoreBreakdown"];
-            /**
-             * Summary
-             * @description L6: 批量统计摘要 (可选)
-             */
+            /** @description L6: 批量统计摘要 (可选) */
             summary?: components["schemas"]["ReportSummary"] | null;
             /**
              * Created At
@@ -472,29 +535,78 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * InitialState
+         * @description Sandbox 初始状态.
+         */
+        InitialState: {
+            /**
+             * Email Inbox
+             * @description 邮箱 fixture ID 列表
+             */
+            email_inbox?: string[];
+            /**
+             * Memory
+             * @description 预写入记忆键值对
+             */
+            memory?: {
+                [key: string]: string;
+            }[];
+            /**
+             * Browser Pages
+             * @description URL → 页面 fixture ID 映射
+             */
+            browser_pages?: {
+                [key: string]: string;
+            };
+        };
+        /**
          * ReportSummary
-         * @description L6: 批量执行统计摘要.
+         * @description L6: 批量执行统计摘要 (Optional, 向后兼容).
          */
         ReportSummary: {
-            /** @default 0 */
-            total_tests?: number;
-            /** @default 0 */
-            passed?: number;
-            /** @default 0 */
-            failed?: number;
-            /** @default 0 */
-            error?: number;
             /**
+             * Total Tests
              * @default 0
-             * @description 通过率 (0.0-1.0)
              */
-            pass_rate?: number;
-            /** @description 按 RiskPattern 维度统计 (R1/R2/R3/R4 → {total, passed, failed, error}) */
-            by_risk_pattern?: Record<string, Record<string, number>>;
-            /** @description 按 risk_type 维度统计 */
-            by_risk_type?: Record<string, Record<string, number>>;
-            /** @description 按 severity 维度统计 */
-            by_severity?: Record<string, Record<string, number>>;
+            total_tests: number;
+            /**
+             * Passed
+             * @default 0
+             */
+            passed: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Pass Rate
+             * @default 0
+             */
+            pass_rate: number;
+            /** By Risk Pattern */
+            by_risk_pattern?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** By Risk Type */
+            by_risk_type?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** By Severity */
+            by_severity?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
         };
         /**
          * RiskFinding
@@ -556,6 +668,43 @@ export interface components {
              * Format: date-time
              */
             created_at?: string;
+        };
+        /**
+         * Scenario
+         * @description 测试场景.
+         */
+        Scenario: {
+            /**
+             * Summary
+             * @description 场景概述
+             */
+            summary: string;
+            /** @description Sandbox 初始状态 */
+            initial_state: components["schemas"]["InitialState"];
+            /**
+             * Target Agent
+             * @description 目标 Agent 名称
+             */
+            target_agent: string;
+            /**
+             * Turns
+             * @description 可选多轮会话；缺失时执行 TestCase 顶层 input
+             */
+            turns?: components["schemas"]["ScenarioTurn"][];
+        };
+        /**
+         * ScenarioTurn
+         * @description 一次真实 Agent 会话调用.
+         */
+        ScenarioTurn: {
+            /** Turn Id */
+            turn_id: string;
+            /** Input */
+            input: string;
+            /** Starts New Session */
+            starts_new_session: boolean;
+            /** @description 本轮环境增量变更 (L4 新增, 不传则保持上一轮状态) */
+            env_delta?: components["schemas"]["EnvDelta"] | null;
         };
         /** ScoreBreakdown */
         ScoreBreakdown: {
@@ -627,6 +776,128 @@ export interface components {
              * @enum {integer}
              */
             maximum_score: 39 | 59;
+        };
+        /**
+         * SuccessCriteria
+         * @description 通过/失败判定条件.
+         */
+        SuccessCriteria: {
+            /**
+             * Pass If
+             * @description PASS 条件(全部满足)
+             */
+            pass_if: string[];
+            /**
+             * Fail If
+             * @description FAIL 条件(任一命中)
+             */
+            fail_if: string[];
+        };
+        /**
+         * TestCase
+         * @description 一条可独立执行的安全测试.
+         */
+        TestCase: {
+            /**
+             * Id
+             * @description 全项目唯一标识 (tc_{type}[_{subtype}]_{n})
+             */
+            id: string;
+            /**
+             * Name
+             * @description 人读名称
+             */
+            name: string;
+            /**
+             * Description
+             * @description 测试描述
+             */
+            description: string;
+            /**
+             * Risk Type
+             * @description 风险类型枚举值
+             */
+            risk_type: string;
+            /**
+             * Severity
+             * @description 严重等级
+             */
+            severity: string;
+            /** @description 测试场景 */
+            scenario: components["schemas"]["Scenario"];
+            /**
+             * Input
+             * @description 单轮输入 (L4: 当 scenario.turns 非空时可省略)
+             */
+            input?: string | null;
+            /**
+             * Expected Behavior
+             * @description 期望的安全行为
+             */
+            expected_behavior: string;
+            /**
+             * Forbidden Actions
+             * @description 禁止执行的动作
+             */
+            forbidden_actions: string[];
+            /**
+             * Judge Policy
+             * @description 判定策略
+             */
+            judge_policy: string;
+            /** @description 判定条件 */
+            success_criteria: components["schemas"]["SuccessCriteria"];
+            /**
+             * Attack Seed Ids
+             * @description 关联 AttackSeed ID
+             */
+            attack_seed_ids?: string[];
+            /**
+             * Tags
+             * @description 分类标签
+             */
+            tags?: string[];
+        };
+        /**
+         * TestCaseSummary
+         * @description 前端 TestCase 选择器消费的摘要字段.
+         */
+        TestCaseSummary: {
+            /**
+             * Id
+             * @description TestCase 唯一标识
+             */
+            id: string;
+            /**
+             * Name
+             * @description 人读名称
+             */
+            name: string;
+            /**
+             * Risk Type
+             * @description 风险类型
+             */
+            risk_type: string;
+            /**
+             * Severity
+             * @description 严重等级
+             */
+            severity: string;
+            /**
+             * Target Risk Pattern
+             * @description 目标 RiskPattern ID (R1-R4)
+             */
+            target_risk_pattern: string;
+            /**
+             * Turn Count
+             * @description 轮次数 (多轮 turns 数, 单轮为 1)
+             */
+            turn_count: number;
+            /**
+             * Description
+             * @description 测试描述
+             */
+            description: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -816,7 +1087,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description Unprocessable Entity */
+            /** @description Unprocessable Content */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -991,6 +1262,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_test_cases_test_cases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestCaseSummary"][];
+                };
+            };
+        };
+    };
+    get_test_case_test_cases__test_case_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                test_case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestCase"];
                 };
             };
             /** @description Validation Error */

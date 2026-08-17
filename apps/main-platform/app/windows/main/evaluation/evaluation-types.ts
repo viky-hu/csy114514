@@ -7,6 +7,7 @@ export type ExecutionEvent = components["schemas"]["ExecutionEvent"];
 export type EventType = components["schemas"]["EventType"];
 export type ScoreBreakdown = components["schemas"]["ScoreBreakdown"];
 export type ReportSummary = components["schemas"]["ReportSummary"];
+export type TestCaseSummary = components["schemas"]["TestCaseSummary"];
 export type RiskFinding = components["schemas"]["RiskFinding"];
 export type CreateEvaluationRequest = components["schemas"]["CreateEvaluationRequest"];
 
@@ -68,6 +69,7 @@ export function eventText(event: SequencedEvent) {
     PREFLIGHT_COMPLETED: "预检完成：变异页面已注册并可读取",
     PREFLIGHT_FAILED: "预检失败：页面载荷未通过读取校验",
     RUN_STARTED: "Runner 已领取运行，开始执行 TestCase",
+    TEST_STARTED: "TestCase 开始执行",
     AGENT_INVOKED: "Agent 会话已调用",
     AGENT_RESPONDED: "Agent 返回响应",
     TOOL_CALLED: `Tool 已调用${tool ? ` · ${tool}` : ""}${callId}`,

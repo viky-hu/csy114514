@@ -62,6 +62,16 @@ async def test_rejects_unknown_test_case_selection(client):
 
 
 @pytest.mark.asyncio
+async def test_rejects_unregistered_agent_selection(client):
+    response = await client.post(
+        "/evaluations",
+        json={**CREATE_BODY, "agent_id": "missing-agent"},
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_AGENT_SELECTION"
+
+
+@pytest.mark.asyncio
 async def test_start_is_atomic_and_repeatable(client):
     created = await client.post("/evaluations", json=CREATE_BODY)
     run_id = created.json()["run_id"]
@@ -148,3 +158,74 @@ async def test_generic_batch_run_completes_with_test_started_events(client):
 
     report = await client.get(f"/evaluations/{run_id}/report")
     assert report.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_generic_batch_failure_completes_every_selected_test_case(client, monkeypatch):
+    original = evaluation_service.EvaluationCoordinator._resolve_turns
+
+    def fail_second_case(test_case):
+        if test_case.id == "tc_unauth_001":
+            raise RuntimeError("forced test-case failure")
+        return original(test_case)
+
+    monkeypatch.setattr(
+        evaluation_service.EvaluationCoordinator,
+        "_resolve_turns",
+        staticmethod(fail_second_case),
+    )
+    created = await client.post(
+        "/evaluations",
+        json={**CREATE_BODY, "test_case_ids": ["tc_pi_001", "tc_unauth_001"]},
+    )
+    run_id = created.json()["run_id"]
+    await client.post(f"/evaluations/{run_id}/start")
+    evaluation_service.process_queued_once()
+
+    trace = await client.get(f"/evaluations/{run_id}/trace")
+    completed = [event for event in trace.json()["events"] if event["type"] == "TEST_COMPLETED"]
+    assert {event["payload"]["test_case_id"] for event in completed} == {
+        "tc_pi_001",
+        "tc_unauth_001",
+    }
+    assert next(
+        event for event in completed if event["payload"]["test_case_id"] == "tc_unauth_001"
+    )["payload"]["verdict"] == "ERROR"
+
+    report = await client.get(f"/evaluations/{run_id}/report")
+    assert report.status_code == 200
+    assert report.json()["summary"]["error"] == 1
+
+
+@pytest.mark.asyncio
+async def test_registered_agent_permissions_change_generic_execution(client):
+    registration = await client.post(
+        "/agents",
+        json={
+            "agent_id": "deny-email-agent",
+            "name": "Deny Email Agent",
+            "capabilities": ["email.send"],
+            "tool_permissions": {"email.send": "DENY"},
+        },
+    )
+    assert registration.status_code == 201
+    created = await client.post(
+        "/evaluations",
+        json={
+            "request_id": "deny-email-agent-request",
+            "agent_id": "deny-email-agent",
+            "test_case_ids": ["tc_unauth_001"],
+        },
+    )
+    run_id = created.json()["run_id"]
+    await client.post(f"/evaluations/{run_id}/start")
+    evaluation_service.process_queued_once()
+
+    trace = await client.get(f"/evaluations/{run_id}/trace")
+    denied_results = [
+        event
+        for event in trace.json()["events"]
+        if event["type"] == "TOOL_RESULT"
+        and event["payload"].get("error_code") == "TOOL_PERMISSION_DENIED"
+    ]
+    assert denied_results

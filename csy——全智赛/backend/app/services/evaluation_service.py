@@ -12,17 +12,16 @@ from pathlib import Path
 
 from backend.app.adapter.reference_adapter import ReferenceAgentAdapter
 from backend.app.domain.enums import EventType
+from backend.app.domain.evaluation_report import ReportSummary
 from backend.app.domain.evaluation_run import EvaluationRun
 from backend.app.domain.execution_event import ExecutionEvent
 from backend.app.domain.execution_trace import ExecutionTrace
-from backend.app.domain.test_case import TestCase
-from backend.app.judge.r4_judge import judge_r4_events
-from backend.app.judge.rule_judge import RuleJudge
-from backend.app.judge.composite_judge import CompositeJudge
-from backend.app.domain.evaluation_report import ReportSummary
 from backend.app.domain.judge_result import JudgeResult
 from backend.app.domain.risk_finding import FindingEvidence, RiskFinding
+from backend.app.domain.test_case import TestCase
 from backend.app.domain.test_scenario import ScenarioTurn
+from backend.app.judge.composite_judge import CompositeJudge
+from backend.app.judge.r4_judge import judge_r4_events
 from backend.app.knowledge.kb_loader import load_all_test_case_files
 from backend.app.persistence.sqlite_store import (
     IdempotencyConflictError,
@@ -31,6 +30,7 @@ from backend.app.persistence.sqlite_store import (
 )
 from backend.app.sandbox.composite import CompositeSandbox
 from backend.app.security.fingerprints import derive_canary, fingerprint_value
+from backend.app.services import agent_service
 from backend.app.services.preflight_service import PreflightError, PreflightService
 from backend.app.services.report_service import build_report
 
@@ -40,6 +40,10 @@ class EvaluationNotFoundError(LookupError):
 
 
 class InvalidTestCaseSelectionError(ValueError):
+    pass
+
+
+class InvalidAgentSelectionError(ValueError):
     pass
 
 
@@ -120,6 +124,17 @@ class EvaluationCoordinator:
         unknown = [tid for tid in test_case_ids if tid not in known_ids]
         if unknown:
             raise InvalidTestCaseSelectionError
+        existing = self.store.get_run_by_request_id(request_id)
+        if existing is not None:
+            if (
+                existing.agent_id != agent_id
+                or existing.test_case_ids != test_case_ids
+            ):
+                raise IdempotencyConflictError(
+                    "idempotency key was already used with a different request body"
+                )
+            return existing, False
+        tool_permissions = self._agent_tool_permissions(agent_id)
         run_id = f"eval-{uuid.uuid4().hex[:16]}"
         run = EvaluationRun(
             run_id=run_id,
@@ -169,6 +184,7 @@ class EvaluationCoordinator:
                 canary=derive_canary(self._fingerprint_key, run_id),
                 canary_fingerprint=result.metadata.canary_fingerprint,
                 enforce_email_confirmation=False,
+                tool_permissions=tool_permissions,
             )
             sandbox.reset({"browser_pages": {}})
             sandbox.browser.register_page(
@@ -273,6 +289,7 @@ class EvaluationCoordinator:
 
             test_case = self._load_test_case("tc_pipi_001")
             canary = derive_canary(self._fingerprint_key, run.run_id)
+            tool_permissions = self._agent_tool_permissions(run.agent_id)
 
             def sink(event_type: str, payload: dict) -> str:
                 stored = self.store.append_event(
@@ -292,6 +309,7 @@ class EvaluationCoordinator:
                     canary=canary,
                     canary_fingerprint=preflight.metadata.canary_fingerprint,
                     enforce_email_confirmation=False,
+                    tool_permissions=tool_permissions,
                 )
             else:
                 sandbox.set_event_sink(sink)
@@ -420,9 +438,14 @@ class EvaluationCoordinator:
         与 R4 垂直切片路径并存: R4 (tc_pipi_001) 保留原 preflight/canary/judge_r4 链路,
         其余任意 TestCase 走本路径, 每条 TestCase 独立 reset + 判定.
         """
+        test_cases: list[TestCase] = []
+        all_findings: list[RiskFinding] = []
+        last_judge: JudgeResult | None = None
+        tc_results: list[dict] = []
         try:
             test_cases = self._load_test_cases(run.test_case_ids)
             canary = derive_canary(self._fingerprint_key, run.run_id)
+            tool_permissions = self._agent_tool_permissions(run.agent_id)
 
             def sink(event_type: str, payload: dict) -> str:
                 return self.store.append_event(
@@ -436,16 +459,11 @@ class EvaluationCoordinator:
                 ),
                 canary=canary,
                 canary_fingerprint="",
-                enforce_email_confirmation=False,
+                enforce_email_confirmation=tool_permissions.get("email.send") == "CONFIRM",
+                tool_permissions=tool_permissions,
             )
             adapter = ReferenceAgentAdapter(sandbox=sandbox)
             composite_judge = CompositeJudge()
-            all_findings: list[RiskFinding] = []
-            last_judge: JudgeResult | None = None
-
-            # D13: 统计追踪
-            tc_results: list[dict] = []  # [{verdict, risk_type, severity, risk_pattern}]
-
             for test_case in test_cases:
                 turns = self._resolve_turns(test_case)
                 total_turns = len(turns)
@@ -510,7 +528,9 @@ class EvaluationCoordinator:
                     )
 
                 # D11: CompositeJudge (Rule + LLM Mock)
-                judge_result = composite_judge.evaluate(adapter.get_trace(), test_case)
+                judge_result = composite_judge.evaluate(
+                    adapter.get_trace(), test_case, tool_permissions=tool_permissions
+                )
                 last_judge = judge_result
                 findings = self._findings_from_judge(run.run_id, test_case, judge_result)
                 all_findings.extend(findings)
@@ -562,6 +582,7 @@ class EvaluationCoordinator:
                 }
                 risk_pattern = _RISK_TYPE_TO_PATTERN.get(test_case.risk_type, "OTHER")
                 tc_results.append({
+                    "test_case_id": test_case.id,
                     "verdict": judge_result.verdict,
                     "risk_type": test_case.risk_type,
                     "severity": test_case.severity,
@@ -590,13 +611,67 @@ class EvaluationCoordinator:
                 report=report,
                 events=terminal_events,
             )
-        except Exception:  # noqa: BLE001 - infrastructure failures must become terminal run state
-            self.store.fail_running_run(
+        except Exception:  # noqa: BLE001 - each selected case still receives a terminal outcome
+            if not test_cases:
+                self.store.fail_running_run(
+                    run.run_id,
+                    code="EVALUATION_EXECUTION_FAILED",
+                    message="Evaluation infrastructure failed.",
+                    retryable=True,
+                    stage="generic_execution",
+                )
+                return
+
+            completed_ids = {result["test_case_id"] for result in tc_results}
+            for test_case in test_cases:
+                if test_case.id in completed_ids:
+                    continue
+                self.store.append_event(
+                    _event(
+                        run.run_id,
+                        EventType.TEST_COMPLETED,
+                        {
+                            "test_case_id": test_case.id,
+                            "verdict": "ERROR",
+                            "evidence_count": 0,
+                            "rule_id": None,
+                        },
+                    )
+                )
+                risk_pattern = {
+                    "indirect_prompt_injection": "R1",
+                    "memory_poisoning": "R2",
+                    "privacy_leakage": "R3",
+                    "persistent_indirect_prompt_injection": "R4",
+                }.get(test_case.risk_type, "OTHER")
+                tc_results.append({
+                    "test_case_id": test_case.id,
+                    "verdict": "ERROR",
+                    "risk_type": test_case.risk_type,
+                    "severity": test_case.severity,
+                    "risk_pattern": risk_pattern,
+                })
+
+            summary = self._compute_summary(tc_results)
+            persisted = self.store.list_events(run.run_id, limit=1000)
+            report = build_report(
                 run.run_id,
-                code="EVALUATION_EXECUTION_FAILED",
-                message="Evaluation infrastructure failed.",
-                retryable=True,
-                stage="generic_execution",
+                run.agent_id,
+                [_execution_event(event) for event in persisted],
+                all_findings,
+                summary=summary,
+            )
+            self.store.complete_run(
+                run.run_id,
+                judge_result=last_judge,
+                report=report,
+                events=[
+                    _event(
+                        run.run_id,
+                        EventType.RUN_FINISHED,
+                        {"status": "completed", "report_available": True, "degraded": True},
+                    )
+                ],
             )
 
     @staticmethod
@@ -646,6 +721,16 @@ class EvaluationCoordinator:
                 starts_new_session=True,
             )
         ]
+
+    @staticmethod
+    def _agent_tool_permissions(agent_id: str) -> dict[str, str]:
+        """Resolve the selected Agent's manifest before a run is persisted."""
+        if agent_id == "corpmate-v0":
+            return ReferenceAgentAdapter().get_manifest().tool_permissions
+        profile = agent_service.get_agent(agent_id)
+        if profile is not None:
+            return dict(profile.manifest.tool_permissions)
+        raise InvalidAgentSelectionError(agent_id)
 
     @classmethod
     def _load_test_cases(cls, test_case_ids: list[str]) -> list[TestCase]:
@@ -791,6 +876,7 @@ __all__ = [
     "EvaluationNotFoundError",
     "EvaluationNotStartableError",
     "IdempotencyConflictError",
+    "InvalidAgentSelectionError",
     "InvalidEventCursorError",
     "InvalidTestCaseSelectionError",
     "ReportNotReadyError",

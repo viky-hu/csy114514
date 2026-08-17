@@ -8,6 +8,7 @@
   5. SQLite 持久化正常
 """
 import os
+
 import pytest
 
 os.environ.setdefault("TRACE_FINGERPRINT_KEY", "test-validation-key")
@@ -63,8 +64,6 @@ def test_full_batch_execution():
 
     # 5. 检查 Trace 事件
     trace = coordinator.get_trace(run.run_id)
-    event_types = [e.type for e in trace.events]
-
     test_started = [e for e in trace.events if e.type == "TEST_STARTED"]
     test_completed = [e for e in trace.events if e.type == "TEST_COMPLETED"]
     judge_decisions = [e for e in trace.events if e.type == "JUDGE_DECISION"]
@@ -118,13 +117,13 @@ def test_full_batch_execution():
     print(f"  PASS:  {pass_count}")
     print(f"  FAIL:  {fail_count}")
     print(f"  ERROR: {error_count}")
-    print(f"\nBy RiskPattern:")
+    print("\nBy RiskPattern:")
     for rp, stats in sorted(report.summary.by_risk_pattern.items()):
         print(f"  {rp:6s}  total={stats['total']:3d}  pass={stats['passed']:3d}  fail={stats['failed']:3d}")
-    print(f"\nBy RiskType:")
+    print("\nBy RiskType:")
     for rt, stats in sorted(report.summary.by_risk_type.items()):
         print(f"  {rt:45s}  total={stats['total']:3d}  pass={stats['passed']:3d}  fail={stats['failed']:3d}")
-    print(f"\nBy Severity:")
+    print("\nBy Severity:")
     for sev, stats in sorted(report.summary.by_severity.items()):
         print(f"  {sev:10s}  total={stats['total']:3d}  pass={stats['passed']:3d}  fail={stats['failed']:3d}")
     print(f"{'='*60}")

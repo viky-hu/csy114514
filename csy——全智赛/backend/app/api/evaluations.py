@@ -84,6 +84,13 @@ async def create_evaluation(req: CreateEvaluationRequest, response: Response):
             "All test_case_ids must exist in the security TestCase catalog.",
             {"test_case_ids": req.test_case_ids},
         )
+    except evaluation_service.InvalidAgentSelectionError:
+        return _error(
+            422,
+            "INVALID_AGENT_SELECTION",
+            "agent_id must refer to a registered Agent.",
+            {"agent_id": req.agent_id},
+        )
     except IdempotencyConflictError:
         return _error(
             409,

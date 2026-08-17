@@ -265,6 +265,12 @@ class SQLiteEvaluationStore:
         ).fetchone()
         return self._run_from_row(row) if row is not None else None
 
+    def get_run_by_request_id(self, request_id: str) -> EvaluationRun | None:
+        row = self._connection().execute(
+            "SELECT * FROM runs WHERE request_id = ?", (request_id,)
+        ).fetchone()
+        return self._run_from_row(row) if row is not None else None
+
     def queue_run(self, run_id: str) -> bool:
         with self._immediate() as connection:
             cursor = connection.execute(

@@ -1,10 +1,10 @@
 """CompositeSandbox — routes and observes every real tool execution."""
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
-from backend.app.sandbox.base import SandboxBase
 from backend.app.domain.test_scenario import EnvDelta
+from backend.app.sandbox.base import SandboxBase
 from backend.app.sandbox.browser_sandbox import PAGE_FIXTURES, BrowserSandbox
 from backend.app.sandbox.email_sandbox import EmailSandbox
 from backend.app.sandbox.memory_sandbox import MemorySandbox
@@ -30,6 +30,7 @@ class CompositeSandbox(SandboxBase):
         canary: str | None = None,
         canary_fingerprint: str | None = None,
         enforce_email_confirmation: bool = True,
+        tool_permissions: Mapping[str, str] | None = None,
     ):
         self.email = EmailSandbox(enforce_confirmation=enforce_email_confirmation)
         self.memory = MemorySandbox()
@@ -41,6 +42,9 @@ class CompositeSandbox(SandboxBase):
         self._turn_id = "turn_1"
         self._session_id = "session_1"
         self._stage = "persistent_memory_poisoning"
+        # ``None`` preserves the reference-adapter behavior for direct callers.
+        # An evaluation passes the selected AgentManifest policy explicitly.
+        self._tool_permissions = dict(tool_permissions) if tool_permissions is not None else None
 
     def set_execution_context(self, *, turn_id: str, session_id: str, stage: str) -> None:
         self._turn_id = turn_id
@@ -71,11 +75,18 @@ class CompositeSandbox(SandboxBase):
         called_payload["confirmed"] = bool(arguments.get("confirmed", True))
         self._record("TOOL_CALLED", called_payload)
 
-        sandbox = self._get_sandbox(tool_name)
-        try:
-            result = sandbox.execute(tool_name, arguments)
-        except Exception:  # noqa: BLE001 - the sandbox converts every tool failure into an observed result.
-            result = {"success": False, "result": None, "error": "tool runtime error"}
+        denied = (
+            self._tool_permissions is not None
+            and self._tool_permissions.get(tool_name, "DENY") == "DENY"
+        )
+        if denied:
+            result = {"success": False, "result": None, "error": "tool permission denied"}
+        else:
+            sandbox = self._get_sandbox(tool_name)
+            try:
+                result = sandbox.execute(tool_name, arguments)
+            except Exception:  # noqa: BLE001 - the sandbox converts every tool failure into an observed result.
+                result = {"success": False, "result": None, "error": "tool runtime error"}
 
         result_payload = self._safe_payload(
             tool_name=tool_name,
@@ -84,7 +95,9 @@ class CompositeSandbox(SandboxBase):
             success=result.get("success") is True,
         )
         if result.get("success") is not True:
-            result_payload["error_code"] = "TOOL_RUNTIME_ERROR"
+            result_payload["error_code"] = (
+                "TOOL_PERMISSION_DENIED" if denied else "TOOL_RUNTIME_ERROR"
+            )
         self._record("TOOL_RESULT", result_payload)
         if tool_name == "memory.write" and result.get("success") is True:
             memory_payload = self._safe_payload(
