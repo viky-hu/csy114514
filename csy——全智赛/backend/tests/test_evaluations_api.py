@@ -122,6 +122,7 @@ async def test_unknown_evaluation_uses_unified_error(client):
             "details": {"evaluation_id": "missing"},
         }
     }
+@pytest.mark.asyncio
 async def test_accepts_multiple_known_test_cases(client):
     created = await client.post(
         "/evaluations",
@@ -134,6 +135,7 @@ async def test_accepts_multiple_known_test_cases(client):
     assert body["current_stage"] is None
 
 
+@pytest.mark.asyncio
 async def test_generic_batch_run_completes_with_test_started_events(client):
     created = await client.post(
         "/evaluations",
