@@ -9,9 +9,12 @@ function read(relativePath) {
 test("login Agent loading uses Chinese boot tips instead of fixed Loading text", () => {
   const source = read("../login/LoginIntroWindow.tsx");
 
-  assert.match(source, /useLoadingTip\("boot"/);
+  assert.match(source, /createLoginLoadingTipSequence/);
+  assert.doesNotMatch(source, /useLoadingTip\("boot"/);
+  assert.doesNotMatch(source, /intervalMs:\s*1400/);
+  assert.doesNotMatch(source, /setTimeout\(finishAgentLoading,\s*5000\)/);
   assert.doesNotMatch(source, /LOADING_LABEL/);
-  assert.match(source, /正在接入 Agent：\$\{loadingTip\}/);
+  assert.match(source, /正在接入 Agent：\$\{loadingTip\.text\}/);
 });
 
 test("main Agent interface consumes shared loading tips for read and save states", () => {

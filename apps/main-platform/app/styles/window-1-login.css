@@ -1100,7 +1100,8 @@ html.login-agent-entry-lock body {
   align-items: center;
   justify-content: center;
   gap: 0.02em;
-  max-width: min(82vw, 720px);
+  width: min(82vw, 720px);
+  min-width: 0;
   min-height: clamp(32px, 4vw, 44px);
   color: rgba(246, 246, 244, 0.08);
   -webkit-text-fill-color: transparent;
@@ -1114,13 +1115,16 @@ html.login-agent-entry-lock body {
   text-align: center;
   text-transform: none;
   text-shadow: 0 0 20px rgba(246, 246, 244, 0.18);
+  font-kerning: none;
+  text-rendering: optimizeSpeed;
 }
 
 .login-agent-loading-char {
   display: inline-block;
   min-width: 0.58em;
+  min-height: 1em;
   transform: translateY(0);
-  will-change: transform;
+  will-change: transform, opacity;
 }
 
 .login-agent-loading-char.is-dot {

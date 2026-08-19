@@ -6,7 +6,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Mouse, X } from "lucide-react";
 import { LINE_DRAW_EASE } from "../shared/animation";
-import { useLoadingTip } from "../shared/loading-tips";
+import { getLoadingTips, type LoadingTip } from "../shared/loading-tips";
 import {
   CORPMATE_AGENT_DRAFT,
   DEFAULT_AGENT_ID,
@@ -16,6 +16,14 @@ import {
 import { AgentConnectDraft } from "./AgentConnectDraft";
 import { createLoginBandMotionController } from "./login-band-motion-controller";
 import { LoginForm } from "./LoginForm";
+import {
+  createLoginLoadingTipSequence,
+  type LoginLoadingTipPresentation,
+} from "./login-loading-tip-sequence";
+import {
+  LoginSplitLoadingTip,
+  type LoginSplitLoadingTipPhase,
+} from "./LoginSplitLoadingTip";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -37,6 +45,7 @@ const INFO_COPY_LINES = [
 ] as const;
 const MICRO_COPY = "OBSERVABLE / EXPLAINABLE / REPRODUCIBLE / FIXABLE";
 const LOADING_BOXES = [1, 2, 3, 4] as const;
+const INITIAL_LOADING_TIP = getLoadingTips("boot")[0]!;
 
 interface LoginIntroWindowProps {
   onAgentEntryComplete?: (agentId: string) => void;
@@ -52,11 +61,9 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
   const [isAgentSaving, setIsAgentSaving] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isScrollReady, setIsScrollReady] = useState(false);
-  const loadingTip = useLoadingTip("boot", {
-    active: agentEntryStage === "loading",
-    intervalMs: 1400,
-    mode: "timeline",
-  });
+  const [loadingTip, setLoadingTip] = useState<LoadingTip>(INITIAL_LOADING_TIP);
+  const [loadingTipPhase, setLoadingTipPhase] =
+    useState<LoginSplitLoadingTipPhase>("hold");
   const ctaPrimaryLabel = isAuthenticated ? CTA_AUTHENTICATED_PRIMARY : CTA_LOGIN_PRIMARY;
   const ctaSecondaryLabel = isAuthenticated
     ? CTA_AUTHENTICATED_SECONDARY
@@ -110,9 +117,12 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
   const invertedAgentPromptRef = useRef<SVGTextElement>(null);
   const agentDraftLayerRef = useRef<HTMLDivElement>(null);
   const loadingOverlayRef = useRef<HTMLDivElement>(null);
-  const loadingTextRef = useRef<HTMLDivElement>(null);
   const idleTimerRef = useRef<number | null>(null);
-  const loadingTimerRef = useRef<number | null>(null);
+  const loadingTipTimerRef = useRef<number | null>(null);
+  const loadingTipSequenceRef = useRef<ReturnType<
+    typeof createLoginLoadingTipSequence
+  > | null>(null);
+  const loadingTipExitCompleteRef = useRef<() => void>(() => undefined);
   const lastXRef = useRef<number | null>(null);
   const pointerXRef = useRef<number | null>(null);
   const pointerInsideRef = useRef(false);
@@ -178,7 +188,6 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
       const panelFormWrap = panelFormWrapRef.current;
       const agentDraftLayer = agentDraftLayerRef.current;
       const loadingOverlay = loadingOverlayRef.current;
-      const loadingText = loadingTextRef.current;
       const band = bandRef.current;
       const bandClip = bandClipRef.current;
       const topRule = topRuleRef.current;
@@ -226,7 +235,6 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         !panelFormWrap ||
         !agentDraftLayer ||
         !loadingOverlay ||
-        !loadingText ||
         !band ||
         !bandClip ||
         !topRule ||
@@ -276,17 +284,12 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
       };
       let closeTimeline: gsap.core.Timeline | null = null;
       let loadingTimeline: gsap.core.Timeline | null = null;
-      let loadingTextTimeline: gsap.core.Timeline | null = null;
       let scrollTrigger: ScrollTrigger | null = null;
       let openingFallbackTimer: number | null = null;
       const scrollSceneNodes = [baseScene, invertedScene];
       const agentPromptLayers = gsap.utils.toArray<SVGGElement>(
         ".login-agent-prompt-layer",
         page,
-      );
-      const loadingChars = gsap.utils.toArray<HTMLSpanElement>(
-        ".login-agent-loading-char",
-        loadingText,
       );
       const scrollState = {
         anchorX: initialX,
@@ -706,16 +709,22 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         loadingTimeline = null;
       };
 
-      const clearLoadingTextTimeline = () => {
-        loadingTextTimeline?.kill();
-        loadingTextTimeline = null;
+      const clearLoadingTipTimer = () => {
+        if (loadingTipTimerRef.current !== null) {
+          window.clearTimeout(loadingTipTimerRef.current);
+          loadingTipTimerRef.current = null;
+        }
       };
 
-      const clearLoadingTimer = () => {
-        if (loadingTimerRef.current !== null) {
-          window.clearTimeout(loadingTimerRef.current);
-          loadingTimerRef.current = null;
-        }
+      const scheduleLoadingTipExit = (presentation: LoginLoadingTipPresentation) => {
+        clearLoadingTipTimer();
+        setLoadingTip(presentation.tip);
+        setLoadingTipPhase("enter");
+        loadingTipTimerRef.current = window.setTimeout(() => {
+          if (agentEntryStageRef.current === "loading") {
+            setLoadingTipPhase("exit");
+          }
+        }, presentation.entranceMs + presentation.holdMs);
       };
 
       const clearIdleTimer = () => {
@@ -815,7 +824,6 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
       gsap.set(panelClose, { autoAlpha: 0, y: -6 });
       gsap.set(panelFormWrap, { autoAlpha: 0, y: 18 });
       gsap.set(loadingOverlay, { autoAlpha: 0, y: 12, scale: 0.98 });
-      gsap.set(loadingChars, { y: 0 });
 
       const openTimeline = gsap.timeline({
         paused: true,
@@ -1130,45 +1138,30 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         closePanel();
       };
 
-      const startLoadingTextWave = () => {
-        clearLoadingTextTimeline();
-
-        if (prefersReducedMotion) {
-          gsap.set(loadingChars, { y: 0 });
-          return;
-        }
-
-        loadingTextTimeline = gsap.timeline({ repeat: -1, repeatDelay: 0.26 });
-        loadingTextTimeline
-          .to(loadingChars, {
-            y: -9,
-            duration: 0.28,
-            ease: "sine.out",
-            stagger: 0.055,
-          })
-          .to(
-            loadingChars,
-            {
-              y: 0,
-              duration: 0.34,
-              ease: "sine.inOut",
-              stagger: 0.055,
-            },
-            "<0.16",
-          );
-      };
-
-      const finishAgentLoading = () => {
+      const finishAgentLoading = (failureMessage?: string) => {
         if (agentEntryStageRef.current !== "loading") {
           return;
         }
 
-        clearLoadingTimer();
+        clearLoadingTipTimer();
         clearLoadingTimeline();
+        loadingTipSequenceRef.current = null;
         renderLockedAgentEntryPage();
         loadingTimeline = gsap.timeline({
           onComplete: () => {
-            clearLoadingTextTimeline();
+            if (failureMessage) {
+              gsap.set([agentDraftLayer, ...agentPromptLayers], {
+                autoAlpha: 1,
+                y: 0,
+              });
+              setAgentSaveError(failureMessage);
+              setAgentEntryStageValue("idle");
+              unlockAgentEntryScroll();
+              renderLockedAgentEntryPage();
+              loadingTimeline = null;
+              return;
+            }
+
             setAgentEntryStageValue("done");
             renderLockedAgentEntryPage();
             loadingTimeline = null;
@@ -1184,6 +1177,28 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         });
       };
 
+      const advanceLoadingTipSequence = withContextSafe(() => {
+        if (agentEntryStageRef.current !== "loading") {
+          return;
+        }
+
+        clearLoadingTipTimer();
+        const action = loadingTipSequenceRef.current?.advanceAfterExit();
+
+        if (!action || action.kind === "complete") {
+          finishAgentLoading();
+          return;
+        }
+
+        if (action.kind === "failed") {
+          finishAgentLoading(action.message ?? "Agent 接入失败");
+          return;
+        }
+
+        scheduleLoadingTipExit(action.presentation);
+      });
+      loadingTipExitCompleteRef.current = advanceLoadingTipSequence;
+
       const beginAgentLoading = withContextSafe((agentId = DEFAULT_AGENT_ID) => {
         if (agentEntryStageRef.current !== "idle") {
           return;
@@ -1193,17 +1208,21 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         clearIdleTimer();
         clearOpeningFallback();
         clearCloseTimeline();
-        clearLoadingTimer();
+        clearLoadingTipTimer();
         clearLoadingTimeline();
-        clearLoadingTextTimeline();
         renderScrollProgress(1);
         destroyScrollTrigger();
         lockAgentEntryScroll();
         setAgentEntryStageValue("loading");
         renderLockedAgentEntryPage();
-        startLoadingTextWave();
 
-        loadingTimerRef.current = window.setTimeout(finishAgentLoading, 5000);
+        const loadingTipSequence = createLoginLoadingTipSequence(agentId);
+        loadingTipSequenceRef.current = loadingTipSequence;
+        const initialAction = loadingTipSequence.start();
+
+        if (initialAction.kind === "tip") {
+          scheduleLoadingTipExit(initialAction.presentation);
+        }
 
         loadingTimeline = gsap.timeline();
         loadingTimeline
@@ -1288,9 +1307,11 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         requestAuthenticatedCloseRef.current = () => undefined;
         beginAgentLoadingRef.current = () => undefined;
         syncCtaLayoutRef.current = () => undefined;
+        loadingTipExitCompleteRef.current = () => undefined;
+        loadingTipSequenceRef.current = null;
         clearIdleTimer();
         clearOpeningFallback();
-        clearLoadingTimer();
+        clearLoadingTipTimer();
         page.removeEventListener("pointerenter", followPointer);
         page.removeEventListener("pointerleave", leavePage);
         page.removeEventListener("pointercancel", leavePage);
@@ -1309,7 +1330,6 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         panelClose.removeEventListener("click", closePanel);
         clearCloseTimeline();
         clearLoadingTimeline();
-        clearLoadingTextTimeline();
         destroyScrollTrigger();
         unlockAgentEntryScroll();
         openTimeline.kill();
@@ -1317,7 +1337,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         gsap.killTweensOf(scrollSceneNodes);
         gsap.killTweensOf(scrollHint);
         gsap.killTweensOf([...ctaLeftBrackets, ...ctaRightBrackets]);
-        gsap.killTweensOf([agentDraftLayer, ...agentPromptLayers, loadingOverlay, ...loadingChars]);
+        gsap.killTweensOf([agentDraftLayer, ...agentPromptLayers, loadingOverlay]);
       };
     },
     { scope: pageRef },
@@ -1538,7 +1558,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         className="login-agent-loading-overlay"
         role="status"
         aria-live="polite"
-        aria-label={`正在接入 Agent：${loadingTip}`}
+        aria-label={`正在接入 Agent：${loadingTip.text}`}
         aria-hidden={agentEntryStage === "idle" || agentEntryStage === "done"}
       >
         <div className="login-agent-loading-stack">
@@ -1556,9 +1576,12 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
               ))}
             </div>
           </div>
-          <div ref={loadingTextRef} className="login-agent-loading-text">
-            {loadingTip}
-          </div>
+          <LoginSplitLoadingTip
+            text={loadingTip.text}
+            active={agentEntryStage === "loading"}
+            phase={loadingTipPhase}
+            onExitComplete={() => loadingTipExitCompleteRef.current()}
+          />
         </div>
       </div>
 

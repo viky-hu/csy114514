@@ -15,6 +15,21 @@
 - Styling: preserve existing layout, SVG geometry, buttons, tracks, terminal, and report shell. CSS changes are limited to wrapping and muted inline status text so longer Chinese tips do not overflow.
 - Validation: run the focused loading-tip Node test, component structure checks for the consuming windows, `pnpm -C apps/main-platform type-check`, `pnpm -C apps/main-platform lint`, and manual smoke for login Agent loading, TestCase catalog loading, single R4 run, batch run, report loading, and error states.
 
+## 2026-08-19 Login Loading Tip SplitText Motion
+
+- Ownership: `app/windows/login/LoginSplitLoadingTip.tsx` owns the login-only loading-tip text animation; `app/windows/login/LoginIntroWindow.tsx` still owns the Agent entry stage and overlay lifecycle, while `app/windows/shared/loading-tips.ts` remains the only owner of tip content and phase selection.
+- Boundary: each newly selected login tip fades in character by character through GSAP SplitText, and tip changes first fade the existing line out as a whole before rendering the next line. This changes no loading-tip data, timing contract, backend route, or non-login loading surface.
+- Styling: `app/styles/window-1-login.css` preserves the existing hollow white loading text and adds only stable inline-block, kerning, and opacity/transform rules for SplitText character spans. Reduced-motion users receive the static text without character stagger or vertical movement.
+- Validation: keep the login structure test asserting the local SplitText component, the `type="chars"`/`aria="auto"`/`reduceWhiteSpace=false` configuration, and the absence of the retired parent-owned loading-character wave.
+
+## 2026-08-19 Login Loading Tip Dynamic Timing
+
+- Ownership: `app/windows/login/login-loading-tip-sequence.ts` owns the login-only timing plan; `LoginIntroWindow.tsx` translates its next-tip/complete/failed actions into overlay lifecycle changes, and `LoginSplitLoadingTip.tsx` owns only controlled `enter`/`hold`/`exit` text presentation.
+- Boundary: the current mock selects a deterministic non-repeating `boot` subset whose actual cumulative text cycle is 7-10 seconds. It replaces the old 1.4-second interval and 5-second completion timer without changing shared tip content, BFF routes, or any non-login loading flow.
+- Extensibility: future backend progress maps to internal `phase`, `complete`, and `failed` events. Those signals never interrupt a partially shown line: the controller advances or exits only after the normal whole-line fade-out boundary.
+- Styling: the hollow text wrapper uses a stable constrained width and `min-width: 0`; SplitText character spans remain inline-block so Chinese characters center and wrap without moving the loader stack. Reduced-motion keeps normal text/fade behavior without stagger or vertical movement.
+- Validation: cover deterministic plan duration and de-duplication, deferred complete/failed and phase-event transitions, login structure removal of legacy timers, the controlled SplitText props, and the focused app type check.
+
 ## 2026-07-31 Initial Stack Scaffold
 
 - Ownership: root workspace config, `apps/main-platform`, `packages/configs`, `packages/ui-components`.
@@ -66,7 +81,7 @@
 ## 2026-08-01 Login Agent Loading Lock
 
 - Ownership: `app/windows/login/LoginIntroWindow.tsx` owns the local Agent entry stage machine; `app/styles/window-1-login.css` owns the loading overlay, white tower loader, hollow loading text, and locked-page styling.
-- Boundary: both Agent entry actions are local mock transitions only; the 5-second loading state does not call `/api/agents`, enter the main application, restore the draft, or expose a new public component API.
+- Boundary: both Agent entry actions are local mock transitions only; the dynamic 7-10-second loading sequence does not add progress routes, enter the main application early, or change the public Agent API.
 - Extensibility: loading is isolated behind `agentEntryStage` so future real Agent connection work can replace the mock timer without changing the second-page scroll-band or pointer-mode contracts.
 - Styling: the loader keeps the provided 3D tower keyframe structure but uses project-prefixed classes, white-toned faces, responsive sizing, and a GSAP staggered text wave with reduced-motion fallback.
 - Validation: run `pnpm type-check`, `pnpm lint`, and `pnpm build`; manually verify both Agent buttons lock the second page, fade out prompt/draft content, show the centered loader, and leave the page on a blue empty state after completion.
