@@ -16,6 +16,14 @@
 - Styling: Window 1 styles live in `app/styles/window-1-login.css` and preserve the source DingTalk/Michroma typography, viewport-width SVG root, mouse-following band, inverted overlay, CTA animation, and Escape close behavior.
 - Validation: run `pnpm type-check` and `pnpm build` after the visual entry change; keep a focused structure check that the login root uses `100vw` rather than inheriting a parent `100%` width.
 
+## 2026-08-19 Login Band Motion Stability
+
+- Ownership: `app/windows/login/login-band-motion-controller.ts` is private to the login window and is the sole writer of the SVG band's shared `centerX` and `width` visual state. `LoginIntroWindow.tsx` may request pointer, opening, open, closing, or scroll transitions through it, but must not create competing tweens against that state.
+- Boundary: this change does not alter the authentication contract, login component props, BFF routes, or scroll/Agent interfaces. The controller remains local to Window 1 and keeps GSAP/useGSAP as the existing motion stack.
+- Extensibility: every owner transition cancels the prior tween and increments a revision token; callbacks from killed or superseded GSAP tweens are ignored. Opening synchronously locks pointer ownership, ignores pointer/idle/leave writes until `open`, and has an 800ms final-state fallback for throttled rendering or resize interruption. Closing owns its own collapse, while scroll writes an immediate full-band state.
+- Styling: preserve the existing line, hover-band, and panel dimensions. Reduced motion must commit the panel's visual and stage final state without delayed timeline positions.
+- Validation: run `node --experimental-strip-types --test app/windows/login/login-band-motion-controller.test.mjs`, the existing login layout structure test, and `pnpm test:e2e`. The Chromium suite must cover 50 openings across active pointer movement, idle collapse, rapid repeat clicks, blur, resize, pointer leave, and reduced motion; every run must end with `data-panel-stage="open"`, a visible panel, a band width equal to the rendered panel width, and no browser console/page errors.
+
 ## 2026-08-01 Login Mock Scroll Expansion
 
 - Ownership: `app/windows/login/LoginIntroWindow.tsx`, `app/windows/login/LoginForm.tsx`, and `app/styles/window-1-login.css`.

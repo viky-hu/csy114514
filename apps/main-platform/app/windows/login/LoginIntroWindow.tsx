@@ -13,6 +13,7 @@ import {
   type AgentDraftState,
 } from "../shared/agent-config";
 import { AgentConnectDraft } from "./AgentConnectDraft";
+import { createLoginBandMotionController } from "./login-band-motion-controller";
 import { LoginForm } from "./LoginForm";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
@@ -268,13 +269,11 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         centerX: initialX,
         width: lineWidth,
       };
-      let pointerMoveTween: gsap.core.Tween | null = null;
-      let pointerWidthTween: gsap.core.Tween | null = null;
-      let bandTween: gsap.core.Tween | null = null;
       let closeTimeline: gsap.core.Timeline | null = null;
       let loadingTimeline: gsap.core.Timeline | null = null;
       let loadingTextTimeline: gsap.core.Timeline | null = null;
       let scrollTrigger: ScrollTrigger | null = null;
+      let openingFallbackTimer: number | null = null;
       const scrollSceneNodes = [baseScene, invertedScene];
       const agentPromptLayers = gsap.utils.toArray<SVGGElement>(
         ".login-agent-prompt-layer",
@@ -325,6 +324,11 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         bandClip.setAttribute("width", String(width));
         bandClip.setAttribute("height", String(window.innerHeight * 2));
       };
+      const bandMotion = createLoginBandMotionController({
+        visualState,
+        render: renderBand,
+        createTween: (target, vars) => gsap.to(target, vars as gsap.TweenVars),
+      });
 
       const updateAgentEntryVisibility = (progress: number) => {
         const draftFade = clamp((progress - 0.72) / 0.24, 0, 1);
@@ -341,9 +345,10 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
       const renderLockedAgentEntryPage = () => {
         scrollState.progress = 1;
         scrollState.locked = true;
-        visualState.centerX = snapToDevicePixel(window.innerWidth * 0.5);
-        visualState.width = snapToDevicePixel(window.innerWidth);
-        renderBand();
+        bandMotion.setImmediate("scroll", {
+          centerX: snapToDevicePixel(window.innerWidth * 0.5),
+          width: snapToDevicePixel(window.innerWidth),
+        });
         gsap.set(scrollSceneNodes, {
           y: snapToDevicePixel(-window.innerHeight),
         });
@@ -360,8 +365,6 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
 
       const lockScrollModeInteractions = () => {
         clearIdleTimer();
-        clearPointerTweens();
-        clearBandTween();
         clearCloseTimeline();
         syncPointerModeAttribute();
       };
@@ -384,9 +387,10 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         const entryWidth = Math.max(snapToDevicePixel(entryRight - entryLeft), lineWidth);
 
         scrollState.anchorX = getTrackedPointerX();
-        visualState.centerX = snapToDevicePixel(entryLeft + entryWidth / 2);
-        visualState.width = entryWidth;
-        renderBand();
+        bandMotion.setImmediate("idle", {
+          centerX: snapToDevicePixel(entryLeft + entryWidth / 2),
+          width: entryWidth,
+        });
       };
 
       const captureScrollEntryState = () => {
@@ -432,8 +436,6 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
 
           if (wasLocked) {
             clearIdleTimer();
-            clearPointerTweens();
-            clearBandTween();
             clearCloseTimeline();
             syncTopEntryState();
           }
@@ -456,9 +458,10 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         const width = Math.max(snapToDevicePixel(rightEdge - leftEdge), lineWidth);
 
         scrollState.progress = nextProgress;
-        visualState.width = width;
-        visualState.centerX = snapToDevicePixel(leftEdge + width / 2);
-        renderBand();
+        bandMotion.setImmediate("scroll", {
+          centerX: snapToDevicePixel(leftEdge + width / 2),
+          width,
+        });
 
         gsap.set(scrollSceneNodes, {
           y: snapToDevicePixel(-window.innerHeight * nextProgress),
@@ -502,7 +505,9 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         window.requestAnimationFrame(createScrollTrigger);
       };
 
-      const syncVisualStateFromRenderedBand = () => {
+      const syncVisualStateFromRenderedBand = (
+        owner: "idle" | "closing" = "idle",
+      ) => {
         const renderedX = Number(band.getAttribute("x"));
         const renderedWidth = Number(band.getAttribute("width"));
 
@@ -510,8 +515,10 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
           return;
         }
 
-        visualState.width = snapToDevicePixel(renderedWidth);
-        visualState.centerX = snapToDevicePixel(renderedX + renderedWidth / 2);
+        bandMotion.setImmediate(owner, {
+          centerX: snapToDevicePixel(renderedX + renderedWidth / 2),
+          width: snapToDevicePixel(renderedWidth),
+        });
       };
 
       const renderStaticLayout = () => {
@@ -684,18 +691,6 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         cta.style.height = `${snapToDevicePixel(ctaBounds.bottom - ctaBounds.top + 20)}px`;
       };
 
-      const clearPointerTweens = () => {
-        pointerMoveTween?.kill();
-        pointerWidthTween?.kill();
-        pointerMoveTween = null;
-        pointerWidthTween = null;
-      };
-
-      const clearBandTween = () => {
-        bandTween?.kill();
-        bandTween = null;
-      };
-
       const clearCloseTimeline = () => {
         closeTimeline?.kill();
         closeTimeline = null;
@@ -771,17 +766,11 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
           return;
         }
 
-        pointerWidthTween?.kill();
-        pointerWidthTween = gsap.to(visualState, {
+        bandMotion.collapseToLine({
+          centerX: visualState.centerX,
           width: lineWidth,
           duration: prefersReducedMotion ? 0 : 0.32,
           ease: "power3.out",
-          onUpdate: renderBand,
-          onComplete: () => {
-            visualState.width = lineWidth;
-            renderBand();
-            pointerWidthTween = null;
-          },
         });
       };
 
@@ -809,6 +798,13 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         });
       };
 
+      const clearOpeningFallback = () => {
+        if (openingFallbackTimer !== null) {
+          window.clearTimeout(openingFallbackTimer);
+          openingFallbackTimer = null;
+        }
+      };
+
       gsap.set(panelDim, { autoAlpha: 0 });
       gsap.set(panelShell, { autoAlpha: 0 });
       gsap.set(panelClose, { autoAlpha: 0, y: -6 });
@@ -823,6 +819,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
           setStage("opening");
         },
         onComplete: () => {
+          clearOpeningFallback();
           setStage("open");
           focusLoginInput();
         },
@@ -836,7 +833,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             duration: prefersReducedMotion ? 0 : 0.18,
             ease: "power1.out",
           },
-          0.04,
+          prefersReducedMotion ? 0 : 0.04,
         )
         .to(
           panelShell,
@@ -844,7 +841,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             autoAlpha: 1,
             duration: prefersReducedMotion ? 0 : 0.01,
           },
-          0.1,
+          prefersReducedMotion ? 0 : 0.1,
         )
         .to(
           panelClose,
@@ -854,7 +851,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             duration: prefersReducedMotion ? 0 : 0.22,
             ease: "power2.out",
           },
-          0.2,
+          prefersReducedMotion ? 0 : 0.2,
         )
         .to(
           panelFormWrap,
@@ -864,10 +861,24 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             duration: prefersReducedMotion ? 0 : 0.28,
             ease: "power2.out",
           },
-          0.2,
+          prefersReducedMotion ? 0 : 0.2,
         );
 
+      const settleOpeningAtPanel = () => {
+        if (panelStageRef.current !== "opening") {
+          return;
+        }
+
+        clearOpeningFallback();
+        bandMotion.setImmediate("open", {
+          centerX: getPanelCenterX(),
+          width: getPanelWidth(),
+        });
+        openTimeline.progress(1);
+      };
+
       const resetClosedPanelVisuals = () => {
+        clearOpeningFallback();
         openTimeline.pause(0);
         gsap.set(panelDim, { autoAlpha: 0 });
         gsap.set(panelShell, { autoAlpha: 0 });
@@ -919,24 +930,20 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
 
         hoverCtaOut();
         clearIdleTimer();
-        clearPointerTweens();
-        clearBandTween();
+        clearOpeningFallback();
         clearCloseTimeline();
-        renderBand();
+        setStage("opening");
         openTimeline.invalidate().play(0);
-        bandTween = gsap.to(visualState, {
-          width: getPanelWidth(),
+        bandMotion.openToPanel({
           centerX: getPanelCenterX(),
+          width: getPanelWidth(),
           duration: prefersReducedMotion ? 0 : 0.48,
           ease: LINE_DRAW_EASE,
-          onUpdate: renderBand,
-          onComplete: () => {
-            visualState.width = getPanelWidth();
-            visualState.centerX = getPanelCenterX();
-            renderBand();
-            bandTween = null;
-          },
         });
+
+        if (!prefersReducedMotion) {
+          openingFallbackTimer = window.setTimeout(settleOpeningAtPanel, 800);
+        }
       });
 
       const closePanel = withContextSafe(() => {
@@ -945,35 +952,19 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         }
 
         clearIdleTimer();
-        clearPointerTweens();
-        clearBandTween();
+        clearOpeningFallback();
         clearCloseTimeline();
         setStage("closing");
-        syncVisualStateFromRenderedBand();
-
-        const closeStart = {
-          centerX: visualState.centerX,
-          width: visualState.width,
-          progress: 0,
-        };
-        const renderClosingBand = () => {
-          const targetX = getTrackedPointerX();
-          visualState.centerX = snapToDevicePixel(
-            gsap.utils.interpolate(closeStart.centerX, targetX, closeStart.progress),
-          );
-          visualState.width = snapToDevicePixel(
-            gsap.utils.interpolate(closeStart.width, lineWidth, closeStart.progress),
-          );
-          renderBand();
-        };
+        syncVisualStateFromRenderedBand("closing");
 
         closeTimeline = gsap.timeline({
           onComplete: () => {
             const restingX = getTrackedPointerX();
             lastXRef.current = restingX;
-            visualState.centerX = restingX;
-            visualState.width = lineWidth;
-            renderBand();
+            bandMotion.setImmediate("idle", {
+              centerX: restingX,
+              width: lineWidth,
+            });
             resetClosedPanelVisuals();
             closeTimeline = null;
             if (pendingAuthenticatedCloseRef.current) {
@@ -1023,12 +1014,17 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             prefersReducedMotion ? 0 : 0.14,
           )
           .to(
-            closeStart,
+            {},
             {
-              progress: 1,
               duration: prefersReducedMotion ? 0 : 0.34,
-              ease: LINE_DRAW_EASE,
-              onUpdate: renderClosingBand,
+              onStart: () => {
+                bandMotion.closeToLine({
+                  centerX: getTrackedPointerX(),
+                  width: lineWidth,
+                  duration: prefersReducedMotion ? 0 : 0.34,
+                  ease: LINE_DRAW_EASE,
+                });
+              },
             },
             prefersReducedMotion ? 0 : 0.12,
           );
@@ -1039,40 +1035,16 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
 
         if (!isTopPointerMode()) {
           clearIdleTimer();
-          clearPointerTweens();
           return;
         }
 
-        clearBandTween();
         clearCloseTimeline();
-        clearPointerTweens();
-        gsap.killTweensOf(visualState);
-        syncVisualStateFromRenderedBand();
-        renderBand();
         lastXRef.current = nextX;
-        const expandedWidth = getExpandedWidth();
-
-        pointerMoveTween = gsap.to(visualState, {
+        bandMotion.followPointer({
           centerX: nextX,
-          duration: prefersReducedMotion ? 0 : 0.46,
+          width: getExpandedWidth(),
+          duration: prefersReducedMotion ? 0 : 0.42,
           ease: "power3.out",
-          onUpdate: renderBand,
-          onComplete: () => {
-            visualState.centerX = nextX;
-            renderBand();
-            pointerMoveTween = null;
-          },
-        });
-
-        pointerWidthTween = gsap.to(visualState, {
-          width: expandedWidth,
-          duration: prefersReducedMotion ? 0 : 0.32,
-          ease: "power3.out",
-          onUpdate: renderBand,
-          onComplete: () => {
-            visualState.width = expandedWidth;
-            pointerWidthTween = null;
-          },
         });
         armIdleCollapse();
       };
@@ -1108,16 +1080,36 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
           if (lastXRef.current !== null) {
             const nextX = snapToDevicePixel(clampX(lastXRef.current));
             lastXRef.current = nextX;
-            visualState.centerX = nextX;
+            bandMotion.setImmediate("idle", {
+              centerX: nextX,
+              width: visualState.width,
+            });
+          } else {
+            bandMotion.setImmediate("idle", visualState);
           }
 
-          renderBand();
           return;
         }
 
-        visualState.width = getPanelWidth();
-        visualState.centerX = getPanelCenterX();
-        renderBand();
+        if (panelStageRef.current === "opening") {
+          settleOpeningAtPanel();
+          return;
+        }
+
+        if (panelStageRef.current === "open") {
+          bandMotion.setImmediate("open", {
+            centerX: getPanelCenterX(),
+            width: getPanelWidth(),
+          });
+          return;
+        }
+
+        bandMotion.closeToLine({
+          centerX: getTrackedPointerX(),
+          width: lineWidth,
+          duration: prefersReducedMotion ? 0 : 0.18,
+          ease: LINE_DRAW_EASE,
+        });
       };
 
       const handleKeyDown = (event: KeyboardEvent) => {
@@ -1194,8 +1186,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
 
         completedAgentIdRef.current = agentId;
         clearIdleTimer();
-        clearPointerTweens();
-        clearBandTween();
+        clearOpeningFallback();
         clearCloseTimeline();
         clearLoadingTimer();
         clearLoadingTimeline();
@@ -1293,6 +1284,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         beginAgentLoadingRef.current = () => undefined;
         syncCtaLayoutRef.current = () => undefined;
         clearIdleTimer();
+        clearOpeningFallback();
         clearLoadingTimer();
         page.removeEventListener("pointerenter", followPointer);
         page.removeEventListener("pointerleave", leavePage);
@@ -1310,15 +1302,13 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         cta.removeEventListener("blur", hoverCtaOut);
         cta.removeEventListener("click", openPanel);
         panelClose.removeEventListener("click", closePanel);
-        clearPointerTweens();
-        clearBandTween();
         clearCloseTimeline();
         clearLoadingTimeline();
         clearLoadingTextTimeline();
         destroyScrollTrigger();
         unlockAgentEntryScroll();
         openTimeline.kill();
-        gsap.killTweensOf(visualState);
+        bandMotion.destroy();
         gsap.killTweensOf(scrollSceneNodes);
         gsap.killTweensOf(scrollHint);
         gsap.killTweensOf([...ctaLeftBrackets, ...ctaRightBrackets]);
