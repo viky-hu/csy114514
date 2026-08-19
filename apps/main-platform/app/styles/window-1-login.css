@@ -1104,6 +1104,8 @@ html.login-agent-entry-lock body {
   min-width: 0;
   min-height: clamp(32px, 4vw, 44px);
   color: rgba(246, 246, 244, 0.08);
+  opacity: 0;
+  visibility: hidden;
   -webkit-text-fill-color: transparent;
   -webkit-text-stroke: 0.65px rgba(246, 246, 244, 0.9);
   font-family: "Michroma", var(--w1-font-family) !important;
@@ -1123,6 +1125,12 @@ html.login-agent-entry-lock body {
   display: inline-block;
   min-width: 0.58em;
   min-height: 1em;
+  color: inherit;
+  -webkit-text-fill-color: inherit;
+  -webkit-text-stroke: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-shadow: inherit;
   transform: translateY(0);
   will-change: transform, opacity;
 }

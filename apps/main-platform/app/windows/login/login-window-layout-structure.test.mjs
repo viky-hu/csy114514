@@ -12,6 +12,7 @@ const loginSource = readFileSync(
   "utf8",
 );
 const splitTipUrl = new URL("./LoginSplitLoadingTip.tsx", import.meta.url);
+const loadingSessionUrl = new URL("./login-loading-session.ts", import.meta.url);
 
 test("login placeholder root keeps the original parent-relative width", () => {
   const rootBlock = loginStyles.match(/\.login-placeholder-page\s*\{(?<body>[^}]*)\}/);
@@ -31,6 +32,7 @@ test("login color band and panel keep a generous target width", () => {
 
 test("login Agent loading tips use the local SplitText component", () => {
   assert.equal(existsSync(splitTipUrl), true);
+  assert.equal(existsSync(loadingSessionUrl), true);
 
   const splitTipSource = readFileSync(splitTipUrl, "utf8");
 
@@ -41,7 +43,28 @@ test("login Agent loading tips use the local SplitText component", () => {
   );
   assert.match(
     loginSource,
-    /<LoginSplitLoadingTip\s+text=\{loadingTip\.text\}\s+active=\{agentEntryStage === "loading"\}\s+phase=\{loadingTipPhase\}\s+onExitComplete=\{\(\) => loadingTipExitCompleteRef\.current\(\)\}/,
+    /<LoginSplitLoadingTip\s+text=\{loadingTip\.text\}\s+active=\{agentEntryStage === "loading"\}\s+phase=\{loadingTipPhase\}\s+onExitComplete=\{\(\) =>\s*loadingTipExitCompleteRef\.current\(loadingSessionId,\s*loadingTip\.id\)\s*\}/,
+  );
+  assert.doesNotMatch(loginSource, /<LoginSplitLoadingTip\s+key=/);
+  assert.match(loginSource, /createLoginLoadingSessionController/);
+  assert.match(loginSource, /scheduleLoadingTip\(initialAction\.presentation,\s*sessionId,\s*true\)/);
+  assert.match(loginSource, /startLoadingTipEntrance\(sessionId,\s*initialAction\.presentation\)/);
+  assert.match(
+    loginSource,
+    /const advanceLoadingTipSequence = \(sessionId: number, tipId: string\) =>/,
+  );
+  assert.doesNotMatch(
+    loginSource,
+    /const advanceLoadingTipSequence = withContextSafe/,
+  );
+  assert.match(loginSource, /const LOADING_TIP_EXIT_FALLBACK_MS = 220;/);
+  assert.match(
+    loginSource,
+    /loadingTipExitCompleteRef\.current\(sessionId,\s*presentation\.tip\.id\)/,
+  );
+  assert.match(
+    loginSource,
+    /className="login-agent-bracket-button is-secondary"[\s\S]*?onClick=\{\(\) => beginAgentLoadingRef\.current\(DEFAULT_AGENT_ID\)\}[\s\S]*?<span>稍后再说<\/span>/,
   );
   assert.doesNotMatch(loginSource, /\.login-agent-loading-char/);
   assert.doesNotMatch(loginSource, /loadingTextTimeline/);
@@ -59,7 +82,12 @@ test("login Agent loading tips use the local SplitText component", () => {
   assert.match(splitTipSource, /aria:\s*"auto"/);
   assert.match(splitTipSource, /reduceWhiteSpace:\s*false/);
   assert.match(splitTipSource, /duration:\s*0\.28/);
-  assert.match(splitTipSource, /stagger:\s*0\.02/);
+  assert.match(splitTipSource, /entranceStagger/);
+  assert.match(splitTipSource, /exitCompletionRef/);
+  assert.match(splitTipSource, /preparedTextRef/);
+  assert.match(splitTipSource, /splitRef/);
+  assert.doesNotMatch(splitTipSource, /revertOnUpdate:\s*true/);
+  assert.doesNotMatch(splitTipSource, />\s*\{text\}\s*<\/div>/);
 });
 
 test("login SplitText tip wrapper keeps a stable centered text measure", () => {
@@ -70,4 +98,14 @@ test("login SplitText tip wrapper keeps a stable centered text measure", () => {
   assert.ok(loadingTextBlock?.groups?.body);
   assert.match(loadingTextBlock.groups.body, /\n\s+width:\s*min\(82vw,\s*720px\);/);
   assert.match(loadingTextBlock.groups.body, /min-width:\s*0;/);
+  assert.match(loadingTextBlock.groups.body, /opacity:\s*0;/);
+  assert.match(loadingTextBlock.groups.body, /visibility:\s*hidden;/);
+
+  const loadingCharBlock = loginStyles.match(
+    /\.login-agent-loading-char\s*\{(?<body>[^}]*)\}/,
+  );
+
+  assert.ok(loadingCharBlock?.groups?.body);
+  assert.match(loadingCharBlock.groups.body, /font:\s*inherit;/);
+  assert.match(loadingCharBlock.groups.body, /line-height:\s*inherit;/);
 });

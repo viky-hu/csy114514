@@ -11,16 +11,16 @@
 
 - Ownership: `app/windows/shared/loading-tips.ts` owns the Chinese loading-tip catalog, phase mapping, live/timeline selection, and seen-tip de-duplication. Login, Agent interface, and Evaluation modules only consume tips through this shared helper.
 - Boundary: this change replaces existing loading, pending, idle, and error copy in frontend surfaces only. It does not add BFF routes, change backend event contracts, synthesize execution progress, alter TestCase/report truth, or redesign the loading components.
-- Extensibility: login Agent entry uses the 5-second timeline mode for the blue loading overlay, while evaluation states resolve phases from the existing run status, active stage, latest event type, and current loading/error flags. Legacy R4 execution can prefer R4-specific tips without changing generic batch behavior.
+- Extensibility: login Agent entry uses the local deterministic 7-10-second session sequence for the blue loading overlay, while evaluation states resolve phases from the existing run status, active stage, latest event type, and current loading/error flags. Legacy R4 execution can prefer R4-specific tips without changing generic batch behavior.
 - Styling: preserve existing layout, SVG geometry, buttons, tracks, terminal, and report shell. CSS changes are limited to wrapping and muted inline status text so longer Chinese tips do not overflow.
 - Validation: run the focused loading-tip Node test, component structure checks for the consuming windows, `pnpm -C apps/main-platform type-check`, `pnpm -C apps/main-platform lint`, and manual smoke for login Agent loading, TestCase catalog loading, single R4 run, batch run, report loading, and error states.
 
 ## 2026-08-19 Login Loading Tip SplitText Motion
 
 - Ownership: `app/windows/login/LoginSplitLoadingTip.tsx` owns the login-only loading-tip text animation; `app/windows/login/LoginIntroWindow.tsx` still owns the Agent entry stage and overlay lifecycle, while `app/windows/shared/loading-tips.ts` remains the only owner of tip content and phase selection.
-- Boundary: each newly selected login tip fades in character by character through GSAP SplitText, and tip changes first fade the existing line out as a whole before rendering the next line. This changes no loading-tip data, timing contract, backend route, or non-login loading surface.
-- Styling: `app/styles/window-1-login.css` preserves the existing hollow white loading text and adds only stable inline-block, kerning, and opacity/transform rules for SplitText character spans. Reduced-motion users receive the static text without character stagger or vertical movement.
-- Validation: keep the login structure test asserting the local SplitText component, the `type="chars"`/`aria="auto"`/`reduceWhiteSpace=false` configuration, and the absence of the retired parent-owned loading-character wave.
+- Boundary: each newly selected login tip is prepared while hidden, fades in character by character through GSAP SplitText, holds without rebuilding DOM, and fades the same split line out as a whole before rendering the next line. This changes no loading-tip data, timing contract, backend route, or non-login loading surface.
+- Styling: `app/styles/window-1-login.css` preserves the existing hollow white loading text, keeps the root hidden until the presenter makes it visible, and lets SplitText character spans inherit the same font, line-height, text stroke, and shadow. Reduced-motion users receive the static text without character stagger or vertical movement.
+- Validation: keep the login structure test asserting the local SplitText component, the `type="chars"`/`aria="auto"`/`reduceWhiteSpace=false` configuration, stable presenter refs, no `revertOnUpdate`, and the absence of the retired parent-owned loading-character wave.
 
 ## 2026-08-19 Login Loading Tip Dynamic Timing
 
@@ -29,6 +29,13 @@
 - Extensibility: future backend progress maps to internal `phase`, `complete`, and `failed` events. Those signals never interrupt a partially shown line: the controller advances or exits only after the normal whole-line fade-out boundary.
 - Styling: the hollow text wrapper uses a stable constrained width and `min-width: 0`; SplitText character spans remain inline-block so Chinese characters center and wrap without moving the loader stack. Reduced-motion keeps normal text/fade behavior without stagger or vertical movement.
 - Validation: cover deterministic plan duration and de-duplication, deferred complete/failed and phase-event transitions, login structure removal of legacy timers, the controlled SplitText props, and the focused app type check.
+
+## 2026-08-19 Login Loading Session Safety
+
+- Ownership: `app/windows/login/login-loading-session.ts` owns login loading session identity, active tip identity, reveal completion, stale-callback rejection, and one-shot exit completion. `LoginIntroWindow.tsx` remains the owner of the overlay timeline and local mock sequence.
+- Boundary: the login “稍后再说” action is a frontend-only mock path and must remain usable without a running backend. The first tip enters only after the blue overlay reveal completes; later tips change only after the previous whole-line fade-out callback is accepted for the current session and tip. Keep `LoginSplitLoadingTip` mounted across tip changes and keep visible lines in SplitText DOM: a text-derived React `key` or phase-driven `revertOnUpdate` can dispose animation state while its callback is advancing the sequence.
+- Extensibility: a future backend `phase`, `complete`, or `failed` event may request the next boundary, but it cannot mutate a superseded session or interrupt a partially entered line. SplitText entrance timing is capped in both the controller and component so long Chinese tips cannot be faded out before their last character enters.
+- Validation: add a Playwright case with `/api/**` returning a structured 503, ignore only Chromium's expected resource-load diagnostics, and assert no application console/page errors, no visible unsplit loading-text frame, stable font metrics through hold/exit, complete first-tip character rendering, session idempotence while loading, and normal 7-10-second mock completion. Keep focused Node session, sequence, structure, and type checks.
 
 ## 2026-07-31 Initial Stack Scaffold
 

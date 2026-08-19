@@ -15,6 +15,7 @@ import {
 } from "../shared/agent-config";
 import { AgentConnectDraft } from "./AgentConnectDraft";
 import { createLoginBandMotionController } from "./login-band-motion-controller";
+import { createLoginLoadingSessionController } from "./login-loading-session";
 import { LoginForm } from "./LoginForm";
 import {
   createLoginLoadingTipSequence,
@@ -46,6 +47,7 @@ const INFO_COPY_LINES = [
 const MICRO_COPY = "OBSERVABLE / EXPLAINABLE / REPRODUCIBLE / FIXABLE";
 const LOADING_BOXES = [1, 2, 3, 4] as const;
 const INITIAL_LOADING_TIP = getLoadingTips("boot")[0]!;
+const LOADING_TIP_EXIT_FALLBACK_MS = 220;
 
 interface LoginIntroWindowProps {
   onAgentEntryComplete?: (agentId: string) => void;
@@ -62,6 +64,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isScrollReady, setIsScrollReady] = useState(false);
   const [loadingTip, setLoadingTip] = useState<LoadingTip>(INITIAL_LOADING_TIP);
+  const [loadingSessionId, setLoadingSessionId] = useState(0);
   const [loadingTipPhase, setLoadingTipPhase] =
     useState<LoginSplitLoadingTipPhase>("hold");
   const ctaPrimaryLabel = isAuthenticated ? CTA_AUTHENTICATED_PRIMARY : CTA_LOGIN_PRIMARY;
@@ -119,10 +122,13 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
   const loadingOverlayRef = useRef<HTMLDivElement>(null);
   const idleTimerRef = useRef<number | null>(null);
   const loadingTipTimerRef = useRef<number | null>(null);
+  const loadingSessionRef = useRef(createLoginLoadingSessionController());
   const loadingTipSequenceRef = useRef<ReturnType<
     typeof createLoginLoadingTipSequence
   > | null>(null);
-  const loadingTipExitCompleteRef = useRef<() => void>(() => undefined);
+  const loadingTipExitCompleteRef = useRef<(sessionId: number, tipId: string) => void>(
+    () => undefined,
+  );
   const lastXRef = useRef<number | null>(null);
   const pointerXRef = useRef<number | null>(null);
   const pointerInsideRef = useRef(false);
@@ -716,15 +722,50 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         }
       };
 
-      const scheduleLoadingTipExit = (presentation: LoginLoadingTipPresentation) => {
-        clearLoadingTipTimer();
-        setLoadingTip(presentation.tip);
+      const startLoadingTipEntrance = (
+        sessionId: number,
+        presentation: LoginLoadingTipPresentation,
+      ) => {
+        if (
+          !loadingSessionRef.current.isTipActive(sessionId, presentation.tip.id) ||
+          !loadingSessionRef.current.markRevealComplete(sessionId, presentation.tip.id)
+        ) {
+          return;
+        }
+
         setLoadingTipPhase("enter");
         loadingTipTimerRef.current = window.setTimeout(() => {
-          if (agentEntryStageRef.current === "loading") {
+          if (
+            agentEntryStageRef.current === "loading" &&
+            loadingSessionRef.current.isRevealComplete(sessionId, presentation.tip.id)
+          ) {
             setLoadingTipPhase("exit");
+            loadingTipTimerRef.current = window.setTimeout(() => {
+              loadingTipExitCompleteRef.current(sessionId, presentation.tip.id);
+            }, LOADING_TIP_EXIT_FALLBACK_MS);
           }
         }, presentation.entranceMs + presentation.holdMs);
+      };
+
+      const scheduleLoadingTip = (
+        presentation: LoginLoadingTipPresentation,
+        sessionId: number,
+        deferEntrance = false,
+      ) => {
+        clearLoadingTipTimer();
+        if (
+          !loadingSessionRef.current.activateTip(sessionId, presentation.tip.id) ||
+          !loadingSessionRef.current.isCurrent(sessionId)
+        ) {
+          return;
+        }
+
+        setLoadingTip(presentation.tip);
+        setLoadingTipPhase(deferEntrance ? "hold" : "enter");
+
+        if (!deferEntrance) {
+          startLoadingTipEntrance(sessionId, presentation);
+        }
       };
 
       const clearIdleTimer = () => {
@@ -1177,8 +1218,15 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         });
       };
 
-      const advanceLoadingTipSequence = withContextSafe(() => {
+      const advanceLoadingTipSequence = (sessionId: number, tipId: string) => {
         if (agentEntryStageRef.current !== "loading") {
+          return;
+        }
+
+        if (
+          !loadingSessionRef.current.isTipActive(sessionId, tipId) ||
+          !loadingSessionRef.current.acceptExit(sessionId, tipId)
+        ) {
           return;
         }
 
@@ -1195,8 +1243,8 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
           return;
         }
 
-        scheduleLoadingTipExit(action.presentation);
-      });
+        scheduleLoadingTip(action.presentation, sessionId);
+      };
       loadingTipExitCompleteRef.current = advanceLoadingTipSequence;
 
       const beginAgentLoading = withContextSafe((agentId = DEFAULT_AGENT_ID) => {
@@ -1216,12 +1264,14 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         setAgentEntryStageValue("loading");
         renderLockedAgentEntryPage();
 
+        const sessionId = loadingSessionRef.current.begin();
+        setLoadingSessionId(sessionId);
         const loadingTipSequence = createLoginLoadingTipSequence(agentId);
         loadingTipSequenceRef.current = loadingTipSequence;
         const initialAction = loadingTipSequence.start();
 
         if (initialAction.kind === "tip") {
-          scheduleLoadingTipExit(initialAction.presentation);
+          scheduleLoadingTip(initialAction.presentation, sessionId, true);
         }
 
         loadingTimeline = gsap.timeline();
@@ -1247,6 +1297,15 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
               ease: "power2.out",
             },
             prefersReducedMotion ? 0 : 0.22,
+          )
+          .call(
+            () => {
+              if (initialAction.kind === "tip") {
+                startLoadingTipEntrance(sessionId, initialAction.presentation);
+              }
+            },
+            [],
+            prefersReducedMotion ? 0 : 0.57,
           );
       });
 
@@ -1580,7 +1639,9 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             text={loadingTip.text}
             active={agentEntryStage === "loading"}
             phase={loadingTipPhase}
-            onExitComplete={() => loadingTipExitCompleteRef.current()}
+            onExitComplete={() =>
+              loadingTipExitCompleteRef.current(loadingSessionId, loadingTip.id)
+            }
           />
         </div>
       </div>
