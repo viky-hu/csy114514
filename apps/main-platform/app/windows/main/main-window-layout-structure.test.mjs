@@ -54,3 +54,17 @@ test("main workspace fades content pages out before replacing them", () => {
   );
   assert.match(mainStyles, /\.main-content-page-shell/);
 });
+
+test("main workspace restores the content region and page shell after interrupted motion", () => {
+  assert.match(mainWindowSource, /onInterrupt:\s*\(\)\s*=>\s*\{\s*hasSettled = true;/);
+  assert.match(mainWindowSource, /onInterrupt:\s*\(\)\s*=>\s*\{\s*restoreContentPageShell\(pageShell\);/);
+  assert.match(mainWindowSource, /return \(\) => \{\s*timeline\.kill\(\);\s*restoreContentPageShell\(pageShell\);/);
+  assert.match(
+    mainStyles,
+    /\.main-content-region\s*\{[^}]*opacity:\s*1;[^}]*visibility:\s*visible;[^}]*transform:\s*translate3d\(0,\s*0,\s*0\);/s,
+  );
+  assert.match(
+    mainStyles,
+    /\.main-content-page-shell\s*\{[^}]*pointer-events:\s*auto;/s,
+  );
+});

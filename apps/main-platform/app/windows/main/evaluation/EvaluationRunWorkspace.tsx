@@ -2,12 +2,12 @@
 
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
-import { Check, CircleAlert, CircleDashed, Clipboard, Filter, Play, RotateCcw, TerminalSquare } from "lucide-react";
+import { Check, CircleAlert, CircleDashed, Clipboard, Filter, Play, RotateCcw, Settings2, TerminalSquare } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
 import { BatchProgressPanel } from "./BatchProgressPanel";
 import { useEvaluationWorkspace, EvaluationWorkspaceStatusAnnouncer, type EvaluationWorkspaceNavigate } from "./EvaluationWorkspaceProvider";
-import { EVALUATION_STAGES, eventText, type EvaluationStage, type SequencedEvent } from "./evaluation-types";
+import { EVALUATION_STAGES, eventText, finalJudgeVerdict, type EvaluationStage, type SequencedEvent } from "./evaluation-types";
 import { TestCaseSelector } from "./TestCaseSelector";
 
 gsap.registerPlugin(useGSAP);
@@ -130,12 +130,13 @@ function ProcessColumn({ stage, events }: { stage: EvaluationStage; events: Sequ
 }
 
 function TestPointRail({ onStart, onReport }: { onStart: () => void; onReport?: () => void }) {
-  const { run, activeStage, events, isStarting, isBootstrapping, error, retryEvaluation } = useEvaluationWorkspace();
+  const { run, activeStage, events, isStarting, isBootstrapping, error, retryEvaluation, resetEvaluationSelection } = useEvaluationWorkspace();
   const root = useRef<HTMLDivElement>(null);
   const canStart = run?.status === "ready";
   const running = run?.status === "queued" || run?.status === "running";
   const completed = run?.status === "completed";
   const failed = run?.status === "failed" || run?.status === "interrupted" || run?.status === "preflight_failed";
+  const verdict = finalJudgeVerdict(events);
   useGSAP(() => {
     const matchMedia = gsap.matchMedia();
     matchMedia.add("(prefers-reduced-motion: no-preference)", () => {
@@ -157,7 +158,12 @@ function TestPointRail({ onStart, onReport }: { onStart: () => void; onReport?: 
           {state === "complete" ? <Check className="evaluation-test-icon" size={17} /> : state === "risk" || state === "error" ? <CircleAlert className="evaluation-test-icon" size={17} /> : state === "running" ? <svg className="evaluation-test-ring" viewBox="0 0 24 24" aria-label="运行中"><defs><linearGradient id={`evaluation-ring-gradient-${index}`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3152f4" /><stop offset="0.55" stopColor="#52d6c2" /><stop offset="1" stopColor="#8c5cf6" /></linearGradient></defs><circle cx="12" cy="12" r="9" stroke={`url(#evaluation-ring-gradient-${index})`} /></svg> : <CircleDashed className="evaluation-test-icon" size={17} />}
         </div>;
       })}
+      {verdict && <div className={`evaluation-verdict-badge is-${verdict.toLowerCase()}`}>
+        <span className="evaluation-verdict-label">最终判定</span>
+        <span className="evaluation-verdict-value">{verdict}</span>
+      </div>}
       <div className="evaluation-rail-action">
+        {!running && <button className="evaluation-icon-command" type="button" title="重新选择 TestCase" aria-label="重新选择 TestCase" onClick={resetEvaluationSelection}><Settings2 size={16} /></button>}
         {completed ? <button className="evaluation-primary-button" type="button" onClick={onReport}><Check size={16} />查看测评报告</button> : failed ? <button className="evaluation-primary-button" type="button" onClick={() => void retryEvaluation()}><RotateCcw size={16} />新建测评重试</button> : <button className="evaluation-primary-button" type="button" disabled={!canStart || isStarting || isBootstrapping} onClick={onStart}>{running || isStarting ? <CircleDashed size={15} /> : <Play size={15} />}{isStarting ? "正在启动" : running ? "测评运行中" : "开始测评"}</button>}
         {error && <span className="evaluation-rail-error"><CircleAlert size={14} />{error}</span>}
       </div>

@@ -215,6 +215,17 @@ function setPxVar(element: HTMLElement, name: string, value: number) {
   element.style.setProperty(name, `${value}px`);
 }
 
+function restoreContentPageShell(pageShell: HTMLDivElement | null) {
+  if (!pageShell) {
+    return;
+  }
+  gsap.set(pageShell, {
+    autoAlpha: 1,
+    pointerEvents: "auto",
+    y: 0,
+  });
+}
+
 function MainModulePlaceholder({
   activeNavKey,
 }: {
@@ -315,16 +326,10 @@ export function MainWindow({
       ).matches;
 
       contentSwapTimelineRef.current?.kill();
+      restoreContentPageShell(pageShell);
       setActiveNavKey(nextNavKey);
 
       if (!pageShell || prefersReducedMotion) {
-        if (pageShell) {
-          gsap.set(pageShell, {
-            autoAlpha: 1,
-            pointerEvents: "auto",
-            y: 0,
-          });
-        }
         setRenderedNavKey(nextNavKey);
         return;
       }
@@ -332,6 +337,10 @@ export function MainWindow({
       contentSwapTimelineRef.current = gsap.timeline({
         onComplete: () => {
           setRenderedNavKey(nextNavKey);
+          contentSwapTimelineRef.current = null;
+        },
+        onInterrupt: () => {
+          restoreContentPageShell(pageShell);
           contentSwapTimelineRef.current = null;
         },
       });
@@ -435,6 +444,11 @@ export function MainWindow({
 
         introTimeline = gsap.timeline({
           onComplete: () => {
+            hasSettled = true;
+            renderSettledLayout(getMainLayout());
+            introTimeline = null;
+          },
+          onInterrupt: () => {
             hasSettled = true;
             renderSettledLayout(getMainLayout());
             introTimeline = null;
@@ -549,6 +563,12 @@ export function MainWindow({
 
       const timeline = gsap.timeline({
         defaults: { ease: LINE_DRAW_EASE },
+        onComplete: () => {
+          restoreContentPageShell(pageShell);
+        },
+        onInterrupt: () => {
+          restoreContentPageShell(pageShell);
+        },
       });
 
       timeline
@@ -568,6 +588,7 @@ export function MainWindow({
 
       return () => {
         timeline.kill();
+        restoreContentPageShell(pageShell);
       };
     },
     { dependencies: [renderedNavKey], scope: rootRef },

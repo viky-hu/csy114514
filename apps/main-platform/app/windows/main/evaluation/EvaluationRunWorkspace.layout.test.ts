@@ -28,3 +28,26 @@ test("batch workspace keeps the R4 desktop split and stacks below the compact br
     /@container evaluation-page \(max-width: 920px\)[\s\S]*?\.evaluation-run-body, \.evaluation-batch-run-body \{ grid-template-columns: minmax\(0, 1fr\);/,
   );
 });
+
+test("legacy R4 offers TestCase reselection whenever it is not running", () => {
+  assert.match(
+    source,
+    /import \{[^}]*Settings2[^}]*\} from "lucide-react";/,
+  );
+  assert.match(
+    source,
+    /const \{ run, activeStage, events, isStarting, isBootstrapping, error, retryEvaluation, resetEvaluationSelection \} = useEvaluationWorkspace\(\);/,
+  );
+  assert.match(
+    source,
+    /\{!running && <button className="evaluation-icon-command" type="button" title="重新选择 TestCase" aria-label="重新选择 TestCase" onClick=\{resetEvaluationSelection\}><Settings2 size=\{16\} \/><\/button>\}/,
+  );
+  assert.match(
+    source,
+    /\{completed \? <button className="evaluation-primary-button"[^>]*>.*查看测评报告.*<\/button> : failed \? <button className="evaluation-primary-button"[^>]*>.*新建测评重试.*<\/button>/,
+  );
+  assert.match(
+    styles,
+    /@container evaluation-page \(max-width: 920px\)[\s\S]*?\.evaluation-rail-action \{ grid-column: 1 \/ -1; grid-row: auto; display: flex; align-items: center; justify-content: flex-end; \}/,
+  );
+});

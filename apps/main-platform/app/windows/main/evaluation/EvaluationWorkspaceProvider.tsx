@@ -28,7 +28,10 @@ import {
   type SequencedEvent,
   type TestCaseSummary,
 } from "./evaluation-types";
-import { selectHandoffTestCase } from "./test-case-selection";
+import {
+  selectHandoffTestCase,
+  toggleTestCaseSelection as toggleTestCaseSelectionIds,
+} from "./test-case-selection";
 
 type ProviderState = {
   run: EvaluationRun | null;
@@ -54,6 +57,7 @@ type WorkspaceContextValue = ProviderState & {
   retryEvaluation: () => Promise<void>;
   resetEvaluationSelection: () => void;
   setSelectedTestCaseIds: (ids: string[]) => void;
+  toggleTestCaseSelection: (testCaseId: string) => void;
   loadReport: () => Promise<void>;
   clearReportError: () => void;
 };
@@ -388,7 +392,13 @@ export function EvaluationWorkspaceProvider({
   const setSelectedTestCaseIds = useCallback((ids: string[]) => {
     setState((current) => ({ ...current, selectedTestCaseIds: [...new Set(ids)] }));
   }, []);
-  const value = useMemo(() => ({ ...state, startEvaluation, prepareEvaluation, retryEvaluation, resetEvaluationSelection, setSelectedTestCaseIds, loadReport, clearReportError }), [clearReportError, loadReport, prepareEvaluation, resetEvaluationSelection, retryEvaluation, setSelectedTestCaseIds, startEvaluation, state]);
+  const toggleTestCaseSelection = useCallback((testCaseId: string) => {
+    setState((current) => ({
+      ...current,
+      selectedTestCaseIds: toggleTestCaseSelectionIds(current.selectedTestCaseIds, testCaseId),
+    }));
+  }, []);
+  const value = useMemo(() => ({ ...state, startEvaluation, prepareEvaluation, retryEvaluation, resetEvaluationSelection, setSelectedTestCaseIds, toggleTestCaseSelection, loadReport, clearReportError }), [clearReportError, loadReport, prepareEvaluation, resetEvaluationSelection, retryEvaluation, setSelectedTestCaseIds, startEvaluation, state, toggleTestCaseSelection]);
 
   return <EvaluationWorkspaceContext.Provider value={value}>{children}</EvaluationWorkspaceContext.Provider>;
 }

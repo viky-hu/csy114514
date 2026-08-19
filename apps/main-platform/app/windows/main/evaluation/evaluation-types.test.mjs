@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { eventText, reduceEvaluationEvent } from "./evaluation-types.ts";
+import * as evaluationTypes from "./evaluation-types.ts";
+
+const { eventText, reduceEvaluationEvent } = evaluationTypes;
 
 function event(seq, type, stage) {
   return {
@@ -40,4 +42,27 @@ test("batch lifecycle events have readable terminal text", () => {
     eventText({ ...event(2, "TEST_COMPLETED", undefined), payload: { verdict: "PASS" } }),
     "TestCase 已完成 · PASS",
   );
+});
+
+test("legacy R4 exposes PASS or FAIL only from the latest Judge verdict", () => {
+  const finalJudgeVerdict = evaluationTypes.finalJudgeVerdict;
+  assert.equal(typeof finalJudgeVerdict, "function");
+  if (typeof finalJudgeVerdict !== "function") return;
+
+  assert.equal(
+    finalJudgeVerdict([
+      event(1, "JUDGE_DECISION", undefined),
+      { ...event(2, "JUDGE_DECISION", undefined), payload: { verdict: "FAIL" } },
+    ]),
+    "FAIL",
+  );
+  assert.equal(
+    finalJudgeVerdict([{ ...event(3, "JUDGE_DECISION", undefined), payload: { verdict: "PASS" } }]),
+    "PASS",
+  );
+  assert.equal(
+    finalJudgeVerdict([{ ...event(4, "JUDGE_DECISION", undefined), payload: { verdict: "ERROR" } }]),
+    null,
+  );
+  assert.equal(finalJudgeVerdict([event(5, "RUN_FINISHED", undefined)]), null);
 });

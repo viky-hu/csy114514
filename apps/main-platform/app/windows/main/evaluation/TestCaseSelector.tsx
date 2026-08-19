@@ -3,7 +3,7 @@
 import { CheckSquare2, CircleAlert, LoaderCircle, Search, Square, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useEvaluationWorkspace } from "./EvaluationWorkspaceProvider";
-import { filterTestCases, toggleTestCaseSelection } from "./test-case-selection";
+import { filterTestCases } from "./test-case-selection";
 
 const RISK_PATTERNS = ["ALL", "R1", "R2", "R3", "R4"] as const;
 
@@ -12,6 +12,7 @@ export function TestCaseSelector() {
     testCases,
     selectedTestCaseIds,
     setSelectedTestCaseIds,
+    toggleTestCaseSelection,
     prepareEvaluation,
     isLoadingTestCases,
     isBootstrapping,
@@ -49,7 +50,7 @@ export function TestCaseSelector() {
       <div className="evaluation-selector-list" aria-busy={isLoadingTestCases}>
         {isLoadingTestCases ? <div className="evaluation-selector-empty"><LoaderCircle className="evaluation-spin" size={19} />正在读取 TestCase</div> : testCaseError ? <div className="evaluation-selector-empty is-error"><CircleAlert size={18} />{testCaseError}</div> : filtered.length === 0 ? <div className="evaluation-selector-empty">没有符合条件的 TestCase</div> : filtered.map((testCase) => {
           const checked = selected.has(testCase.id);
-          return <label className={`evaluation-selector-row ${checked ? "is-selected" : ""}`} key={testCase.id}><input type="checkbox" checked={checked} onChange={() => setSelectedTestCaseIds(toggleTestCaseSelection(selectedTestCaseIds, testCase.id))} /><span className="evaluation-selector-check" aria-hidden="true">{checked && <CheckSquare2 size={16} />}</span><span className="evaluation-selector-main"><strong>{testCase.name}</strong><small>{testCase.id} · {testCase.description}</small></span><span className="evaluation-selector-meta"><b>{testCase.target_risk_pattern}</b><span>{testCase.risk_type}</span><small>{testCase.severity} · {testCase.turn_count} TURN</small></span></label>;
+          return <label className={`evaluation-selector-row ${checked ? "is-selected" : ""}`} key={testCase.id}><input type="checkbox" checked={checked} onChange={() => toggleTestCaseSelection(testCase.id)} /><span className="evaluation-selector-check" aria-hidden="true">{checked && <CheckSquare2 size={16} />}</span><span className="evaluation-selector-main"><strong>{testCase.name}</strong><small>{testCase.id} · {testCase.description}</small></span><span className="evaluation-selector-meta"><b>{testCase.target_risk_pattern}</b><span>{testCase.risk_type}</span><small>{testCase.severity} · {testCase.turn_count} TURN</small></span></label>;
         })}
       </div>
       <footer className="evaluation-selector-footer">

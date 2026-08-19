@@ -31,6 +31,12 @@ export function isEvaluationStage(value: unknown): value is EvaluationStage {
   return typeof value === "string" && EVALUATION_STAGES.includes(value as EvaluationStage);
 }
 
+export function finalJudgeVerdict(events: SequencedEvent[]): "PASS" | "FAIL" | null {
+  const judge = [...events].reverse().find((event) => event.type === "JUDGE_DECISION");
+  const verdict = judge?.payload?.verdict;
+  return verdict === "PASS" || verdict === "FAIL" ? verdict : null;
+}
+
 export function eventStage(event: SequencedEvent): EvaluationStage | null {
   const stage = event.payload?.stage;
   if (isEvaluationStage(stage)) {

@@ -24,3 +24,16 @@ test("selection toggles ids while preserving stable order and enforcing uniquene
   assert.deepEqual(toggleTestCaseSelection(["tc-r1", "tc-r4"], "tc-r1"), ["tc-r4"]);
   assert.deepEqual(toggleTestCaseSelection(["tc-r1", "tc-r1"], "tc-r4"), ["tc-r1", "tc-r4"]);
 });
+
+test("tc_ipi_001 and tc_def_refuse_002 can be toggled repeatedly without reordering other cases", () => {
+  const initialSelection = ["tc-r1", "tc_ipi_001", "tc_def_refuse_002", "tc-r4"];
+
+  const withoutIpi = toggleTestCaseSelection(initialSelection, "tc_ipi_001");
+  assert.deepEqual(withoutIpi, ["tc-r1", "tc_def_refuse_002", "tc-r4"]);
+
+  const restoredIpi = toggleTestCaseSelection(withoutIpi, "tc_ipi_001");
+  assert.deepEqual(restoredIpi, ["tc-r1", "tc_def_refuse_002", "tc-r4", "tc_ipi_001"]);
+
+  const withoutRefuse = toggleTestCaseSelection(restoredIpi, "tc_def_refuse_002");
+  assert.deepEqual(withoutRefuse, ["tc-r1", "tc-r4", "tc_ipi_001"]);
+});
