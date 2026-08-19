@@ -1096,10 +1096,11 @@ html.login-agent-entry-lock body {
 }
 
 .login-agent-loading-text {
-  display: inline-flex;
+  display: block;
   align-items: center;
   justify-content: center;
   gap: 0.02em;
+  max-width: min(82vw, 720px);
   min-height: clamp(32px, 4vw, 44px);
   color: rgba(246, 246, 244, 0.08);
   -webkit-text-fill-color: transparent;
@@ -1108,7 +1109,9 @@ html.login-agent-entry-lock body {
   font-size: clamp(22px, 2rem, 34px);
   font-weight: 500;
   letter-spacing: 0;
-  line-height: 1;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-align: center;
   text-transform: none;
   text-shadow: 0 0 20px rgba(246, 246, 244, 0.18);
 }

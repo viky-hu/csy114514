@@ -1,5 +1,20 @@
 # Extension Review Checklist
 
+## 2026-08-19 Stable Verification Tooling
+
+- Ownership: `apps/main-platform` owns its daily verification scripts and split TypeScript configs. The root workspace continues to orchestrate package scripts through pnpm/turbo.
+- Boundary: the default `type-check` path validates application TypeScript only. Node test type checking and `.next/types` generated-file diagnostics are explicit tooling/debt checks, not blockers for ordinary frontend feature completion.
+- Extensibility: use `verify:default` for normal feature work and `verify:full` when changing tests, CI, lint/type tooling, or intentionally clearing historical type debt.
+- Validation: `pnpm -C apps/main-platform run type-check`, `pnpm -C apps/main-platform run lint`, and `pnpm -C apps/main-platform build` must start from stable scripts; sandbox/ACL failures get one meaningful retry before reporting the concrete blocker.
+
+## 2026-08-19 Chinese Loading Tips Integration
+
+- Ownership: `app/windows/shared/loading-tips.ts` owns the Chinese loading-tip catalog, phase mapping, live/timeline selection, and seen-tip de-duplication. Login, Agent interface, and Evaluation modules only consume tips through this shared helper.
+- Boundary: this change replaces existing loading, pending, idle, and error copy in frontend surfaces only. It does not add BFF routes, change backend event contracts, synthesize execution progress, alter TestCase/report truth, or redesign the loading components.
+- Extensibility: login Agent entry uses the 5-second timeline mode for the blue loading overlay, while evaluation states resolve phases from the existing run status, active stage, latest event type, and current loading/error flags. Legacy R4 execution can prefer R4-specific tips without changing generic batch behavior.
+- Styling: preserve existing layout, SVG geometry, buttons, tracks, terminal, and report shell. CSS changes are limited to wrapping and muted inline status text so longer Chinese tips do not overflow.
+- Validation: run the focused loading-tip Node test, component structure checks for the consuming windows, `pnpm -C apps/main-platform type-check`, `pnpm -C apps/main-platform lint`, and manual smoke for login Agent loading, TestCase catalog loading, single R4 run, batch run, report loading, and error states.
+
 ## 2026-07-31 Initial Stack Scaffold
 
 - Ownership: root workspace config, `apps/main-platform`, `packages/configs`, `packages/ui-components`.

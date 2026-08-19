@@ -121,6 +121,7 @@
 .evaluation-secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; border: 1px solid var(--evaluation-line); border-radius: 3px; padding: 0 10px; background: transparent; color: var(--evaluation-ink); cursor: pointer; font-size: 11px; }
 .evaluation-secondary-button:hover { border-color: rgba(49, 82, 244, .45); color: var(--evaluation-blue); }
 .evaluation-rail-error { display: inline-flex; align-items: flex-start; gap: 5px; color: var(--evaluation-amber); font-size: 10px; line-height: 1.35; }
+.evaluation-rail-tip, .evaluation-batch-tip { color: var(--evaluation-muted); font-size: 10px; line-height: 1.35; overflow-wrap: anywhere; }
 
 .evaluation-run-body { display: grid; grid-template-columns: minmax(0, 62fr) minmax(300px, 38fr); gap: 12px; min-height: 330px; }
 .evaluation-process-column, .evaluation-terminal-panel { min-height: 0; border-top: 2px solid var(--evaluation-blue); background: rgba(255, 255, 255, .3); }

@@ -5,6 +5,10 @@ import { gsap } from "gsap";
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronRight, FileWarning, LoaderCircle, ShieldCheck, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
+import {
+  resolveEvaluationLoadingTipPhase,
+  useLoadingTip,
+} from "../../shared/loading-tips";
 import { useEvaluationWorkspace, type EvaluationWorkspaceNavigate } from "./EvaluationWorkspaceProvider";
 import type { RiskFinding, SequencedEvent } from "./evaluation-types";
 import { ReportSummaryPanel } from "./ReportSummaryPanel";
@@ -74,6 +78,15 @@ export function EvaluationReportWorkspace({ onNavigate }: { onNavigate?: Evaluat
   const root = useRef<HTMLElement>(null);
   const findings = useMemo(() => report?.findings ?? [], [report?.findings]);
   const selected = useMemo(() => findings.find((finding) => finding.finding_id === selectedId) ?? findings[0], [findings, selectedId]);
+  const phase = resolveEvaluationLoadingTipPhase({
+    hasReport: Boolean(report),
+    isLoadingReport,
+    reportError,
+    runStatus: run?.status,
+  });
+  const tip = useLoadingTip(phase, {
+    active: isLoadingReport || !report || Boolean(reportError),
+  });
 
   useGSAP(() => {
     const matchMedia = gsap.matchMedia();
@@ -84,7 +97,7 @@ export function EvaluationReportWorkspace({ onNavigate }: { onNavigate?: Evaluat
   }, { scope: root, dependencies: [report?.report_id] });
 
   if (isLoadingReport || !report) {
-    return <section ref={root} className="evaluation-page evaluation-report-page" aria-label="测评报告工作台"><div className="evaluation-report-loading"><LoaderIcon />{reportError ? <><h1>报告暂不可用</h1><p>{reportError}</p><button type="button" className="evaluation-primary-button" onClick={() => { clearReportError(); void loadReport(); }}>重新读取</button></> : <><h1>{run?.status === "completed" ? "正在读取测评报告" : "测评尚未完成"}</h1><p>{run?.status === "completed" ? "正在从持久化证据中装载报告。" : "完成真实运行后，Judge 才会生成报告。"}</p>{run?.status !== "completed" && <button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}><ArrowLeft size={15} />返回测评运行</button>}</>}</div></section>;
+    return <section ref={root} className="evaluation-page evaluation-report-page" aria-label="测评报告工作台"><div className="evaluation-report-loading"><LoaderIcon />{reportError ? <><h1>报告暂不可用</h1><p>{reportError || tip}</p><button type="button" className="evaluation-primary-button" onClick={() => { clearReportError(); void loadReport(); }}>重新读取</button></> : <><h1>{run?.status === "completed" ? "正在读取测评报告" : "测评尚未完成"}</h1><p>{tip}</p>{run?.status !== "completed" && <button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}><ArrowLeft size={15} />返回测评运行</button>}</>}</div></section>;
   }
 
   return <section ref={root} className={`evaluation-page evaluation-report-page ${report.summary ? "has-summary" : ""}`} aria-label="测评报告工作台"><header className="evaluation-page-header evaluation-report-reveal"><div><span className="evaluation-eyebrow">EVALUATION REPORT</span><h1>测评报告</h1><p>{report.conclusion}</p></div><div className="evaluation-report-actions"><button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}><ArrowLeft size={15} />返回运行</button><span className={`evaluation-severity-badge is-${severityClass(report.severity)}`}>{SEVERITY_LABEL[report.severity] ?? report.severity}</span></div></header><div className="evaluation-report-reveal"><ScorePanel report={report} /></div>{report.summary && <ReportSummaryPanel summary={report.summary} />}<div className={`evaluation-report-layout evaluation-report-reveal ${drawerOpen ? "is-drawer-open" : ""}`}><FindingList findings={findings} selectedId={selected?.finding_id} onSelect={(finding) => { setSelectedId(finding.finding_id); setDrawerOpen(true); }} />{selected ? <EvidenceDetail finding={selected} traceEvents={(trace?.events ?? []) as SequencedEvent[]} onClose={() => setDrawerOpen(false)} /> : <div className="evaluation-empty-report"><CheckCircle2 size={24} /><h2>没有已确认的风险发现</h2><p>本次运行没有返回可复算的 Judge Finding。</p></div>}</div></section>;

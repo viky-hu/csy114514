@@ -6,6 +6,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Mouse, X } from "lucide-react";
 import { LINE_DRAW_EASE } from "../shared/animation";
+import { useLoadingTip } from "../shared/loading-tips";
 import {
   CORPMATE_AGENT_DRAFT,
   DEFAULT_AGENT_ID,
@@ -35,7 +36,6 @@ const INFO_COPY_LINES = [
   "让黑盒测试结果转化为能够指导修复的分析结论。",
 ] as const;
 const MICRO_COPY = "OBSERVABLE / EXPLAINABLE / REPRODUCIBLE / FIXABLE";
-const LOADING_LABEL = "Loading...";
 const LOADING_BOXES = [1, 2, 3, 4] as const;
 
 interface LoginIntroWindowProps {
@@ -52,6 +52,11 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
   const [isAgentSaving, setIsAgentSaving] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isScrollReady, setIsScrollReady] = useState(false);
+  const loadingTip = useLoadingTip("boot", {
+    active: agentEntryStage === "loading",
+    intervalMs: 1400,
+    mode: "timeline",
+  });
   const ctaPrimaryLabel = isAuthenticated ? CTA_AUTHENTICATED_PRIMARY : CTA_LOGIN_PRIMARY;
   const ctaSecondaryLabel = isAuthenticated
     ? CTA_AUTHENTICATED_SECONDARY
@@ -1533,7 +1538,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
         className="login-agent-loading-overlay"
         role="status"
         aria-live="polite"
-        aria-label="正在接入 Agent"
+        aria-label={`正在接入 Agent：${loadingTip}`}
         aria-hidden={agentEntryStage === "idle" || agentEntryStage === "done"}
       >
         <div className="login-agent-loading-stack">
@@ -1551,15 +1556,8 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
               ))}
             </div>
           </div>
-          <div ref={loadingTextRef} className="login-agent-loading-text" aria-hidden="true">
-            {LOADING_LABEL.split("").map((char, index) => (
-              <span
-                key={`${char}-${index}`}
-                className={`login-agent-loading-char${char === "." ? " is-dot" : ""}`}
-              >
-                {char}
-              </span>
-            ))}
+          <div ref={loadingTextRef} className="login-agent-loading-text">
+            {loadingTip}
           </div>
         </div>
       </div>

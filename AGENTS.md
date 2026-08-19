@@ -22,6 +22,10 @@ For behavior or module-boundary changes, update:
 ## Tooling Discipline
 
 - Before creating or editing repository-level files, confirm the active project root from the user's wording and the local directory structure. For this project, prefer `C:\Users\Admin\csy` over the parent user profile directory.
+- For ordinary `apps/main-platform` frontend changes, use `pnpm -C apps/main-platform run verify:default` as the default full validation path, or use the narrowest relevant test command plus `pnpm -C apps/main-platform run type-check:app` when a full build is unnecessary.
+- Treat `pnpm -C apps/main-platform run type-check` as the stable application check; it intentionally delegates to `type-check:app` and excludes Node-only tests plus `.next/types` generated files from the daily path.
+- Run `pnpm -C apps/main-platform run type-check:test` or `pnpm -C apps/main-platform run verify:full` only when changing test utilities, TypeScript tooling, CI/check scripts, or explicitly paying down test-type debt.
+- If `verify:default` fails because a sandbox or ACL blocks reading the Next binary, retry once with approved elevated execution; if the retry reaches a real compile/lint/test failure, report that failure instead of trying unrelated commands.
 - In this Windows Admin environment, sandboxed PowerShell may fail before the command runs. If a command fails with a sandbox or token/DACL error, do not repeat the same command shape in a loop.
 - In Windows PowerShell/.NET, environment dictionaries can throw duplicate-key exceptions when both `Path` and `PATH` exist. If `Start-Process` fails with a duplicate dictionary key such as `Path`/`PATH`, treat it as this platform bug; do not keep tweaking `Start-Process` arguments. Use a different launch path or report the blocker after one alternate attempt.
 - Use a bounded retry policy for tool failures: one normal attempt, then one meaningfully different attempt such as approved elevated execution, narrower command scope, or a different safe tool. After that, stop and report the blocker or provide the exact intended change.

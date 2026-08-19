@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "type-check": "tsc --noEmit",
+    "type-check": "pnpm run type-check:app",
+    "type-check:app": "tsc -p tsconfig.app.json --noEmit",
+    "type-check:test": "tsc -p tsconfig.test.json --noEmit",
+    "verify:default": "pnpm run type-check:app && pnpm run lint && pnpm run build",
+    "verify:full": "pnpm run type-check:app && pnpm run type-check:test && pnpm run lint && pnpm run build",
     "test:e2e": "node ./node_modules/@playwright/test/cli.js test"
   },
   "dependencies": {
@@ -28,6 +32,7 @@
   },
   "devDependencies": {
     "@csy/configs": "workspace:*",
+    "@next/eslint-plugin-next": "16.3.1",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "latest",
     "@types/react": "latest",
@@ -35,11 +40,11 @@
     "@types/three": "0.183.1",
     "autoprefixer": "^10.4.27",
     "eslint": "^9.0.0",
-    "eslint-config-next": "latest",
     "openapi-typescript": "^7.13.0",
     "@playwright/test": "^1.57.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.1",
+    "typescript-eslint": "8.67.0",
     "typescript": "^6.0.0"
   }
 }

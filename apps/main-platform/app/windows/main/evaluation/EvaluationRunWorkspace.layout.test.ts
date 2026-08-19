@@ -14,7 +14,7 @@ const styles = readFileSync(
 test("batch runs group TestCase progress and terminal into the desktop split workspace", () => {
   assert.match(
     source,
-    /<div className="evaluation-batch-run-body">\s*<BatchProgressPanel[\s\S]*?<EvaluationTerminal events=\{events\} \/>\s*<\/div>/,
+    /<div className="evaluation-batch-run-body">\s*<BatchProgressPanel[\s\S]*?<EvaluationTerminal emptyTip=\{statusTip\} events=\{events\} \/>\s*<\/div>/,
   );
 });
 

@@ -5,6 +5,11 @@ import { gsap } from "gsap";
 import { Check, CircleAlert, CircleDashed, Clipboard, Filter, Play, RotateCcw, Settings2, TerminalSquare } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
+import {
+  resolveEvaluationLoadingTipPhase,
+  useLoadingTip,
+  type LoadingTipCategory,
+} from "../../shared/loading-tips";
 import { BatchProgressPanel } from "./BatchProgressPanel";
 import { useEvaluationWorkspace, EvaluationWorkspaceStatusAnnouncer, type EvaluationWorkspaceNavigate } from "./EvaluationWorkspaceProvider";
 import { EVALUATION_STAGES, eventText, finalJudgeVerdict, type EvaluationStage, type SequencedEvent } from "./evaluation-types";
@@ -32,6 +37,7 @@ const STAGE_COPY: Record<EvaluationStage, { title: string; detail: string; rows:
 
 const EVENT_KINDS = ["全部事件", "Runner", "Agent", "Tool", "Memory", "Judge"] as const;
 type EventKind = (typeof EVENT_KINDS)[number];
+const R4_TIP_CATEGORIES: LoadingTipCategory[] = ["stage_r4"];
 
 function eventKind(event: SequencedEvent): Exclude<EventKind, "全部事件"> {
   if (event.type.startsWith("AGENT")) return "Agent";
@@ -96,9 +102,23 @@ function completedStepCount(stage: EvaluationStage, events: SequencedEvent[]) {
   return Math.min(rows.length, completed);
 }
 
-function ProcessColumn({ stage, events }: { stage: EvaluationStage; events: SequencedEvent[] }) {
+function ProcessColumn({
+  events,
+  runStatus,
+  stage,
+}: {
+  events: SequencedEvent[];
+  runStatus?: string;
+  stage: EvaluationStage;
+}) {
   const root = useRef<HTMLDivElement>(null);
   const completedRows = completedStepCount(stage, events);
+  const phase = runStatus === "preflighting" || stage === "web_content_injection" ? "preflight" : "running";
+  const active = runStatus === "preflighting" || runStatus === "queued" || runStatus === "running";
+  const stageTip = useLoadingTip(phase, {
+    active,
+    categories: phase === "running" ? R4_TIP_CATEGORIES : undefined,
+  });
 
   useGSAP(() => {
     const matchMedia = gsap.matchMedia();
@@ -114,7 +134,7 @@ function ProcessColumn({ stage, events }: { stage: EvaluationStage; events: Sequ
         <div><span className="evaluation-eyebrow">LIVE TEST POINT</span><h2>{STAGE_COPY[stage].title}</h2></div>
         <span className="evaluation-stage-count">{completedRows}/{STAGE_COPY[stage].rows.length}</span>
       </div>
-      <p className="evaluation-process-detail">{STAGE_COPY[stage].detail}</p>
+      <p className="evaluation-process-detail">{active ? stageTip : STAGE_COPY[stage].detail}</p>
       <ol className="evaluation-step-list">
         {STAGE_COPY[stage].rows.map((row, index) => {
           const completed = index < completedRows;
@@ -137,6 +157,17 @@ function TestPointRail({ onStart, onReport }: { onStart: () => void; onReport?: 
   const completed = run?.status === "completed";
   const failed = run?.status === "failed" || run?.status === "interrupted" || run?.status === "preflight_failed";
   const verdict = finalJudgeVerdict(events);
+  const tipPhase = resolveEvaluationLoadingTipPhase({
+    activeStage,
+    isBootstrapping,
+    latestEventType: events.at(-1)?.type,
+    runStatus: run?.status,
+    workspaceError: error,
+  });
+  const actionTip = useLoadingTip(tipPhase, {
+    active: isBootstrapping || isStarting || running || failed,
+    categories: running && run?.test_case_ids[0] === "tc_pipi_001" ? R4_TIP_CATEGORIES : undefined,
+  });
   useGSAP(() => {
     const matchMedia = gsap.matchMedia();
     matchMedia.add("(prefers-reduced-motion: no-preference)", () => {
@@ -166,12 +197,13 @@ function TestPointRail({ onStart, onReport }: { onStart: () => void; onReport?: 
         {!running && <button className="evaluation-icon-command" type="button" title="重新选择 TestCase" aria-label="重新选择 TestCase" onClick={resetEvaluationSelection}><Settings2 size={16} /></button>}
         {completed ? <button className="evaluation-primary-button" type="button" onClick={onReport}><Check size={16} />查看测评报告</button> : failed ? <button className="evaluation-primary-button" type="button" onClick={() => void retryEvaluation()}><RotateCcw size={16} />新建测评重试</button> : <button className="evaluation-primary-button" type="button" disabled={!canStart || isStarting || isBootstrapping} onClick={onStart}>{running || isStarting ? <CircleDashed size={15} /> : <Play size={15} />}{isStarting ? "正在启动" : running ? "测评运行中" : "开始测评"}</button>}
         {error && <span className="evaluation-rail-error"><CircleAlert size={14} />{error}</span>}
+        {!error && (isBootstrapping || isStarting || running || failed) && <span className="evaluation-rail-tip">{actionTip}</span>}
       </div>
     </div>
   </div>;
 }
 
-function EvaluationTerminal({ events }: { events: SequencedEvent[] }) {
+function EvaluationTerminal({ emptyTip, events }: { emptyTip: string; events: SequencedEvent[] }) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [kind, setKind] = useState<EventKind>("全部事件");
   const [query, setQuery] = useState("");
@@ -190,19 +222,33 @@ function EvaluationTerminal({ events }: { events: SequencedEvent[] }) {
     <header className="evaluation-panel-header"><div><span className="evaluation-eyebrow">BACKEND TRACE</span><h2><TerminalSquare size={17} /> Runner terminal</h2></div><button className="evaluation-icon-button" type="button" title="复制当前日志" aria-label="复制当前日志" onClick={() => void copyLog()}><Clipboard size={15} /></button></header>
     <div className="evaluation-terminal-toolbar"><label><Filter size={13} /><span className="evaluation-visually-hidden">筛选事件类型</span><select value={kind} onChange={(event) => setKind(event.target.value as EventKind)}>{EVENT_KINDS.map((item) => <option key={item}>{item}</option>)}</select></label><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索事件" aria-label="搜索事件" /></div>
     <div ref={terminalRef} className="evaluation-terminal" tabIndex={0}>
-      {filteredEvents.length === 0 ? <div className="evaluation-terminal-empty">等待真实后端事件...</div> : filteredEvents.map((event) => <div className="evaluation-log-line" key={`${event.run_id}:${event.seq}`}><time>{formatTime(event.timestamp)}</time><b className={`is-${eventKind(event).toLowerCase()}`}>{eventKind(event)}</b><span>{eventText(event)}</span>{safePayload(event) && <small>{safePayload(event)}</small>}</div>)}
+      {filteredEvents.length === 0 ? <div className="evaluation-terminal-empty">{emptyTip}</div> : filteredEvents.map((event) => <div className="evaluation-log-line" key={`${event.run_id}:${event.seq}`}><time>{formatTime(event.timestamp)}</time><b className={`is-${eventKind(event).toLowerCase()}`}>{eventKind(event)}</b><span>{eventText(event)}</span>{safePayload(event) && <small>{safePayload(event)}</small>}</div>)}
     </div>
   </section>;
 }
 
 export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewReport?: () => void; onNavigate?: EvaluationWorkspaceNavigate }) {
-  const { run, events, activeStage, isBootstrapping, startEvaluation } = useEvaluationWorkspace();
+  const { run, events, activeStage, isBootstrapping, isLoadingTestCases, testCaseError, error, startEvaluation } = useEvaluationWorkspace();
   const stage = activeStage ?? "web_content_injection";
   const isLegacyR4 = run?.test_case_ids.length === 1 && run.test_case_ids[0] === "tc_pipi_001";
-  const statusText = isBootstrapping ? "连接后端" : run?.status ?? "选择用例";
+  const tipPhase = resolveEvaluationLoadingTipPhase({
+    activeStage,
+    isBootstrapping,
+    isLoadingTestCases,
+    latestEventType: events.at(-1)?.type,
+    runStatus: run?.status,
+    testCaseError,
+    workspaceError: error,
+  });
+  const statusTip = useLoadingTip(tipPhase, {
+    active: isBootstrapping || isLoadingTestCases || run?.status === "ready" || run?.status === "preflighting" || run?.status === "queued" || run?.status === "running",
+    categories: isLegacyR4 && tipPhase === "running" ? R4_TIP_CATEGORIES : undefined,
+  });
+  const showStatusTip = isBootstrapping || isLoadingTestCases || run?.status === "ready" || run?.status === "preflighting" || run?.status === "queued" || run?.status === "running";
+  const statusText = showStatusTip ? statusTip : run?.status ?? "选择用例";
   return <section className={`evaluation-page evaluation-run-page ${!run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
     <EvaluationWorkspaceStatusAnnouncer />
     <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><span className={`evaluation-run-status is-${run?.status ?? "selection"}`}>{statusText}</span></header>
-    {!run ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={events} /><EvaluationTerminal events={events} /></div></> : <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} /><EvaluationTerminal events={events} /></div>}
+    {!run ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={events} runStatus={run.status} /><EvaluationTerminal emptyTip={statusTip} events={events} /></div></> : <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} /><EvaluationTerminal emptyTip={statusTip} events={events} /></div>}
   </section>;
 }

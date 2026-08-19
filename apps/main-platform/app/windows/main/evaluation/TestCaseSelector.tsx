@@ -2,6 +2,7 @@
 
 import { CheckSquare2, CircleAlert, LoaderCircle, Search, Square, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useLoadingTip } from "../../shared/loading-tips";
 import { useEvaluationWorkspace } from "./EvaluationWorkspaceProvider";
 import { filterTestCases } from "./test-case-selection";
 
@@ -24,6 +25,10 @@ export function TestCaseSelector() {
   const filtered = useMemo(() => filterTestCases(testCases, query, riskPattern), [query, riskPattern, testCases]);
   const selected = useMemo(() => new Set(selectedTestCaseIds), [selectedTestCaseIds]);
   const allFilteredSelected = filtered.length > 0 && filtered.every((item) => selected.has(item.id));
+  const phase = testCaseError || error ? "error" : isLoadingTestCases || isBootstrapping ? "boot" : "idle";
+  const tip = useLoadingTip(phase, {
+    active: isLoadingTestCases || isBootstrapping || Boolean(testCaseError || error),
+  });
 
   const toggleVisible = () => {
     const visibleIds = new Set(filtered.map((item) => item.id));
@@ -48,13 +53,13 @@ export function TestCaseSelector() {
         <button type="button" className="evaluation-icon-command" title="清空选择" aria-label="清空选择" onClick={() => setSelectedTestCaseIds([])} disabled={selectedTestCaseIds.length === 0}><X size={16} /></button>
       </div>
       <div className="evaluation-selector-list" aria-busy={isLoadingTestCases}>
-        {isLoadingTestCases ? <div className="evaluation-selector-empty"><LoaderCircle className="evaluation-spin" size={19} />正在读取 TestCase</div> : testCaseError ? <div className="evaluation-selector-empty is-error"><CircleAlert size={18} />{testCaseError}</div> : filtered.length === 0 ? <div className="evaluation-selector-empty">没有符合条件的 TestCase</div> : filtered.map((testCase) => {
+        {isLoadingTestCases ? <div className="evaluation-selector-empty"><LoaderCircle className="evaluation-spin" size={19} />{tip}</div> : testCaseError ? <div className="evaluation-selector-empty is-error"><CircleAlert size={18} />{testCaseError || tip}</div> : filtered.length === 0 ? <div className="evaluation-selector-empty">{tip}</div> : filtered.map((testCase) => {
           const checked = selected.has(testCase.id);
           return <label className={`evaluation-selector-row ${checked ? "is-selected" : ""}`} key={testCase.id}><input type="checkbox" checked={checked} onChange={() => toggleTestCaseSelection(testCase.id)} /><span className="evaluation-selector-check" aria-hidden="true">{checked && <CheckSquare2 size={16} />}</span><span className="evaluation-selector-main"><strong>{testCase.name}</strong><small>{testCase.id} · {testCase.description}</small></span><span className="evaluation-selector-meta"><b>{testCase.target_risk_pattern}</b><span>{testCase.risk_type}</span><small>{testCase.severity} · {testCase.turn_count} TURN</small></span></label>;
         })}
       </div>
       <footer className="evaluation-selector-footer">
-        <span className={error ? "is-error" : ""}>{error ?? `共 ${testCases.length} 条可用 TestCase`}</span>
+        <span className={error ? "is-error" : ""}>{error ?? (isBootstrapping ? tip : `共 ${testCases.length} 条可用 TestCase`)}</span>
         <button type="button" className="evaluation-primary-button" disabled={selectedTestCaseIds.length === 0 || isBootstrapping || isLoadingTestCases} onClick={() => void prepareEvaluation()}>{isBootstrapping ? <LoaderCircle className="evaluation-spin" size={15} /> : <CheckSquare2 size={15} />}{isBootstrapping ? "正在创建" : `创建批量测评 (${selectedTestCaseIds.length})`}</button>
       </footer>
     </section>

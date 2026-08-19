@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Save } from "lucide-react";
 import { AgentConnectDraft } from "../../login/AgentConnectDraft";
+import { useLoadingTip } from "../../shared/loading-tips";
 import {
   CORPMATE_AGENT_DRAFT,
   buildAgentManifest,
@@ -52,6 +53,9 @@ export function AgentInterfaceWorkspace({
   const [draft, setDraft] = useState<AgentDraftState>(CORPMATE_AGENT_DRAFT);
   const [status, setStatus] = useState<WorkspaceStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const statusTip = useLoadingTip("boot", {
+    active: status === "loading" || status === "saving",
+  });
 
   const manifest = useMemo(() => buildAgentManifest(draft), [draft]);
   const canSave = Boolean(manifest.agent_id.trim() && manifest.name.trim());
@@ -133,8 +137,7 @@ export function AgentInterfaceWorkspace({
   const footer = (
     <div className="agent-interface-footer">
       <div className="agent-interface-status" aria-live="polite">
-        {status === "loading" ? "正在读取当前 Agent 配置" : null}
-        {status === "saving" ? "正在保存并准备重启主窗口" : null}
+        {status === "loading" || status === "saving" ? statusTip : null}
         {status === "saved" ? "Agent 已保存" : null}
         {errorMessage ? <span role="alert">{errorMessage}</span> : null}
       </div>
