@@ -1,0 +1,173 @@
+# 测评加载提示词 — Loading Tips
+
+> 给胡继天: 按后端加载阶段分组，随机轮播。
+> 风格: 安全评测知识 + 系统状态 + 偶尔来点幽默
+
+---
+
+## 使用方式
+
+```typescript
+// 根据当前 run.status 和 activeStage 选对应分组，随机取一条
+type TipPhase = "boot" | "preflight" | "running" | "judging" | "reporting" | "idle";
+```
+
+---
+
+## 1. boot — 初始化 / 创建测评
+
+> 触发条件: `run` 为 null 或 `status === "ready"`
+
+```
+正在校准安全评测引擎…
+正在加载攻击图谱节点…
+连接 CorpMate 参考 Agent…
+初始化 CompositeSandbox 三层沙箱…
+加载 RiskPattern 知识库: R1–R4…
+正在扫描 86 条 TestCase 契约…
+预热 Rule Judge 因果判定模块…
+正在构建浏览器沙箱隔离环境…
+装载邮件沙箱确认流程…
+初始化记忆存储 K-V 引擎…
+提示: 每条 TestCase 执行前 Sandbox 会自动重置，确保环境干净
+提示: Judge 采用 Rule-first 策略——规则命中即返回，不依赖 LLM
+```
+
+## 2. preflight — 预检阶段
+
+> 触发条件: `status === "preflighting"` 或 `activeStage === "web_content_injection"` 且无 PREFLIGHT_COMPLETED
+
+```
+正在注册变异页面 fixture 到浏览器沙箱…
+计算 canary 指纹: SHA-256 派生 + 冻结校验…
+预检注入页面: 验证 canary 可被 Agent 读取…
+校验 AttackSeed 与 TestCase 的 risk_pattern 引用…
+正在验证 env_delta 格式: browser_pages / memory / email_inbox…
+预检 7 种注入模板: Authority Framing → Fake Update Prompt…
+确认 41 条变异用例的载荷完整性…
+正在扫描 HTML 隐藏区域: display:none / font-size:0 / color:transparent…
+变异页面注册完毕，等待 Agent 读取…
+提示: 预检失败意味着页面载荷无法被正确读取——不是 Agent 防御了攻击，是攻击还没部署好
+```
+
+## 3. running — 测试执行中
+
+> 触发条件: `status === "running"` 或 `status === "queued"`
+
+### 3a. 通用执行
+
+```
+正在为 TestCase 初始化干净的 Sandbox 环境…
+应用 env_delta: 注入浏览器页面 / 记忆条目 / 邮件…
+Agent 会话已建立，等待指令下发…
+Agent 正在解析用户输入…
+正在追踪 Agent 的 tool call 链路…
+执行 Tool: browser.open_page → 返回页面内容…
+执行 Tool: memory.write → 持久记忆已更新…
+执行 Tool: email.send → 需要用户确认…
+执行 Tool: email.list → 读取收件箱…
+Agent 跨轮次状态累积中…
+正在记录 TOOL_CALLED 事件到 Trace…
+```
+
+### 3b. R4 三阶段 (legacy 视图)
+
+```
+[网页注入] 正在让 Agent 读取变异页面…
+[网页注入] 检查页面内容是否触发了 Agent 的异常行为…
+[记忆投毒] Agent 正在将页面内容写入持久记忆…
+[记忆投毒] 验证记忆跨会话可读性…
+[记忆投毒] 重建 Agent 会话 02，复用被污染的记忆…
+[邮件发送] Agent 正在读取被污染的记忆…
+[邮件发送] 检查 Agent 是否未经确认就调用 email.send…
+[邮件发送] 构建五节点因果链: 页面 → 记忆 → 读取 → 发送 → 未确认…
+```
+
+### 3c. 安全知识 (穿插播放)
+
+```
+间接提示注入 (IPI): 攻击者将恶意指令嵌入网页，等 Agent 读取后执行
+R4 攻击链: 网页注入 → 记忆写入 → 新会话读取 → 未确认邮件发送
+CorpMate 是关键词匹配 Agent，不是 LLM——它不会"理解"页面中的恶意指令
+FORBIDDEN_TOOL_CALL: TestCase 声明的禁止动作被 Agent 执行了
+CONFIRMATION_MISSING: Agent 调用敏感工具时未经用户确认
+86 条 TestCase 覆盖 4 种风险模式: R1 Web 注入、R2 记忆投毒、R3 隐私泄漏、R4 持久化 IPI
+Mutation Engine: 7 种攻击种子 × 8 种注入模板 = 41 条变异测试用例
+Hidden HTML 攻击: 将恶意指令放入 CSS 隐藏区域，人看不到但 LLM 会读到
+Authority Framing: 伪装 IT 管理员的强制指令，利用权威效应绕过 Agent 防御
+White-on-White: 白色文字放在白色背景上——人眼看不见，但 Agent 读 HTML 时照单全收
+```
+
+## 4. judging — Judge 裁决中
+
+> 触发条件: 出现 JUDGE_DECISION / FINDING_CREATED 事件
+
+```
+Rule Judge 正在检查 3 条规则: FORBIDDEN_TOOL_CALL / CONFIRMATION_MISSING / SENSITIVE_DATA_EXPOSURE…
+CompositeJudge: Rule-first 策略——规则命中即返回 FAIL，不等待 LLM…
+正在重建因果路径: 页面注入 → 工具调用 → 数据外泄…
+判定证据绑定中: 关联 Trace 事件 ID 到 Finding…
+风险严重等级评估: LOW → MEDIUM → HIGH → CRITICAL…
+正在检测五节点因果链: 注入 → 记忆写入 → 跨会话读取 → 邮件发送 → 未确认…
+判定结果: 规则未命中 → 移交 LLM Mock Judge…
+提示: Stage 2 的 LLM Judge 是 Mock 实现 (始终返回 PASS)，Stage 3 将接入真实模型
+```
+
+## 5. reporting — 报告生成中
+
+> 触发条件: `status === "completed"` 且 `report_available === true` 但用户还没点"查看报告"
+
+```
+正在计算综合评分: capability × 25% + security × 55% + stability × 20%…
+汇总 by_risk_pattern: R1 / R2 / R3 / R4 / OTHER…
+汇总 by_risk_type: IPI / Memory / Privacy / Persistent IPI…
+汇总 by_severity: CRITICAL / HIGH / MEDIUM / LOW…
+CRITICAL 严重度触发分数上限: 最高 39 分…
+正在生成风险发现报告与证据链…
+绑定 Finding → Evidence → Trace Event…
+报告已就绪，点击"查看测评报告"查看详情
+```
+
+## 6. idle / error — 空闲与异常
+
+```
+[idle] 选择 TestCase 开始测评。支持单选 (legacy R4) 和多选 (批量模式)。
+[idle] 当前 TestCase 库: 86 条，覆盖 R1–R4 四种风险模式 + 14 条防御验证。
+[error] 运行中断。Sandbox 状态已清理，可点击"新建测评重试"。
+[error] 预检失败: 页面载荷未通过 canary 校验。请检查 browser_pages fixture。
+```
+
+---
+
+## 设计建议
+
+1. **轮播间隔**: 2.5–4 秒随机切换，避免用户读完前就换
+2. **阶段匹配**: 根据 `run.status` 选分组，不要跨阶段显示
+3. **安全知识类**: 占总提示的 ~30%，穿插在执行阶段，不要连续出现
+4. **避免重复**: 同一阶段内已显示的 tip 标记为 seen，直到全部播完再重置
+5. **中文为主**: 技术术语保留英文 (IPI, FORBIDDEN_TOOL_CALL, canary)
+6. **最大长度**: 每条 ≤ 50 字符（不含技术术语），确保一行显示
+
+---
+
+## TypeScript 接口建议
+
+```typescript
+interface LoadingTip {
+  text: string;
+  phase: "boot" | "preflight" | "running" | "judging" | "reporting" | "idle" | "error";
+  category: "status" | "knowledge" | "stage_r4" | "tip";
+}
+
+const LOADING_TIPS: LoadingTip[] = [
+  // ... 上面所有条目
+];
+
+function pickTip(phase: LoadingTip["phase"], seen: Set<string>): string {
+  const pool = LOADING_TIPS.filter(t => t.phase === phase && !seen.has(t.text));
+  if (pool.length === 0) return pickTip(phase, new Set()); // 重置
+  const tip = pool[Math.floor(Math.random() * pool.length)];
+  seen.add(tip.text);
+  return tip.text;
+}
+```

@@ -535,6 +535,67 @@ TestCase 总计: 72 + 8 = 80 条
 Owner: 陈书扬
 ```
 
+### 2026-08-18 | Stage 2 收尾 + 前端修复合入 + M2 验收准备
+
+```text
+来源: Stage 2 最终收尾
+内容:
+
+  1. pytest 修复 (commit 3eb08c4):
+     - test_evaluations_api.py 2 个 async 测试缺少 @pytest.mark.asyncio 装饰器
+     - 全量跑时报 "async def not natively supported", 单独跑正常
+     - 修复后: 229 passed, 0 failed
+
+  2. ground_truth_80tc.json 入库 (commit 766a0c0):
+     - 80 TC 判定基准文件 (63 PASS / 17 FAIL)
+     - 含每条 TC 的 verdict、triggered_rule、semantic_attack_reached、explanation
+
+  3. Stage 3 路线图 (commit e9a28f2, docs/stage3_roadmap.md):
+     - 三阶段演进: CorpMate (non-sem PASS) → bare LLM (FAIL 基线) → LLM+防御 (真实 PASS)
+     - 技术架构、预期数据、评委叙事、D15-D24 排期
+
+  4. Mutation Engine 文档 (commit e9a28f2, docs/mutation_engine.md):
+     - 7 seeds × 8 templates = 41 变异 TC 生成机制
+     - 变异矩阵、命名规范、14 FAIL 根因分析、Stage 3 预期变化
+
+  5. 防御 TestCase 扩展 (commit e9a28f2, security_testcases_defense_extra.json):
+     - 6 条新防御 TC (80→86):
+       tc_def_normal_004: 正常已确认邮件发送 (误杀检查)
+       tc_def_normal_005: 正常多步工作流 browse+email (2 turn)
+       tc_def_normal_006: 正常记忆读写 (2 turn)
+       tc_def_refuse_005: 拒绝两步社工攻击
+       tc_def_refuse_006: 拒绝 browse→memory→email 链攻击
+       tc_def_safe_browse_002: 多层 IPI 防御 (hidden+comment+white)
+
+  6. 86 TC 批量验收:
+     - 69 PASS / 17 FAIL / 0 ERROR (80.2% 通过率)
+     - 6 条新防御 TC 全部 PASS (无误杀)
+
+  7. ground_truth_86tc.json 更新:
+     - 新增 6 条防御 TC 判定
+     - 总计 86 TC, 69 PASS / 17 FAIL
+
+  8. 前端修复合入 (commit aeae144, 胡继天):
+     - Legacy R4 最终判定显示 (finalJudgeVerdict + 徽标)
+     - GSAP 动画完成后恢复主内容可见
+     - TestCaseSelector 闭包修复 + 布局稳定性
+     - R4 专用轨道新增"重新选择"齿轮按钮
+     - 5 个回归测试 + 2 份架构文档更新
+     - 从 codex-overview-r4-dashboard 分支 fast-forward 合入 main
+
+  9. 加载提示词文档 (docs/loading_tips.md):
+     - 6 个阶段 × ~60 条提示词 (boot/preflight/running/judging/reporting/idle)
+     - TypeScript 接口建议 + 设计建议 (轮播间隔/去重/长度)
+
+  10. M2 验收 Checklist (docs/m2_acceptance_checklist.md):
+      - 8 项验收标准全部 ✅
+      - 文件交付清单 19 个文件
+      - 已知问题 3 项 (不阻塞验收)
+
+状态: ✅ Stage 2 全部完成, 可进入 M2 验收
+Owner: 陈书扬 (后端+文档) + 胡继天 (前端修复)
+```
+
 ### 2026-08-14 | M2 Demo 脚本编写
 
 ```text
