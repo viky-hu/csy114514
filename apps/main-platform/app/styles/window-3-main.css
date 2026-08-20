@@ -62,6 +62,18 @@
   will-change: opacity;
 }
 
+.main-window-brand-word {
+  fill: var(--main-blue);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0;
+  dominant-baseline: alphabetic;
+  text-rendering: geometricPrecision;
+  opacity: 0;
+  visibility: hidden;
+  will-change: opacity, transform;
+}
+
 .main-line-sidebar {
   position: absolute;
   z-index: 2;
@@ -2764,6 +2776,10 @@
 }
 
 @media (max-width: 720px) {
+  .main-window-brand-word {
+    font-size: 22px;
+  }
+
   .main-line-sidebar {
     top: 116px !important;
     right: 14px;

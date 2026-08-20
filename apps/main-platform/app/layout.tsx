@@ -7,7 +7,7 @@ import "react-easy-crop/react-easy-crop.css";
 import type { ReactNode } from "react";
 
 export const metadata = {
-  title: "AegisTrace | Agent 安全评估平台",
+  title: "AgentProof | Agent 安全评估平台",
   description: "可观察、可解释、可复现、可修复的 Agent 安全评估平台"
 };
 

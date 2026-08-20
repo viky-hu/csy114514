@@ -29,6 +29,8 @@ type RectAttrs = {
 };
 
 type MainLayout = {
+  brandX: number;
+  brandY: number;
   cmX: number;
   cmY: number;
   fullHeight: number;
@@ -151,6 +153,8 @@ function getMainLayout(): MainLayout {
   const contentBottom = snap(1.1 * cmY);
 
   return {
+    brandX: insetX,
+    brandY: snap(lineTop - 0.55 * cmY),
     cmX,
     cmY,
     contentBottom,
@@ -313,6 +317,7 @@ export function MainWindow({
   const mainSurfaceRef = useRef<SVGRectElement>(null);
   const separatorRef = useRef<SVGRectElement>(null);
   const transitionBlueRef = useRef<SVGRectElement>(null);
+  const brandRef = useRef<SVGTextElement>(null);
 
   const handleMainNavSelect = useCallback(
     (nextNavKey: MainNavKey) => {
@@ -372,8 +377,9 @@ export function MainWindow({
       const mainSurface = mainSurfaceRef.current;
       const separator = separatorRef.current;
       const transitionBlue = transitionBlueRef.current;
+      const brand = brandRef.current;
 
-      if (!root || !topSurface || !mainSurface || !separator || !transitionBlue) {
+      if (!root || !topSurface || !mainSurface || !separator || !transitionBlue || !brand) {
         return;
       }
 
@@ -392,6 +398,7 @@ export function MainWindow({
       const renderSurfaceLayout = (layout: MainLayout) => {
         setRectAttrs(topSurface, layout.topSurface);
         setRectAttrs(mainSurface, layout.mainSurface);
+        gsap.set(brand, { attr: { x: layout.brandX, y: layout.brandY } });
         setPxVar(root, "--main-cm-x", layout.cmX);
         setPxVar(root, "--main-cm-y", layout.cmY);
         setPxVar(root, "--main-separator-y", layout.lineTop);
@@ -411,6 +418,7 @@ export function MainWindow({
         setRectAttrs(transitionBlue, layout.transitionFinal);
         gsap.set(separator, { autoAlpha: 1 });
         gsap.set(transitionBlue, { autoAlpha: 0 });
+        gsap.set(brand, { autoAlpha: 1, y: 0 });
         gsap.set(sidebar, { autoAlpha: 1, x: 0 });
         gsap.set(sidebarItems, { autoAlpha: 1, x: 0, y: 0 });
         gsap.set(contentRegion, { autoAlpha: 1, y: 0 });
@@ -423,6 +431,7 @@ export function MainWindow({
         setRectAttrs(transitionBlue, layout.transitionFull);
         gsap.set(separator, { autoAlpha: 0 });
         gsap.set(transitionBlue, { autoAlpha: 1 });
+        gsap.set(brand, { autoAlpha: 0, y: 6 });
         gsap.set(sidebar, { autoAlpha: 0, x: -18 });
         gsap.set(sidebarItems, { autoAlpha: 0, x: -12, y: 4 });
         gsap.set(contentRegion, { autoAlpha: 0, y: 16 });
@@ -473,6 +482,17 @@ export function MainWindow({
               ease: LINE_DRAW_EASE,
             },
             1,
+          )
+          .addLabel("brandReveal", 1.12)
+          .to(
+            brand,
+            {
+              autoAlpha: 1,
+              duration: 0.36,
+              ease: "power2.out",
+              y: 0,
+            },
+            "brandReveal",
           )
           .set(separator, { autoAlpha: 1 }, 1.4)
           .set(transitionBlue, { autoAlpha: 0 }, 1.4)
@@ -528,6 +548,7 @@ export function MainWindow({
         contentSwapTimelineRef.current?.kill();
         gsap.killTweensOf([
           transitionBlue,
+          brand,
           separator,
           topSurface,
           mainSurface,
@@ -595,7 +616,12 @@ export function MainWindow({
   );
 
   return (
-    <main ref={rootRef} className="main-window" data-main-window-stage="intro">
+    <main
+      ref={rootRef}
+      className="main-window"
+      data-main-window-stage="intro"
+      aria-label="AgentProof Agent 安全评估平台"
+    >
       <svg className="main-window-svg" aria-hidden="true" focusable="false">
         <rect ref={topSurfaceRef} className="main-window-surface" x={0} y={0} width={0} height={0} />
         <rect ref={mainSurfaceRef} className="main-window-surface" x={0} y={0} width={0} height={0} />
@@ -617,6 +643,9 @@ export function MainWindow({
           height="100%"
           shapeRendering="crispEdges"
         />
+        <text ref={brandRef} className="main-window-brand-word">
+          AgentProof
+        </text>
       </svg>
       <MainLineSidebar
         activeKey={activeNavKey}

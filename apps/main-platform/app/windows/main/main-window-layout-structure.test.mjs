@@ -13,6 +13,21 @@ const mainStyles = readFileSync(
   "utf8",
 );
 
+const loginStyles = readFileSync(
+  new URL("../../styles/window-1-login.css", import.meta.url),
+  "utf8",
+);
+
+const loginSource = readFileSync(
+  new URL("../login/LoginIntroWindow.tsx", import.meta.url),
+  "utf8",
+);
+
+const layoutSource = readFileSync(
+  new URL("../../layout.tsx", import.meta.url),
+  "utf8",
+);
+
 test("main workspace keeps the sidebar boundary tight against the menu body", () => {
   assert.match(mainWindowSource, /SIDEBAR_WIDTH_UNITS = 5\.65/);
   assert.match(mainWindowSource, /SIDEBAR_WIDTH_MIN = 224/);
@@ -66,5 +81,58 @@ test("main workspace restores the content region and page shell after interrupte
   assert.match(
     mainStyles,
     /\.main-content-page-shell\s*\{[^}]*pointer-events:\s*auto;/s,
+  );
+});
+
+test("visible application branding is unified as AgentProof", () => {
+  assert.match(loginSource, /const BRAND_WORD = "AgentProof";/);
+  assert.match(layoutSource, /title: "AgentProof \| Agent 安全评估平台"/);
+  assert.match(
+    mainWindowSource,
+    /<text[\s\S]*?className="main-window-brand-word"[\s\S]*?>\s*AgentProof\s*<\/text>/,
+  );
+  assert.match(
+    mainWindowSource,
+    /aria-label="AgentProof Agent 安全评估平台"/,
+  );
+  assert.doesNotMatch(
+    `${loginSource}\n${layoutSource}\n${mainWindowSource}`,
+    /AegisTrace/,
+  );
+});
+
+test("main workspace aligns and reveals the AgentProof SVG wordmark with the intro line", () => {
+  assert.match(mainWindowSource, /brandX:\s*insetX/);
+  assert.match(mainWindowSource, /brandY:\s*snap\(lineTop - 0\.55 \* cmY\)/);
+  assert.match(mainWindowSource, /const brand = brandRef\.current;/);
+  assert.match(
+    mainWindowSource,
+    /gsap\.set\(brand,\s*\{\s*autoAlpha:\s*0,\s*y:\s*6\s*\}\)/,
+  );
+  assert.match(
+    mainWindowSource,
+    /gsap\.set\(brand,\s*\{\s*autoAlpha:\s*1,\s*y:\s*0\s*\}\)/,
+  );
+  assert.match(mainWindowSource, /\.addLabel\("brandReveal",\s*1\.12\)/);
+  assert.match(
+    mainWindowSource,
+    /\.to\(\s*brand,\s*\{\s*autoAlpha:\s*1,\s*duration:\s*0\.36,\s*ease:\s*"power2\.out",\s*y:\s*0,?\s*\},\s*"brandReveal",?\s*\)/,
+  );
+  assert.match(
+    mainWindowSource,
+    /gsap\.killTweensOf\(\[[\s\S]*?brand,[\s\S]*?\]\)/,
+  );
+});
+
+test("main workspace wordmark styling has stable desktop and mobile dimensions", () => {
+  assert.match(loginStyles, /--w1-brand:\s*#3152f4;/i);
+  assert.match(mainStyles, /--main-blue:\s*#3152f4;/i);
+  assert.match(
+    mainStyles,
+    /\.main-window-brand-word\s*\{[^}]*fill:\s*var\(--main-blue\);[^}]*font-size:\s*30px;[^}]*font-weight:\s*700;[^}]*letter-spacing:\s*0;[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;/s,
+  );
+  assert.match(
+    mainStyles,
+    /@media \(max-width:\s*720px\)[\s\S]*?\.main-window-brand-word\s*\{[^}]*font-size:\s*22px;/s,
   );
 });
