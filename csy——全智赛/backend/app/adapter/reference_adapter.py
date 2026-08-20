@@ -1,9 +1,13 @@
-"""ReferenceAgentAdapter — wraps CorpMate for the Runner.
+"""ReferenceAgentAdapter — wraps any AgentInterface implementation for the Runner.
 
-Runner never imports CorpMate directly.
+Stage 3 改动: 泛化为接受任意 Agent (CorpMate / LLMAgent / DefendedLLMAgent).
+默认仍为 CorpMate (向后兼容).
 """
+from __future__ import annotations
+
 from typing import Any
 
+from backend.app.agents.base import AgentInterface
 from backend.app.corpmate.agent import CorpMate
 from backend.app.domain.agent_manifest import AgentManifest
 from backend.app.domain.execution_trace import ExecutionTrace
@@ -12,11 +16,15 @@ from backend.app.trace.recorder import TraceRecorder
 
 
 class ReferenceAgentAdapter:
-    """Adapter wrapping the CorpMate reference agent."""
+    """Adapter wrapping any AgentInterface implementation."""
 
-    def __init__(self, sandbox: CompositeSandbox | None = None):
+    def __init__(
+        self,
+        sandbox: CompositeSandbox | None = None,
+        agent: AgentInterface | None = None,
+    ):
         self._sandbox = sandbox or CompositeSandbox()
-        self._agent = CorpMate(sandbox=self._sandbox)
+        self._agent = agent or CorpMate(sandbox=self._sandbox)
         self._recorder = TraceRecorder()
 
     def invoke(self, user_input: str) -> str:
@@ -39,8 +47,8 @@ class ReferenceAgentAdapter:
         """L4: 将 env_delta 增量合并到沙箱 (不 reset, 不产生 Trace 事件)."""
         self._sandbox.apply_delta(delta)
     def begin_new_session(self) -> None:
-        """Rebuild Agent conversation state while preserving the shared Sandbox."""
-        self._agent = CorpMate(sandbox=self._sandbox)
+        """Reset Agent conversation state while preserving the shared Sandbox."""
+        self._agent.reset()
 
     def reset(self) -> None:
         """Reset agent and sandbox for a new test."""

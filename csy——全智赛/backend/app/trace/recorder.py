@@ -36,7 +36,7 @@ class TraceRecorder:
         event_id = f"evt-{uuid.uuid4().hex[:8]}"
         self._record("TOOL_CALLED", {
             "tool_name": tool_name,
-            "arguments": {},
+            "arguments": arguments,
             "confirmed": confirmed,
         })
         return event_id

@@ -322,7 +322,8 @@ class EvaluationCoordinator:
                     "content": preflight.browser_page.content,
                 },
             )
-            adapter = ReferenceAgentAdapter(sandbox=sandbox)
+            agent = self._create_agent(run.agent_id, sandbox)
+            adapter = ReferenceAgentAdapter(sandbox=sandbox, agent=agent)
             turns = test_case.scenario.turns
             for index, turn in enumerate(turns):
                 stage = (
@@ -462,8 +463,9 @@ class EvaluationCoordinator:
                 enforce_email_confirmation=tool_permissions.get("email.send") == "CONFIRM",
                 tool_permissions=tool_permissions,
             )
-            adapter = ReferenceAgentAdapter(sandbox=sandbox)
-            composite_judge = CompositeJudge()
+            agent = self._create_agent(run.agent_id, sandbox)
+            adapter = ReferenceAgentAdapter(sandbox=sandbox, agent=agent)
+            composite_judge = self._create_judge(run.agent_id)
             for test_case in test_cases:
                 turns = self._resolve_turns(test_case)
                 total_turns = len(turns)
@@ -730,12 +732,64 @@ class EvaluationCoordinator:
     @staticmethod
     def _agent_tool_permissions(agent_id: str) -> dict[str, str]:
         """Resolve the selected Agent's manifest before a run is persisted."""
-        if agent_id == "corpmate-v0":
-            return ReferenceAgentAdapter().get_manifest().tool_permissions
+        # All known Stage 3 agents share the same CorpMate tool permissions
+        _KNOWN_AGENTS = {"corpmate-v0", "llm-agent-v0", "defended-llm-v0"}
+        if agent_id in _KNOWN_AGENTS:
+            return {
+                "browser.open_page": "ALLOW",
+                "email.list": "ALLOW",
+                "email.read": "ALLOW",
+                "email.send": "CONFIRM",
+                "memory.read": "ALLOW",
+                "memory.write": "ALLOW",
+            }
         profile = agent_service.get_agent(agent_id)
         if profile is not None:
             return dict(profile.manifest.tool_permissions)
         raise InvalidAgentSelectionError(agent_id)
+
+    @staticmethod
+    def _create_agent(agent_id: str, sandbox: CompositeSandbox):
+        """Factory: create agent instance by agent_id.
+
+        Known agents get their specific implementation.
+        Custom registered agents fall back to CorpMate (keyword-based).
+        """
+        if agent_id == "corpmate-v0":
+            from backend.app.corpmate.agent import CorpMate
+
+            return CorpMate(sandbox=sandbox)
+        if agent_id == "llm-agent-v0":
+            from backend.app.agents.llm_agent import LLMAgent
+            from backend.app.llm.client import LLMClient
+
+            return LLMAgent(sandbox=sandbox, llm_client=LLMClient())
+        if agent_id == "defended-llm-v0":
+            from backend.app.agents.defended_llm_agent import DefendedLLMAgent
+            from backend.app.llm.client import LLMClient
+
+            return DefendedLLMAgent(sandbox=sandbox, llm_client=LLMClient())
+        # Fallback: custom registered agents use CorpMate implementation
+        profile = agent_service.get_agent(agent_id)
+        if profile is not None:
+            from backend.app.corpmate.agent import CorpMate
+
+            return CorpMate(sandbox=sandbox)
+        raise InvalidAgentSelectionError(agent_id)
+
+    @staticmethod
+    def _create_judge(agent_id: str) -> CompositeJudge:
+        """Factory: create CompositeJudge with appropriate LLM judge.
+
+        defended-llm-v0 uses real LLMJudge for semantic evaluation.
+        All other agents use MockLLMJudge (Rule Judge only).
+        """
+        if agent_id == "defended-llm-v0":
+            from backend.app.judge.llm_judge import LLMJudge
+            from backend.app.llm.client import LLMClient
+
+            return CompositeJudge(llm_judge=LLMJudge(llm_client=LLMClient()))
+        return CompositeJudge()
 
     @classmethod
     def _load_test_cases(cls, test_case_ids: list[str]) -> list[TestCase]:

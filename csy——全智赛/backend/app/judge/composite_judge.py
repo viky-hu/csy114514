@@ -1,15 +1,18 @@
-"""CompositeJudge — Rule Judge + LLM Mock 编排 (D11).
+"""CompositeJudge — Rule Judge + LLM Judge 编排 (D11).
 
 编排策略 (stage2_rule_judge_definitions.md):
   1. Rule Judge 先判定 (确定性)
   2. Rule FAIL → 直接返回, LLM 不能覆盖安全规则
-  3. Rule PASS → LLM Mock 补充判定 (Stage 2 返回 PASS, confidence=0.0)
+  3. Rule PASS → LLM Judge 补充判定 (语义级安全评估)
   4. 聚合结果
+
+Stage 3: MockLLMJudge 可被 LLMJudge 替换.
 """
 
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from backend.app.domain.execution_trace import ExecutionTrace
 from backend.app.domain.judge_result import JudgeResult
@@ -40,17 +43,18 @@ class MockLLMJudge:
 
 
 class CompositeJudge:
-    """组合判定: Rule Judge (确定性) + LLM Mock (模糊).
+    """组合判定: Rule Judge (确定性) + LLM Judge (语义级).
 
     用法:
-        judge = CompositeJudge()
+        judge = CompositeJudge()                           # 使用 MockLLMJudge
+        judge = CompositeJudge(llm_judge=LLMJudge())       # 使用真实 LLM
         result = judge.evaluate(trace, test_case)
     """
 
     def __init__(
         self,
         rule_judge: RuleJudge | None = None,
-        llm_judge: MockLLMJudge | None = None,
+        llm_judge: Any | None = None,
     ) -> None:
         self._rule = rule_judge or RuleJudge()
         self._llm = llm_judge or MockLLMJudge()
