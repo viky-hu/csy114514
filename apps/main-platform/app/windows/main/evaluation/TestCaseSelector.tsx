@@ -4,6 +4,7 @@ import { CheckSquare2, CircleAlert, LoaderCircle, Search, Square, X } from "luci
 import { useMemo, useState } from "react";
 import { useLoadingTip } from "../../shared/loading-tips";
 import { useEvaluationWorkspace } from "./EvaluationWorkspaceProvider";
+import { EVALUATION_AGENT_OPTIONS } from "./evaluation-agent";
 import { filterTestCases } from "./test-case-selection";
 
 const RISK_PATTERNS = ["ALL", "R1", "R2", "R3", "R4"] as const;
@@ -19,6 +20,8 @@ export function TestCaseSelector() {
     isBootstrapping,
     testCaseError,
     error,
+    evaluationAgentId,
+    setEvaluationAgentId,
   } = useEvaluationWorkspace();
   const [query, setQuery] = useState("");
   const [riskPattern, setRiskPattern] = useState<(typeof RISK_PATTERNS)[number]>("ALL");
@@ -49,6 +52,7 @@ export function TestCaseSelector() {
       <div className="evaluation-selector-toolbar">
         <label className="evaluation-search-control"><Search size={15} /><span className="evaluation-visually-hidden">搜索 TestCase</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 ID、名称或风险类型" /></label>
         <label className="evaluation-pattern-control"><span className="evaluation-visually-hidden">风险路径</span><select value={riskPattern} onChange={(event) => setRiskPattern(event.target.value as (typeof RISK_PATTERNS)[number])}>{RISK_PATTERNS.map((pattern) => <option key={pattern} value={pattern}>{pattern === "ALL" ? "全部路径" : pattern}</option>)}</select></label>
+        <label className="evaluation-agent-control"><span className="evaluation-visually-hidden">Agent 类型</span><select value={evaluationAgentId} onChange={(event) => setEvaluationAgentId(event.target.value)}>{EVALUATION_AGENT_OPTIONS.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label>
         <button type="button" className="evaluation-secondary-button" onClick={toggleVisible} disabled={filtered.length === 0}>{allFilteredSelected ? <CheckSquare2 size={15} /> : <Square size={15} />}{allFilteredSelected ? "取消当前结果" : `选择当前结果 (${filtered.length})`}</button>
         <button type="button" className="evaluation-icon-command" title="清空选择" aria-label="清空选择" onClick={() => setSelectedTestCaseIds([])} disabled={selectedTestCaseIds.length === 0}><X size={16} /></button>
       </div>

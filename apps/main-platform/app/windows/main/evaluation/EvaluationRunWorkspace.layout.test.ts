@@ -6,6 +6,7 @@ const source = readFileSync(
   new URL("./EvaluationRunWorkspace.tsx", import.meta.url),
   "utf8",
 );
+const runSource = source;
 const styles = readFileSync(
   new URL("../../../styles/window-3-evaluation.css", import.meta.url),
   "utf8",
@@ -50,4 +51,10 @@ test("legacy R4 offers TestCase reselection whenever it is not running", () => {
     styles,
     /@container evaluation-page \(max-width: 920px\)[\s\S]*?\.evaluation-rail-action \{ grid-column: 1 \/ -1; grid-row: auto; display: flex; align-items: center; justify-content: flex-end; \}/,
   );
+});
+
+test("run workspace renders Agent identity and LLM inference status", () => {
+  assert.match(runSource, /EvaluationAgentBadge/);
+  assert.match(runSource, /EvaluationInferenceStatus/);
+  assert.match(runSource, /activeInference/);
 });

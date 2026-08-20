@@ -194,3 +194,14 @@
 - Boundary: selecting a valid JPG/PNG/WebP creates a temporary Object URL and opens the crop Dialog. Cancel releases that URL without changing profile state; confirm creates a transient Data URL preview plus a pending PNG file, and only Save Profile uploads it. Base64 data is never persisted, existing remote avatars are not re-cropped, and crop/export failures preserve the saved avatar.
 - Styling: the crop tool extends the existing account Dialog language with a dark inspection stage, thin blue/white crop rules, a numeric range slider, and a 96px square preview. Narrow viewports stack the preview below the stage; reduced motion disables Dialog entrance movement without changing final visibility.
 - Validation: run avatar Canvas/unit tests, account structure tests, all account BFF tests, full lint, type-check, and production build; manually verify mouse/touch drag, wheel and slider zoom, same-file reselection, immediate confirm after movement, cancellation cleanup, upload rollback, narrow layout, and keyboard focus containment.
+
+## 2026-08-20 Evaluation Stage 3 A1/A2 Review Checklist
+
+- [ ] Evaluation Agent selection is local to `EvaluationWorkspaceProvider` and sends the selected value only as `POST /evaluations.agent_id`; it does not mutate `MainWindow.activeAgentId`, Agent configuration, graph data, or graph reload state.
+- [ ] Default selection is `defended-llm-v0`; Anatomy handoff changes only TestCase selection; restored runs display `run.agent_id` and reports display `report.agent_id` as server truth.
+- [ ] Unknown Agent IDs use a neutral fallback and are never treated as LLMs for inference timing.
+- [ ] Inference display pairs `AGENT_INVOKED` and `AGENT_RESPONDED` only through explicit batch `test_case_id + turn_index` or legacy `turn_id + session_id` fields. Missing fields never trigger guessed pairing.
+- [ ] Inference timers update elapsed presentation only. They do not synthesize SSE events, alter reducer state, calculate verdicts, or change `BatchProgressPanel` / `EvaluationTerminal` behavior.
+- [ ] `email.send` confirmation recognizes only unconfirmed `TOOL_CALLED`, deduplicates replay by `event_id`, exposes only a safe recipient label, and records allowed/denied/dismissed locally without a backend request or event mutation.
+- [ ] SSE parsing/replay and the generated backend contract remain unchanged. Do not add `defense_summary`, `agent_type`, or `defense_labels` until the backend OpenAPI source and generated `backend-api.d.ts` contain them.
+- [ ] Validation covers focused tests, app type-check, lint/build, keyboard Dialog behavior, 390/1024/1440px layouts, replay deduplication, both legacy and batch inference correlation, and reduced-motion behavior.

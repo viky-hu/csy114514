@@ -46,3 +46,9 @@ test("evaluation report loading and unavailable states use reporting or error ti
   assert.match(source, /useLoadingTip/);
   assert.doesNotMatch(source, /正在从持久化证据中装载报告。/);
 });
+
+test("evaluation inference status uses shared running tips", () => {
+  const source = read("../main/evaluation/EvaluationInferenceStatus.tsx");
+  assert.match(source, /useLoadingTip/);
+  assert.match(source, /推理时间较长，请耐心等待/);
+});
