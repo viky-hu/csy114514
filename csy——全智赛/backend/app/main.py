@@ -61,6 +61,29 @@ async def lifespan(_: FastAPI):
     # Auto-register CorpMate v0 so GET /agents/corpmate-v0/graph works immediately.
     agent_service.register_agent(_CORPMATE_MANIFEST)
     logger.info("Auto-registered CorpMate v0 (agent_id=corpmate-v0)")
+
+    # Stage 3: register LLM Agent and Defended LLM Agent manifests
+    _LLM_AGENT_MANIFEST = AgentManifest(
+        agent_id="llm-agent-v0",
+        name="LLM Agent v0 (Bare)",
+        version="0.1.0",
+        capabilities=_CORPMATE_MANIFEST.capabilities,
+        data_sources=_CORPMATE_MANIFEST.data_sources,
+        memory=_CORPMATE_MANIFEST.memory,
+        tool_permissions=_CORPMATE_MANIFEST.tool_permissions,
+    )
+    _DEFENDED_MANIFEST = AgentManifest(
+        agent_id="defended-llm-v0",
+        name="Defended LLM Agent v0",
+        version="0.1.0",
+        capabilities=_CORPMATE_MANIFEST.capabilities,
+        data_sources=_CORPMATE_MANIFEST.data_sources,
+        memory=_CORPMATE_MANIFEST.memory,
+        tool_permissions=_CORPMATE_MANIFEST.tool_permissions,
+    )
+    agent_service.register_agent(_LLM_AGENT_MANIFEST)
+    agent_service.register_agent(_DEFENDED_MANIFEST)
+    logger.info("Auto-registered LLM Agent v0 + Defended LLM v0")
     try:
         yield
     finally:
