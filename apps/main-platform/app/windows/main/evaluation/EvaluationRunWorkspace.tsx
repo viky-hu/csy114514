@@ -11,6 +11,8 @@ import {
   type LoadingTipCategory,
 } from "../../shared/loading-tips";
 import { BatchProgressPanel } from "./BatchProgressPanel";
+import { EvaluationAgentBadge } from "./EvaluationAgentBadge";
+import { EvaluationInferenceStatus } from "./EvaluationInferenceStatus";
 import { useEvaluationWorkspace, EvaluationWorkspaceStatusAnnouncer, type EvaluationWorkspaceNavigate } from "./EvaluationWorkspaceProvider";
 import { EVALUATION_STAGES, eventText, finalJudgeVerdict, type EvaluationStage, type SequencedEvent } from "./evaluation-types";
 import { TestCaseSelector } from "./TestCaseSelector";
@@ -228,7 +230,7 @@ function EvaluationTerminal({ emptyTip, events }: { emptyTip: string; events: Se
 }
 
 export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewReport?: () => void; onNavigate?: EvaluationWorkspaceNavigate }) {
-  const { run, events, activeStage, isBootstrapping, isLoadingTestCases, testCaseError, error, startEvaluation } = useEvaluationWorkspace();
+  const { run, events, activeStage, isBootstrapping, isLoadingTestCases, testCaseError, error, startEvaluation, evaluationAgentId, activeInference } = useEvaluationWorkspace();
   const stage = activeStage ?? "web_content_injection";
   const isLegacyR4 = run?.test_case_ids.length === 1 && run.test_case_ids[0] === "tc_pipi_001";
   const tipPhase = resolveEvaluationLoadingTipPhase({
@@ -248,7 +250,8 @@ export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewRep
   const statusText = showStatusTip ? statusTip : run?.status ?? "选择用例";
   return <section className={`evaluation-page evaluation-run-page ${!run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
     <EvaluationWorkspaceStatusAnnouncer />
-    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><span className={`evaluation-run-status is-${run?.status ?? "selection"}`}>{statusText}</span></header>
+    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><div className="evaluation-run-header-actions"><EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} /><span className={`evaluation-run-status is-${run?.status ?? "selection"}`}>{statusText}</span></div></header>
+    {run && activeInference && <EvaluationInferenceStatus />}
     {!run ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={events} runStatus={run.status} /><EvaluationTerminal emptyTip={statusTip} events={events} /></div></> : <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} /><EvaluationTerminal emptyTip={statusTip} events={events} /></div>}
   </section>;
 }

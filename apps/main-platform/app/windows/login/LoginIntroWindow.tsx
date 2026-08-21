@@ -33,7 +33,7 @@ type AgentEntryStage = "idle" | "loading" | "done";
 
 const SYSTEM_TITLE_PRIMARY = "Agent 安全评估平台";
 const SYSTEM_TITLE_SECONDARY = "可解释攻击链路可视化系统";
-const BRAND_WORD = "AegisTrace";
+const BRAND_WORD = "AgentProof";
 const CTA_LOGIN_PRIMARY = "账号";
 const CTA_LOGIN_SECONDARY = "登录";
 const CTA_AUTHENTICATED_PRIMARY = "已登录";

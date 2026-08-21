@@ -13,6 +13,11 @@ const providerSource = readFileSync(
   "utf8",
 );
 
+const agentSource = readFileSync(
+  new URL("./evaluation-agent.ts", import.meta.url),
+  "utf8",
+);
+
 const evaluationStyles = readFileSync(
   new URL("../../../styles/window-3-evaluation.css", import.meta.url),
   "utf8",
@@ -50,4 +55,13 @@ test("selector checkbox stays within its row and selected decoration does not ch
     evaluationStyles,
     /\.evaluation-selector-row\.is-selected\s*\{[^}]*\b(?:margin|grid-template-columns|position)\s*:/s,
   );
+});
+
+test("selector exposes the Stage 3 Agent choices without owning TestCase state", () => {
+  assert.match(selectorSource, /evaluationAgentId/);
+  assert.match(selectorSource, /setEvaluationAgentId/);
+  assert.match(agentSource, /corpmate-v0/);
+  assert.match(agentSource, /llm-agent-v0/);
+  assert.match(agentSource, /defended-llm-v0/);
+  assert.match(selectorSource, /value=\{evaluationAgentId\}/);
 });

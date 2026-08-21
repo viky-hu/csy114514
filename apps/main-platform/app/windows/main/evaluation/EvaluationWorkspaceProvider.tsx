@@ -12,6 +12,13 @@ import {
 } from "react";
 import { EVALUATION_HANDOFF_EVENT, readEvaluationHandoff, type EvaluationHandoff } from "../../shared/evaluation-handoff";
 import { DEFAULT_AGENT_ID } from "../../shared/agent-config";
+import { EmailConfirmationDialog } from "./EmailConfirmationDialog";
+import {
+  DEFAULT_EVALUATION_AGENT_ID,
+  getEvaluationAgentMeta,
+  type EvaluationAgentId,
+} from "./evaluation-agent";
+import { enqueueEmailConfirmation, getEmailConfirmationFromEvent, resolveEmailConfirmationQueue, type EmailConfirmation, type EmailConfirmationDecision } from "./email-confirmation";
 import {
   clearEvaluationWorkspaceSession,
   readStoredEvaluationRunId,
@@ -28,6 +35,7 @@ import {
   type SequencedEvent,
   type TestCaseSummary,
 } from "./evaluation-types";
+import { findActiveInference, type ActiveInference } from "./inference-status";
 import {
   selectHandoffTestCase,
   toggleTestCaseSelection as toggleTestCaseSelectionIds,
@@ -42,6 +50,9 @@ type ProviderState = {
   trace: ExecutionTrace | null;
   testCases: TestCaseSummary[];
   selectedTestCaseIds: string[];
+  evaluationAgentId: EvaluationAgentId;
+  emailConfirmations: EmailConfirmation[];
+  emailConfirmationDecisions: Record<string, EmailConfirmationDecision>;
   isBootstrapping: boolean;
   isLoadingTestCases: boolean;
   isStarting: boolean;
@@ -60,6 +71,10 @@ type WorkspaceContextValue = ProviderState & {
   toggleTestCaseSelection: (testCaseId: string) => void;
   loadReport: () => Promise<void>;
   clearReportError: () => void;
+  setEvaluationAgentId: (agentId: EvaluationAgentId) => void;
+  activeInference: ActiveInference | null;
+  pendingEmailConfirmation: EmailConfirmation | null;
+  resolveEmailConfirmation: (eventId: string, decision: EmailConfirmationDecision) => void;
 };
 
 export type EvaluationWorkspaceNavigate = (key: "run" | "report") => void;
@@ -111,6 +126,9 @@ export function EvaluationWorkspaceProvider({
     trace: null,
     testCases: [],
     selectedTestCaseIds: [],
+    evaluationAgentId: DEFAULT_EVALUATION_AGENT_ID,
+    emailConfirmations: [],
+    emailConfirmationDecisions: {},
     isBootstrapping: true,
     isLoadingTestCases: true,
     isStarting: false,
@@ -121,6 +139,7 @@ export function EvaluationWorkspaceProvider({
   });
   const sourceRef = useRef<EventSource | null>(null);
   const cursorRef = useRef(0);
+  const seenEmailEventIdsRef = useRef(new Set<string>());
 
   const closeStream = useCallback(() => {
     sourceRef.current?.close();
@@ -130,6 +149,7 @@ export function EvaluationWorkspaceProvider({
   const setRun = useCallback((run: EvaluationRun, preserveEvents = true) => {
     if (!preserveEvents) {
       cursorRef.current = 0;
+      seenEmailEventIdsRef.current.clear();
     }
     setState((current) => ({
       ...current,
@@ -138,10 +158,15 @@ export function EvaluationWorkspaceProvider({
       events: preserveEvents ? current.events : [],
       activeStage: preserveEvents ? run.current_stage ?? current.activeStage : run.current_stage ?? null,
       selectedTestCaseIds: run.test_case_ids,
+      evaluationAgentId: run.agent_id as EvaluationAgentId,
+      emailConfirmations: preserveEvents ? current.emailConfirmations : [],
+      emailConfirmationDecisions: preserveEvents ? current.emailConfirmationDecisions : {},
       error: run.error?.message ?? null,
       isBootstrapping: false,
     }));
   }, []);
+
+  void activeAgentId;
 
   const startEvaluation = useCallback(async () => {
     const runId = state.evaluationId;
@@ -185,20 +210,18 @@ export function EvaluationWorkspaceProvider({
 
   const prepareEvaluation = useCallback(async () => {
     if (state.selectedTestCaseIds.length === 0 || state.isBootstrapping) return;
-    const handoff = readEvaluationHandoff();
-    const agentId = handoff && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : activeAgentId;
+    const agentId = state.evaluationAgentId;
     setState((current) => ({ ...current, isBootstrapping: true, error: null }));
     try {
       await createEvaluation(agentId, state.selectedTestCaseIds);
     } catch (error) {
       setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "测评任务创建失败" }));
     }
-  }, [activeAgentId, createEvaluation, state.isBootstrapping, state.selectedTestCaseIds]);
+  }, [createEvaluation, state.evaluationAgentId, state.isBootstrapping, state.selectedTestCaseIds]);
 
   const retryEvaluation = useCallback(async () => {
     closeStream();
-    const handoff = readEvaluationHandoff();
-    const agentId = handoff && typeof handoff.agentId === "string" && handoff.agentId.trim() ? handoff.agentId : activeAgentId;
+    const agentId = state.evaluationAgentId;
     setState((current) => ({ ...current, isBootstrapping: true, error: null }));
     try {
       const testCaseIds = state.run?.test_case_ids.length ? state.run.test_case_ids : state.selectedTestCaseIds;
@@ -207,12 +230,13 @@ export function EvaluationWorkspaceProvider({
     } catch (error) {
       setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "无法创建新的测评" }));
     }
-  }, [activeAgentId, closeStream, createEvaluation, state.run?.test_case_ids, state.selectedTestCaseIds]);
+  }, [closeStream, createEvaluation, state.evaluationAgentId, state.run?.test_case_ids, state.selectedTestCaseIds]);
 
   const resetEvaluationSelection = useCallback(() => {
     closeStream();
     clearEvaluationWorkspaceSession();
     cursorRef.current = 0;
+    seenEmailEventIdsRef.current.clear();
     setState((current) => ({
       ...current,
       run: null,
@@ -226,6 +250,8 @@ export function EvaluationWorkspaceProvider({
       isLoadingReport: false,
       error: null,
       reportError: null,
+      emailConfirmations: [],
+      emailConfirmationDecisions: {},
     }));
   }, [closeStream]);
 
@@ -233,6 +259,7 @@ export function EvaluationWorkspaceProvider({
     closeStream();
     clearEvaluationWorkspaceSession();
     cursorRef.current = 0;
+    seenEmailEventIdsRef.current.clear();
     setState((current) => ({
       ...current,
       run: null,
@@ -247,6 +274,8 @@ export function EvaluationWorkspaceProvider({
       isLoadingReport: false,
       error: null,
       reportError: null,
+      emailConfirmations: [],
+      emailConfirmationDecisions: {},
     }));
   }, [closeStream]);
 
@@ -358,6 +387,33 @@ export function EvaluationWorkspaceProvider({
     return closeStream;
   }, [closeStream, runStatus, setRun, state.evaluationId]);
 
+  useEffect(() => {
+    for (const event of state.events) {
+      const confirmation = getEmailConfirmationFromEvent(event);
+      const result = enqueueEmailConfirmation([], confirmation, seenEmailEventIdsRef.current);
+      if (!confirmation || result.queue.length === 0) continue;
+      setState((current) => ({
+        ...current,
+        emailConfirmations: [...current.emailConfirmations, ...result.queue],
+      }));
+    }
+  }, [state.events]);
+
+  const inferenceAgentId = state.run?.agent_id ?? state.evaluationAgentId;
+  const [inferenceNow, setInferenceNow] = useState(() => Date.now());
+  const activeInference = useMemo(
+    () => findActiveInference(state.events, inferenceAgentId, inferenceNow),
+    [inferenceAgentId, inferenceNow, state.events],
+  );
+  const pendingEmailConfirmation = state.emailConfirmations[0] ?? null;
+
+  useEffect(() => {
+    if (!activeInference || !getEvaluationAgentMeta(inferenceAgentId).isLlm) return;
+    setInferenceNow(Date.now());
+    const timer = window.setInterval(() => setInferenceNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [activeInference?.invoked.event_id, inferenceAgentId]);
+
   useEffect(() => () => closeStream(), [closeStream]);
 
   const loadReport = useCallback(async () => {
@@ -389,6 +445,16 @@ export function EvaluationWorkspaceProvider({
   }, [loadReport, state.isLoadingReport, state.report, state.run?.status]);
 
   const clearReportError = useCallback(() => setState((current) => ({ ...current, reportError: null })), []);
+  const setEvaluationAgentId = useCallback((agentId: EvaluationAgentId) => {
+    setState((current) => ({ ...current, evaluationAgentId: agentId }));
+  }, []);
+  const resolveEmailConfirmation = useCallback((eventId: string, decision: EmailConfirmationDecision) => {
+    setState((current) => ({
+      ...current,
+      emailConfirmations: resolveEmailConfirmationQueue(current.emailConfirmations, eventId, decision),
+      emailConfirmationDecisions: { ...current.emailConfirmationDecisions, [eventId]: decision },
+    }));
+  }, []);
   const setSelectedTestCaseIds = useCallback((ids: string[]) => {
     setState((current) => ({ ...current, selectedTestCaseIds: [...new Set(ids)] }));
   }, []);
@@ -398,9 +464,26 @@ export function EvaluationWorkspaceProvider({
       selectedTestCaseIds: toggleTestCaseSelectionIds(current.selectedTestCaseIds, testCaseId),
     }));
   }, []);
-  const value = useMemo(() => ({ ...state, startEvaluation, prepareEvaluation, retryEvaluation, resetEvaluationSelection, setSelectedTestCaseIds, toggleTestCaseSelection, loadReport, clearReportError }), [clearReportError, loadReport, prepareEvaluation, resetEvaluationSelection, retryEvaluation, setSelectedTestCaseIds, startEvaluation, state, toggleTestCaseSelection]);
+  const value = useMemo(() => ({
+    ...state,
+    startEvaluation,
+    prepareEvaluation,
+    retryEvaluation,
+    resetEvaluationSelection,
+    setSelectedTestCaseIds,
+    toggleTestCaseSelection,
+    loadReport,
+    clearReportError,
+    setEvaluationAgentId,
+    activeInference,
+    pendingEmailConfirmation,
+    resolveEmailConfirmation,
+  }), [activeInference, clearReportError, loadReport, pendingEmailConfirmation, prepareEvaluation, resetEvaluationSelection, resolveEmailConfirmation, retryEvaluation, setEvaluationAgentId, setSelectedTestCaseIds, startEvaluation, state, toggleTestCaseSelection]);
 
-  return <EvaluationWorkspaceContext.Provider value={value}>{children}</EvaluationWorkspaceContext.Provider>;
+  return <EvaluationWorkspaceContext.Provider value={value}>
+    {children}
+    <EmailConfirmationDialog confirmation={pendingEmailConfirmation} onDecision={resolveEmailConfirmation} />
+  </EvaluationWorkspaceContext.Provider>;
 }
 
 export function useEvaluationWorkspace() {

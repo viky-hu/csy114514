@@ -31,9 +31,9 @@ if not defined PYTHON_EXE (
     goto :startup_error
 )
 
-"%PYTHON_EXE%" -c "import fastapi, uvicorn, fastapi.sse" >nul 2>&1
+"%PYTHON_EXE%" -c "import fastapi, uvicorn, fastapi.sse, networkx" >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] FastAPI dependencies are unavailable.
+    echo [ERROR] Backend dependencies are unavailable.
     echo Python: %PYTHON_EXE%
     echo Run: "%PYTHON_EXE%" -m pip install -r "%BACKEND_DIR%\requirements.txt"
     goto :startup_error
