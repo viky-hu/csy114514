@@ -124,6 +124,7 @@ class DefendedLLMAgent(LLMAgent):
                 tool_name = tc["tool_name"]
                 arguments = tc["arguments"]
                 blocked = False
+                user_intent_confirmed = False  # Track D6 user-intent for D3
 
                 # D5: Causal chain detection
                 chain_labels = self.chain_detector.check_and_record(tool_name)
@@ -146,6 +147,8 @@ class DefendedLLMAgent(LLMAgent):
                             f"D6:page_instructed_{tool_name}"
                         )
                         blocked = True
+                    elif intent == "user_intent" and confidence >= 0.7:
+                        user_intent_confirmed = True
 
                 # D7: Memory audit (only for memory.write)
                 if not blocked and tool_name == "memory.write":
@@ -186,12 +189,19 @@ class DefendedLLMAgent(LLMAgent):
                         blocked = True
 
                 if not blocked:
+                    tc["_user_intent_confirmed"] = user_intent_confirmed
                     filtered_calls.append(tc)
 
             # D3: Confirmation enforcement
             for tc in filtered_calls:
                 if tc["tool_name"] in CONFIRM_REQUIRED_TOOLS:
-                    tc["confirmed"] = False
+                    # If D6 classified as user_intent with high confidence,
+                    # the user explicitly requested this — treat as confirmed
+                    if tc.pop("_user_intent_confirmed", False):
+                        tc["confirmed"] = True
+                        self.defense_labels.append("D3:user_confirmed")
+                    else:
+                        tc["confirmed"] = False
 
             all_tool_calls.extend(filtered_calls)
 

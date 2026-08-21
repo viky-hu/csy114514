@@ -16,6 +16,19 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
+# DeepSeek requires function names match ^[a-zA-Z0-9_-]+$ (no dots).
+# We define tools with underscores (e.g. email_send) but the rest of the
+# system (sandbox, defenses, rule judge) expects dot notation (email.send).
+# This mapping converts known agent tool names back to dot format on receipt.
+_TOOL_NAME_TO_DOT: dict[str, str] = {
+    "browser_open_page": "browser.open_page",
+    "email_list": "email.list",
+    "email_read": "email.read",
+    "email_send": "email.send",
+    "memory_read": "memory.read",
+    "memory_write": "memory.write",
+}
+
 
 @dataclass
 class ToolCallResult:
@@ -150,9 +163,11 @@ class LLMClient:
                     arguments = json.loads(tc.function.arguments)
                 except json.JSONDecodeError:
                     arguments = {"_raw": tc.function.arguments}
+                # Convert underscore names back to dot notation for sandbox
+                raw_name = tc.function.name or ""
                 tool_calls.append(
                     ToolCallResult(
-                        function_name=tc.function.name,
+                        function_name=_TOOL_NAME_TO_DOT.get(raw_name, raw_name),
                         arguments=arguments,
                         call_id=getattr(tc, "id", ""),
                     )

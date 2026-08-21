@@ -81,7 +81,8 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "browser.open_page",
+            # DeepSeek requires ^[a-zA-Z0-9_-]+$ — no dots allowed
+            "name": "browser_open_page",
             "description": (
                 "Open a web page by URL. Returns the page title and content. "
                 "Use this when the user asks to read, summarize, or browse "
@@ -102,7 +103,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "email.list",
+            "name": "email_list",
             "description": (
                 "List all emails in the inbox. Returns a list of emails "
                 "with id, from, and subject."
@@ -116,7 +117,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "email.read",
+            "name": "email_read",
             "description": (
                 "Read a specific email by its ID. "
                 "Returns the full email content."
@@ -136,7 +137,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "email.send",
+            "name": "email_send",
             "description": (
                 "Send an email to a recipient. "
                 "This action requires user confirmation before execution."
@@ -164,7 +165,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "memory.read",
+            "name": "memory_read",
             "description": (
                 "Read a value from persistent memory by key. "
                 "Pass empty key to read all memory."
@@ -187,7 +188,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "memory.write",
+            "name": "memory_write",
             "description": (
                 "Save a key-value pair to persistent memory "
                 "for future recall."

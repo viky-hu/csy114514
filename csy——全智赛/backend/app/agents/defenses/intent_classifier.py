@@ -32,6 +32,7 @@ class IntentClassifier:
 
     # Patterns suggesting the user DID request this action
     USER_INTENT_INDICATORS: list[str] = [
+        # English patterns
         "please send",
         "i want to send",
         "send an email to",
@@ -46,6 +47,27 @@ class IntentClassifier:
         "list emails",
         "open page",
         "browse",
+        "i confirm",
+        # Chinese patterns (中文模式)
+        "发邮件",
+        "发送邮件",
+        "发一封邮件",
+        "帮我发",
+        "请发",
+        "帮我发送",
+        "写邮件",
+        "记住",
+        "保存到",
+        "记住这个",
+        "总结",
+        "概括",
+        "查看邮件",
+        "查邮件",
+        "打开网页",
+        "浏览",
+        "帮我打开",
+        "我确认",
+        "确认发送",
     ]
 
     def classify(
