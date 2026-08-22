@@ -2,11 +2,18 @@
 
 职责: 检查 LLM 返回的 tool calls, 判断是否源自页面指令而非用户意图.
 在 DefendedLLMAgent 中, 每次 LLM 返回 tool calls 后经过 OutputFilter 审查.
+
+Stage 3 增强:
+  - 未知收件人检测: 收件人不在用户原始输入中但出现在页面内容中
+  - 中文可疑模式检测
+  - 更全面的域名匹配
 """
 from __future__ import annotations
 
+import re
 
-# Recipients that are clearly suspicious
+
+# Recipients that are clearly suspicious (EN + ZH)
 _SUSPICIOUS_RECIPIENT_PATTERNS: list[str] = [
     "attacker",
     "evil.com",
@@ -15,16 +22,21 @@ _SUSPICIOUS_RECIPIENT_PATTERNS: list[str] = [
     "hacker",
     "malicious",
     "exfiltrate",
+    "drop-zone",
+    "shadow.",
+    "collector@",
+    "harvest@",
+    "thief@",
+    "exfil@",
+    "data-thief",
+    "backup-collector",
+    "order-track@",
+    "vendor-collect",
+    "audit@external",
 ]
 
-# Domains/patterns that suggest data exfiltration
-_EXFIL_PATTERNS: list[str] = [
-    "attacker@",
-    "evil.",
-    "exfil",
-    "external-archive",
-    "drop-zone",
-]
+# Email address extraction regex
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
 
 class OutputFilter:
@@ -39,9 +51,10 @@ class OutputFilter:
         """Review tool calls, return (allowed_calls, defense_labels).
 
         Checks:
-        1. email.send to suspicious recipients not in user's request
-        2. Tool call arguments derived from page content (IPI)
-        3. memory.write with suspicious content from pages
+        1. email.send to suspicious recipients
+        2. email.send to recipient from page (not in user input)
+        3. Tool call arguments derived from page content (IPI)
+        4. memory.write with suspicious content from pages
         """
         allowed = []
         defense_labels: list[str] = []
@@ -52,14 +65,24 @@ class OutputFilter:
             tool_name = tc.get("tool_name", "")
             arguments = tc.get("arguments", {})
 
-            # Check 1: email.send to suspicious recipients
+            # Check 1: email.send
             if tool_name == "email.send":
                 to_addr = str(arguments.get("to", ""))
+
+                # 1a: Known suspicious recipient patterns
                 if self._is_suspicious_recipient(to_addr):
                     blocked = True
                     defense_labels.append("D2:suspicious_recipient")
 
-                # Check: email body/subject derived from page content
+                # 1b: Recipient from page, not in user input
+                if not blocked and to_addr:
+                    if self._recipient_from_page(
+                        to_addr, original_user_input, page_contents
+                    ):
+                        blocked = True
+                        defense_labels.append("D2:recipient_from_page")
+
+                # 1c: Email body/subject derived from page content
                 if not blocked and page_contents:
                     body = str(arguments.get("body", ""))
                     subject = str(arguments.get("subject", ""))
@@ -93,6 +116,40 @@ class OutputFilter:
         return any(p in to_lower for p in _SUSPICIOUS_RECIPIENT_PATTERNS)
 
     @staticmethod
+    def _recipient_from_page(
+        to_addr: str,
+        user_input: str,
+        page_contents: list[str],
+    ) -> bool:
+        """Check if the email recipient came from page content, not user input.
+
+        If the recipient address appears in page content but NOT in the
+        user's original request, it was likely injected by IPI.
+        """
+        if not to_addr or not page_contents:
+            return False
+
+        # Normalize for comparison
+        to_lower = to_addr.lower().strip()
+
+        # Check if user explicitly mentioned this recipient
+        user_lower = user_input.lower()
+        if to_lower in user_lower:
+            return False  # User mentioned it — legitimate
+
+        # Also check if user mentioned any email at all with this domain
+        user_emails = _EMAIL_RE.findall(user_input)
+        if any(e.lower() == to_lower for e in user_emails):
+            return False
+
+        # Check if the recipient appears in page content
+        for page in page_contents:
+            if to_lower in page.lower():
+                return True  # Found in page but not in user input → suspicious
+
+        return False
+
+    @staticmethod
     def _content_from_page(text: str, page_contents: list[str]) -> bool:
         """Check if text appears to originate from page content.
 
@@ -118,7 +175,13 @@ class OutputFilter:
         """Check if memory write contains suspicious forwarding instructions."""
         combined = f"{key} {value}".lower()
         suspicious = [
+            # English
             "forward", "attacker", "evil", "external-archive",
-            "vendor_preference", "send to",
+            "vendor_preference", "send to", "exfiltrate",
+            "email_preference", "auto_forward", "forwarding_rule",
+            # Chinese
+            "转发", "发送到", "抄送给", "忽略之前",
+            "新指令", "系统更新", "管理员要求",
+            "邮件转发", "自动转发",
         ]
         return any(s in combined for s in suspicious)
