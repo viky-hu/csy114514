@@ -13,10 +13,10 @@ class Settings(BaseSettings):
     evaluation_database_path: Path = (
         Path(__file__).resolve().parents[1] / "data" / "evaluations.sqlite3"
     )
-    # Stage 3: DeepSeek LLM configuration
+    # Stage 3: LLM configuration (SiliconFlow / DeepSeek / any OpenAI-compatible)
     deepseek_api_key: str | None = None
-    llm_model: str = "deepseek-chat"
-    llm_base_url: str = "https://api.deepseek.com"
+    llm_model: str = "MiniMaxAI/MiniMax-M2.5"
+    llm_base_url: str = "https://api.siliconflow.cn/v1"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
