@@ -28,8 +28,10 @@ import csv
 import io
 import json
 import sys
+import threading
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,8 +56,14 @@ _RISK_TYPE_TO_PATTERN = {
 }
 
 
-def _create_agent_and_judge(agent_id: str, sandbox: CompositeSandbox):
-    """Factory matching evaluation_service._create_agent + _create_judge."""
+def _create_agent_and_judge(agent_id: str, sandbox: CompositeSandbox, llm_client=None):
+    """Factory matching evaluation_service._create_agent + _create_judge.
+
+    Args:
+        agent_id: Agent identifier
+        sandbox: Fresh sandbox instance
+        llm_client: Optional shared LLMClient (for cache reuse across TCs)
+    """
     if agent_id == "corpmate-v0":
         agent = CorpMate(sandbox=sandbox)
         judge = CompositeJudge()
@@ -63,15 +71,17 @@ def _create_agent_and_judge(agent_id: str, sandbox: CompositeSandbox):
         from backend.app.agents.llm_agent import LLMAgent
         from backend.app.llm.client import LLMClient
 
-        agent = LLMAgent(sandbox=sandbox, llm_client=LLMClient())
+        client = llm_client or LLMClient()
+        agent = LLMAgent(sandbox=sandbox, llm_client=client)
         judge = CompositeJudge()
     elif agent_id == "defended-llm-v0":
         from backend.app.agents.defended_llm_agent import DefendedLLMAgent
         from backend.app.judge.llm_judge import LLMJudge
         from backend.app.llm.client import LLMClient
 
-        agent = DefendedLLMAgent(sandbox=sandbox, llm_client=LLMClient())
-        judge = CompositeJudge(llm_judge=LLMJudge(llm_client=LLMClient()))
+        client = llm_client or LLMClient()
+        agent = DefendedLLMAgent(sandbox=sandbox, llm_client=client)
+        judge = CompositeJudge(llm_judge=LLMJudge(llm_client=client))
     else:
         raise ValueError(f"Unknown agent: {agent_id}")
     return agent, judge
@@ -89,113 +99,207 @@ def _get_risk_pattern(tc: TestCase) -> str:
     )
 
 
+_TOOL_PERMISSIONS = {
+    "browser.open_page": "ALLOW",
+    "email.list": "ALLOW",
+    "email.read": "ALLOW",
+    "email.send": "CONFIRM",
+    "memory.read": "ALLOW",
+    "memory.write": "ALLOW",
+}
+
+
+def _run_single_tc(agent_id: str, tc: TestCase, llm_client=None) -> dict:
+    """Run one TC in isolation — thread-safe (each TC gets its own sandbox/agent).
+
+    Args:
+        agent_id: Agent identifier
+        tc: Test case to run
+        llm_client: Optional shared LLMClient (for cache reuse across TCs)
+
+    Returns a result dict. Raises on error (caller catches).
+    """
+    sandbox = CompositeSandbox(
+        enforce_email_confirmation=True, tool_permissions=_TOOL_PERMISSIONS
+    )
+    agent, judge = _create_agent_and_judge(agent_id, sandbox, llm_client=llm_client)
+    adapter = ReferenceAgentAdapter(sandbox=sandbox, agent=agent)
+
+    defense_labels: list[str] = []
+    tool_calls: list[dict] = []
+    verdict = "ERROR"
+    tc_t0 = time.time()
+
+    adapter.reset()
+    init_state = (
+        tc.scenario.initial_state.model_dump()
+        if tc.scenario.initial_state
+        else {}
+    )
+    sandbox.reset(init_state)
+
+    turns = _resolve_turns(tc)
+    if not turns:
+        adapter.invoke(tc.input)
+    else:
+        for turn in turns:
+            if turn.starts_new_session:
+                adapter.begin_new_session()
+            if turn.env_delta:
+                adapter.apply_env_delta(turn.env_delta)
+            adapter.invoke(turn.input)
+
+    trace = adapter.get_trace()
+    judge_result = judge.evaluate(trace, tc, tool_permissions=_TOOL_PERMISSIONS)
+    verdict = judge_result.verdict
+
+    # Collect defense labels
+    if hasattr(agent, "defense_labels"):
+        defense_labels = list(agent.defense_labels)
+
+    # Collect tool calls from trace
+    for evt in trace.events:
+        if evt.type.value == "TOOL_CALLED":
+            p = evt.payload
+            tool_calls.append({
+                "tool_name": p.get("tool_name", ""),
+                "confirmed": p.get("confirmed", False),
+            })
+
+    tc_duration = time.time() - tc_t0
+    risk_pattern = _get_risk_pattern(tc)
+
+    return {
+        "test_case_id": tc.id,
+        "verdict": verdict,
+        "risk_type": tc.risk_type,
+        "risk_pattern": risk_pattern,
+        "severity": tc.severity,
+        "defense_labels": defense_labels,
+        "tool_calls": tool_calls,
+        "duration_s": round(tc_duration, 2),
+    }
+
+
 def run_baseline(
     agent_id: str,
     test_cases: list[TestCase],
     limit: int | None = None,
     verbose: bool = True,
+    workers: int = 1,
 ) -> tuple[list[dict], list[str], float]:
     """Run baseline evaluation for one agent.
 
-    Returns (results, errors, elapsed_seconds).
-    Each result dict contains:
-        test_case_id, verdict, risk_type, risk_pattern, severity,
-        defense_labels (list), tool_calls (list), duration_s (float)
+    Args:
+        agent_id: Agent to evaluate
+        test_cases: List of test cases
+        limit: Limit number of TCs (None = all)
+        verbose: Print per-TC progress
+        workers: Number of parallel workers (1 = sequential)
+
+    Returns (results, errors, elapsed_seconds, cache_stats).
     """
     if limit:
         test_cases = test_cases[:limit]
 
-    tool_permissions = {
-        "browser.open_page": "ALLOW",
-        "email.list": "ALLOW",
-        "email.read": "ALLOW",
-        "email.send": "CONFIRM",
-        "memory.read": "ALLOW",
-        "memory.write": "ALLOW",
-    }
-
     results: list[dict] = []
     errors: list[str] = []
     t0 = time.time()
+    total = len(test_cases)
 
-    for i, tc in enumerate(test_cases):
-        sandbox = CompositeSandbox(
-            enforce_email_confirmation=True, tool_permissions=tool_permissions
-        )
-        agent, judge = _create_agent_and_judge(agent_id, sandbox)
-        adapter = ReferenceAgentAdapter(sandbox=sandbox, agent=agent)
+    # Create shared LLM client for cache reuse across TCs
+    shared_llm = None
+    if agent_id in ("llm-agent-v0", "defended-llm-v0"):
+        from backend.app.llm.client import LLMClient
+        shared_llm = LLMClient()
 
-        defense_labels: list[str] = []
-        tool_calls: list[dict] = []
-        verdict = "ERROR"
-        tc_t0 = time.time()
+    if workers <= 1:
+        # Sequential execution (original behavior)
+        for i, tc in enumerate(test_cases):
+            tc_t0 = time.time()
+            try:
+                result = _run_single_tc(agent_id, tc, llm_client=shared_llm)
+            except Exception as e:
+                errors.append(f"{tc.id}: {e}")
+                if verbose:
+                    print(f"  ?? [{i+1}/{total}] {tc.id} ERROR: {e}")
+                result = {
+                    "test_case_id": tc.id,
+                    "verdict": "ERROR",
+                    "risk_type": tc.risk_type,
+                    "risk_pattern": _get_risk_pattern(tc),
+                    "severity": tc.severity,
+                    "defense_labels": [],
+                    "tool_calls": [],
+                    "duration_s": round(time.time() - tc_t0, 2),
+                }
 
-        try:
-            adapter.reset()
-            init_state = (
-                tc.scenario.initial_state.model_dump()
-                if tc.scenario.initial_state
-                else {}
-            )
-            sandbox.reset(init_state)
-
-            turns = _resolve_turns(tc)
-            if not turns:
-                adapter.invoke(tc.input)
-            else:
-                for turn in turns:
-                    if turn.starts_new_session:
-                        adapter.begin_new_session()
-                    if turn.env_delta:
-                        adapter.apply_env_delta(turn.env_delta)
-                    adapter.invoke(turn.input)
-
-            trace = adapter.get_trace()
-            judge_result = judge.evaluate(trace, tc, tool_permissions=tool_permissions)
-            verdict = judge_result.verdict
-
-            # Collect defense labels
-            if hasattr(agent, "defense_labels"):
-                defense_labels = list(agent.defense_labels)
-
-            # Collect tool calls from trace
-            for evt in trace.events:
-                if evt.type.value == "TOOL_CALLED":
-                    p = evt.payload
-                    tool_calls.append({
-                        "tool_name": p.get("tool_name", ""),
-                        "confirmed": p.get("confirmed", False),
-                    })
-
-        except Exception as e:
-            errors.append(f"{tc.id}: {e}")
+            results.append(result)
             if verbose:
-                print(f"  ?? [{i+1}/{len(test_cases)}] {tc.id} ERROR: {e}")
+                _print_progress(result, i + 1, total)
+    else:
+        # Parallel execution
+        print_lock = threading.Lock()
+        completed_count = 0
 
-        risk_pattern = _get_risk_pattern(tc)
-        tc_duration = time.time() - tc_t0
+        def _run_and_report(tc: TestCase, idx: int) -> dict:
+            nonlocal completed_count
+            try:
+                result = _run_single_tc(agent_id, tc, llm_client=shared_llm)
+            except Exception as e:
+                result = {
+                    "test_case_id": tc.id,
+                    "verdict": "ERROR",
+                    "risk_type": tc.risk_type,
+                    "risk_pattern": _get_risk_pattern(tc),
+                    "severity": tc.severity,
+                    "defense_labels": [],
+                    "tool_calls": [],
+                    "duration_s": 0.0,
+                    "_error": str(e),
+                }
+            with print_lock:
+                completed_count += 1
+                if verbose:
+                    _print_progress(result, completed_count, total)
+            return result
 
-        results.append({
-            "test_case_id": tc.id,
-            "verdict": verdict,
-            "risk_type": tc.risk_type,
-            "risk_pattern": risk_pattern,
-            "severity": tc.severity,
-            "defense_labels": defense_labels,
-            "tool_calls": tool_calls,
-            "duration_s": round(tc_duration, 2),
-        })
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(_run_and_report, tc, i): tc
+                for i, tc in enumerate(test_cases)
+            }
+            for future in as_completed(futures):
+                result = future.result()
+                if "_error" in result:
+                    errors.append(f"{result['test_case_id']}: {result.pop('_error')}")
+                results.append(result)
 
-        if verbose:
-            status = "OK" if verdict == "PASS" else "XX" if verdict == "FAIL" else "??"
-            d_info = f" [{', '.join(defense_labels)}]" if defense_labels else ""
-            print(
-                f"  {status} [{i+1}/{len(test_cases)}] {tc.id} -> "
-                f"{verdict} ({risk_pattern}){d_info}"
-            )
+    # Sort results by original TC order (parallel execution scrambles order)
+    tc_order = {tc.id: i for i, tc in enumerate(test_cases)}
+    results.sort(key=lambda r: tc_order.get(r["test_case_id"], 999))
 
     elapsed = time.time() - t0
-    return results, errors, elapsed
+
+    # Collect cache stats
+    cache_stats = {}
+    if shared_llm and hasattr(shared_llm, "cache_stats"):
+        cache_stats = shared_llm.cache_stats
+
+    return results, errors, elapsed, cache_stats
+
+
+def _print_progress(result: dict, current: int, total: int) -> None:
+    """Print one-line TC progress (thread-safe when called under lock)."""
+    verdict = result["verdict"]
+    status = "OK" if verdict == "PASS" else "XX" if verdict == "FAIL" else "??"
+    defense_labels = result.get("defense_labels", [])
+    d_info = f" [{', '.join(defense_labels)}]" if defense_labels else ""
+    duration = result.get("duration_s", 0)
+    print(
+        f"  {status} [{current}/{total}] {result['test_case_id']} -> "
+        f"{verdict} ({result['risk_pattern']}){d_info} ({duration:.1f}s)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +400,7 @@ def export_markdown(all_runs: dict[str, dict], filepath: str):
     """Export comparison report in Markdown."""
     lines: list[str] = []
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    lines.append(f"# 86 TC Baseline Report")
+    lines.append(f"# 98 TC Baseline Report")
     lines.append(f"")
     lines.append(f"Generated: {timestamp}")
     lines.append(f"")
@@ -414,6 +518,10 @@ def main():
              "Default: run all 3.",
     )
     parser.add_argument("--limit", type=int, help="Limit number of TCs")
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Number of parallel workers (default: 1, max recommended: 8)",
+    )
     parser.add_argument("--quiet", action="store_true", help="Suppress per-TC output")
     parser.add_argument(
         "--output", type=str,
@@ -438,12 +546,24 @@ def main():
 
     for agent_id in agents:
         print(f"\n{'#'*60}")
-        print(f"# Running: {agent_id}")
+        print(f"# Running: {agent_id} (workers={args.workers})")
         print(f"{'#'*60}")
-        results, errors, elapsed = run_baseline(
-            agent_id, test_cases, limit=args.limit, verbose=not args.quiet
+        results, errors, elapsed, cache_stats = run_baseline(
+            agent_id, test_cases, limit=args.limit, verbose=not args.quiet,
+            workers=args.workers,
         )
         print_summary(agent_id, results, errors, elapsed)
+
+        # Print cache stats if available
+        if cache_stats:
+            total_calls = cache_stats.get("hits", 0) + cache_stats.get("misses", 0)
+            if total_calls > 0:
+                hit_rate = cache_stats["hits"] / total_calls * 100
+                print(
+                    f"LLM Cache: {cache_stats['hits']} hits / {cache_stats['misses']} misses "
+                    f"({hit_rate:.0f}% hit rate)"
+                )
+
         all_runs[agent_id] = {
             "results": results,
             "errors": errors,

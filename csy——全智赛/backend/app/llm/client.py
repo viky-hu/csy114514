@@ -7,12 +7,15 @@ DeepSeek API 完全兼容 OpenAI 格式, 直接用 openai Python SDK.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from openai import OpenAI
+from openai import APIConnectionError, OpenAI, RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +112,10 @@ class LLMClient:
         verdict = client.chat_judge(messages)
     """
 
+    # Retry configuration
+    _MAX_RETRIES = 3
+    _RETRY_BACKOFF_BASE = 1.0  # seconds
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -126,6 +133,20 @@ class LLMClient:
         self._model = model or settings.llm_model
         self._temperature = temperature
         self._max_tokens = max_tokens
+        # Response cache (keyed by input hash, thread-safe)
+        self._cache: dict[str, LLMResponse] = {}
+        self._cache_lock = threading.Lock()
+        self._cache_hits: int = 0
+        self._cache_misses: int = 0
+
+    @staticmethod
+    def _make_cache_key(
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None,
+    ) -> str:
+        """Create a deterministic hash key for cache lookup."""
+        raw = json.dumps({"m": messages, "t": tools or []}, sort_keys=True)
+        return hashlib.md5(raw.encode()).hexdigest()
 
     def chat(
         self,
@@ -133,6 +154,10 @@ class LLMClient:
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
         """Send chat completion request, return parsed response.
+
+        Features:
+          - LRU cache: identical (messages, tools) inputs return cached results
+          - Retry: up to 3 attempts with exponential backoff on rate limits
 
         Args:
             messages: OpenAI-format messages
@@ -142,6 +167,14 @@ class LLMClient:
         Returns:
             LLMResponse with content and optional tool_calls
         """
+        # Cache lookup (thread-safe)
+        cache_key = self._make_cache_key(messages, tools)
+        with self._cache_lock:
+            if cache_key in self._cache:
+                self._cache_hits += 1
+                return self._cache[cache_key]
+            self._cache_misses += 1
+
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": messages,
@@ -152,7 +185,27 @@ class LLMClient:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
-        response = self._client.chat.completions.create(**kwargs)
+        # Retry loop with exponential backoff
+        last_error: Exception | None = None
+        for attempt in range(self._MAX_RETRIES):
+            try:
+                response = self._client.chat.completions.create(**kwargs)
+                break
+            except (RateLimitError, APIConnectionError) as e:
+                last_error = e
+                if attempt < self._MAX_RETRIES - 1:
+                    wait = self._RETRY_BACKOFF_BASE * (2 ** attempt)
+                    logger.warning(
+                        "LLM API %s (attempt %d/%d), retrying in %.1fs: %s",
+                        type(e).__name__, attempt + 1, self._MAX_RETRIES,
+                        wait, e,
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
+        else:
+            raise last_error  # type: ignore[misc]
+
         choice = response.choices[0]
         message = choice.message
 
@@ -173,10 +226,20 @@ class LLMClient:
                     )
                 )
 
-        return LLMResponse(
+        result = LLMResponse(
             content=message.content or "",
             tool_calls=tool_calls,
         )
+
+        # Cache store (thread-safe)
+        with self._cache_lock:
+            self._cache[cache_key] = result
+        return result
+
+    @property
+    def cache_stats(self) -> dict[str, int]:
+        """Return cache hit/miss statistics."""
+        return {"hits": self._cache_hits, "misses": self._cache_misses}
 
     def chat_judge(
         self,
