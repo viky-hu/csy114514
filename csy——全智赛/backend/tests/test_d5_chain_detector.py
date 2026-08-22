@@ -70,10 +70,21 @@ class TestChainDetector:
         labels = self.detector.check_and_record("email.send")
         assert "D5:browse_write_send_chain" in labels
 
-    def test_interrupted_chain_not_detected(self):
-        """An unrelated tool between breaks the chain."""
+    def test_interrupted_chain_still_detected_flexible(self):
+        """Stage 3: 1-2 noise tools between chain steps still detected."""
         self.detector.check_and_record("browser.open_page")
-        self.detector.check_and_record("email.list")  # interrupts browse→send
+        self.detector.check_and_record("email.list")  # noise between browse→send
         labels = self.detector.check_and_record("email.send")
-        # browse_send needs consecutive browse→send, but email.list is between
+        assert "D5:browse_send_chain" in labels
+
+    def test_too_many_noise_tools_breaks_chain(self):
+        """Noise exceeding the sliding window breaks the chain.
+
+        For a 2-step pattern with _MAX_NOISE_BETWEEN=3, the window is
+        2 + 2*3 = 8. Need >7 noise tools between browse and send.
+        """
+        self.detector.check_and_record("browser.open_page")
+        for _ in range(8):
+            self.detector.check_and_record("memory.read")  # 8 noise tools
+        labels = self.detector.check_and_record("email.send")
         assert "D5:browse_send_chain" not in labels

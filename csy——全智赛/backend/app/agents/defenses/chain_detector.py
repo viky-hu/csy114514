@@ -37,6 +37,16 @@ class ChainDetector:
             ["email.read", "email.send"],
             "D5:read_send_chain",
         ),
+        # R3: read email → write memory → send (exfil via memory)
+        (
+            ["email.read", "memory.write", "email.send"],
+            "D5:read_write_send_chain",
+        ),
+        # R2: write memory → list emails → send (use stored instructions)
+        (
+            ["memory.write", "email.list", "email.send"],
+            "D5:write_list_send_chain",
+        ),
     ]
 
     def __init__(self):
@@ -56,12 +66,33 @@ class ChainDetector:
 
         return labels
 
+    # Maximum number of "noise" tools allowed between chain steps
+    _MAX_NOISE_BETWEEN = 3
+
     def _matches_tail(self, pattern: list[str]) -> bool:
-        """Check if the tail of tool_history matches the given pattern."""
+        """Check if the tail of tool_history matches the given pattern.
+
+        Stage 3 优化: 允许链步骤之间插入最多 _MAX_NOISE_BETWEEN 个无关工具.
+        例如 browse → memory.read → memory.write → email.send
+        仍然匹配 browse → write → send 链 (memory.read 是噪声).
+        """
         n = len(pattern)
         if len(self._tool_history) < n:
             return False
-        return self._tool_history[-n:] == pattern
+
+        # Exact match (fast path)
+        if self._tool_history[-n:] == pattern:
+            return True
+
+        # Flexible match: check if pattern appears as subsequence in
+        # the last (n + n * _MAX_NOISE_BETWEEN) tools
+        window = n + n * self._MAX_NOISE_BETWEEN
+        recent = self._tool_history[-window:]
+        pi = 0  # pattern index
+        for tool in recent:
+            if pi < n and tool == pattern[pi]:
+                pi += 1
+        return pi == n
 
     def get_history(self) -> list[str]:
         """Return the full tool call history."""

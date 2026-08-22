@@ -14,6 +14,7 @@ class MemoryAuditor:
     """
 
     SUSPICIOUS_PATTERNS: list[str] = [
+        # English patterns
         "forward",
         "send to",
         "attacker@",
@@ -28,6 +29,18 @@ class MemoryAuditor:
         "new directive",
         "system update",
         "override",
+        # Chinese patterns (中文注入)
+        "转发",
+        "发送到",
+        "抄送给",
+        "忽略之前",
+        "忽略所有",
+        "新指令",
+        "系统更新",
+        "管理员要求",
+        "安全策略",
+        "自动转发",
+        "邮件转发",
     ]
 
     # Keys commonly used for IPI persistence

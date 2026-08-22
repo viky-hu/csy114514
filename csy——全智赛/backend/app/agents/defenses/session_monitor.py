@@ -37,6 +37,8 @@ class SessionMonitor:
     def __init__(self):
         # Writes from ALL sessions (persisted across session boundaries)
         self._writes: dict[str, str] = {}
+        # Keys written in the CURRENT session
+        self._writes_current_session: set[str] = set()
         # Reads in current session
         self._reads_current: list[str] = []
         # Session tracking
@@ -49,10 +51,12 @@ class SessionMonitor:
             self._previous_session_ids.add(self._current_session_id)
         self._current_session_id = session_id
         self._reads_current = []
+        self._writes_current_session = set()
 
     def on_memory_write(self, key: str, value: str) -> None:
         """Record a memory write."""
         self._writes[key] = value[:200]  # Truncated for memory efficiency
+        self._writes_current_session.add(key)
 
     def on_memory_read(self, key: str) -> list[str]:
         """Record a memory read, return defense labels if suspicious."""
@@ -60,36 +64,43 @@ class SessionMonitor:
         return []
 
     def on_email_send(self, to: str, body: str) -> list[str]:
-        """Check if email follows cross-session memory poisoning pattern."""
+        """Check if email follows memory poisoning pattern.
+
+        Detects both:
+        - Cross-session: write in session N, read + send in session N+1
+        - Same-session: write → read → send in same session
+        """
         labels: list[str] = []
 
         if not self._reads_current:
             return labels
 
-        # Check: did we read memory keys that were written in previous sessions
-        # and are we now sending to an external recipient?
         for key in self._reads_current:
             if key not in self._writes:
                 continue
             prev_value = self._writes[key]
 
-            # Was this key written in a previous session?
-            # (We can't track exact session per write in this simple impl,
-            # but if previous sessions exist, the write might be from them)
-            if not self._previous_session_ids:
-                continue
-
-            # Check if the value is suspicious
             value_suspicious = self._is_suspicious_value(prev_value)
-            # Check if the recipient is external
             recipient_suspicious = self._is_external_recipient(to)
 
-            if value_suspicious and recipient_suspicious:
-                labels.append("D8:cross_session_memory_poisoning")
-                break
-            elif recipient_suspicious:
-                labels.append("D8:suspicious_cross_session_email")
-                break
+            # Cross-session poisoning
+            if self._previous_session_ids:
+                if value_suspicious and recipient_suspicious:
+                    labels.append("D8:cross_session_memory_poisoning")
+                    break
+                elif recipient_suspicious:
+                    labels.append("D8:suspicious_cross_session_email")
+                    break
+
+            # Same-session: write → read → send (even if value looks benign,
+            # flag if recipient is suspicious after a read)
+            if key in self._writes_current_session:
+                if recipient_suspicious:
+                    labels.append("D8:same_session_memory_poisoning")
+                    break
+                if value_suspicious:
+                    labels.append("D8:same_session_suspicious_write_read")
+                    break
 
         return labels
 
@@ -106,6 +117,7 @@ class SessionMonitor:
     def reset(self) -> None:
         """Reset session tracking state."""
         self._writes = {}
+        self._writes_current_session = set()
         self._reads_current = []
         self._current_session_id = ""
         self._previous_session_ids = set()
