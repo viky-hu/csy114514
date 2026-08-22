@@ -2,19 +2,35 @@
 
 Usage:
     cd csy——全智赛
-    python -m backend.scripts.run_baseline [--agent AGENT_ID] [--limit N] [--sample TC_IDS]
+    python -m backend.scripts.run_baseline [options]
+
+Options:
+    --agent AGENT_ID     Run one agent (corpmate-v0 / llm-agent-v0 / defended-llm-v0)
+    --limit N            Limit number of TCs
+    --quiet              Suppress per-TC console output
+    --output FILE        Export results to file (.json / .csv / .md)
+    --format FMT         Force format: json / csv / markdown (auto from extension)
 
 Examples:
-    python -m backend.scripts.run_baseline --agent corpmate-v0
-    python -m backend.scripts.run_baseline --agent llm-agent-v0 --limit 10
-    python -m backend.scripts.run_baseline --agent defended-llm-v0 --limit 10
-    python -m backend.scripts.run_baseline  # all 3 agents, all TCs
+    # Run all 3 agents, export JSON
+    python -m backend.scripts.run_baseline --output results.json
+
+    # Run one agent, export CSV
+    python -m backend.scripts.run_baseline --agent defended-llm-v0 --output defended.csv
+
+    # Quick CorpMate check, export markdown
+    python -m backend.scripts.run_baseline --agent corpmate-v0 --output report.md
 """
 from __future__ import annotations
 
 import argparse
+import csv
+import io
+import json
 import sys
 import time
+from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Ensure project root is on sys.path
@@ -28,6 +44,14 @@ from backend.app.domain.test_case import TestCase
 from backend.app.judge.composite_judge import CompositeJudge
 from backend.app.knowledge.kb_loader import load_all_test_case_files
 from backend.app.sandbox.composite import CompositeSandbox
+
+_TAG_TO_PATTERN = {"r1": "R1", "r2": "R2", "r3": "R3", "r4": "R4"}
+_RISK_TYPE_TO_PATTERN = {
+    "indirect_prompt_injection": "R1",
+    "memory_poisoning": "R2",
+    "privacy_leakage": "R3",
+    "persistent_indirect_prompt_injection": "R4",
+}
 
 
 def _create_agent_and_judge(agent_id: str, sandbox: CompositeSandbox):
@@ -58,15 +82,25 @@ def _resolve_turns(tc: TestCase):
     return tc.scenario.turns if tc.scenario.turns else []
 
 
+def _get_risk_pattern(tc: TestCase) -> str:
+    return next(
+        (_TAG_TO_PATTERN[t] for t in tc.tags if t in _TAG_TO_PATTERN),
+        _RISK_TYPE_TO_PATTERN.get(tc.risk_type, "OTHER"),
+    )
+
+
 def run_baseline(
     agent_id: str,
     test_cases: list[TestCase],
     limit: int | None = None,
     verbose: bool = True,
-) -> list[dict]:
+) -> tuple[list[dict], list[str], float]:
     """Run baseline evaluation for one agent.
 
-    Returns list of {test_case_id, verdict, risk_type, risk_pattern}.
+    Returns (results, errors, elapsed_seconds).
+    Each result dict contains:
+        test_case_id, verdict, risk_type, risk_pattern, severity,
+        defense_labels (list), tool_calls (list), duration_s (float)
     """
     if limit:
         test_cases = test_cases[:limit]
@@ -85,21 +119,31 @@ def run_baseline(
     t0 = time.time()
 
     for i, tc in enumerate(test_cases):
-        sandbox = CompositeSandbox(enforce_email_confirmation=True, tool_permissions=tool_permissions)
+        sandbox = CompositeSandbox(
+            enforce_email_confirmation=True, tool_permissions=tool_permissions
+        )
         agent, judge = _create_agent_and_judge(agent_id, sandbox)
         adapter = ReferenceAgentAdapter(sandbox=sandbox, agent=agent)
 
+        defense_labels: list[str] = []
+        tool_calls: list[dict] = []
+        verdict = "ERROR"
+        tc_t0 = time.time()
+
         try:
             adapter.reset()
-            init_state = tc.scenario.initial_state.model_dump() if tc.scenario.initial_state else {}
+            init_state = (
+                tc.scenario.initial_state.model_dump()
+                if tc.scenario.initial_state
+                else {}
+            )
             sandbox.reset(init_state)
 
             turns = _resolve_turns(tc)
             if not turns:
-                # Single-turn fallback
                 adapter.invoke(tc.input)
             else:
-                for idx, turn in enumerate(turns):
+                for turn in turns:
                     if turn.starts_new_session:
                         adapter.begin_new_session()
                     if turn.env_delta:
@@ -110,23 +154,26 @@ def run_baseline(
             judge_result = judge.evaluate(trace, tc, tool_permissions=tool_permissions)
             verdict = judge_result.verdict
 
+            # Collect defense labels
+            if hasattr(agent, "defense_labels"):
+                defense_labels = list(agent.defense_labels)
+
+            # Collect tool calls from trace
+            for evt in trace.events:
+                if evt.type.value == "TOOL_CALLED":
+                    p = evt.payload
+                    tool_calls.append({
+                        "tool_name": p.get("tool_name", ""),
+                        "confirmed": p.get("confirmed", False),
+                    })
+
         except Exception as e:
-            verdict = "ERROR"
             errors.append(f"{tc.id}: {e}")
             if verbose:
-                print(f"  ✗ {tc.id} ERROR: {e}")
+                print(f"  ?? [{i+1}/{len(test_cases)}] {tc.id} ERROR: {e}")
 
-        _TAG_TO_PATTERN = {"r1": "R1", "r2": "R2", "r3": "R3", "r4": "R4"}
-        _RISK_TYPE_TO_PATTERN = {
-            "indirect_prompt_injection": "R1",
-            "memory_poisoning": "R2",
-            "privacy_leakage": "R3",
-            "persistent_indirect_prompt_injection": "R4",
-        }
-        risk_pattern = next(
-            (_TAG_TO_PATTERN[t] for t in tc.tags if t in _TAG_TO_PATTERN),
-            _RISK_TYPE_TO_PATTERN.get(tc.risk_type, "OTHER"),
-        )
+        risk_pattern = _get_risk_pattern(tc)
+        tc_duration = time.time() - tc_t0
 
         results.append({
             "test_case_id": tc.id,
@@ -134,43 +181,62 @@ def run_baseline(
             "risk_type": tc.risk_type,
             "risk_pattern": risk_pattern,
             "severity": tc.severity,
+            "defense_labels": defense_labels,
+            "tool_calls": tool_calls,
+            "duration_s": round(tc_duration, 2),
         })
 
         if verbose:
             status = "OK" if verdict == "PASS" else "XX" if verdict == "FAIL" else "??"
-            defense_info = ""
-            if hasattr(agent, "defense_labels") and agent.defense_labels:
-                defense_info = f" [{', '.join(agent.defense_labels)}]"
-            print(f"  {status} [{i+1}/{len(test_cases)}] {tc.id} -> {verdict} ({risk_pattern}){defense_info}")
+            d_info = f" [{', '.join(defense_labels)}]" if defense_labels else ""
+            print(
+                f"  {status} [{i+1}/{len(test_cases)}] {tc.id} -> "
+                f"{verdict} ({risk_pattern}){d_info}"
+            )
 
     elapsed = time.time() - t0
     return results, errors, elapsed
 
 
-def print_summary(agent_id: str, results: list[dict], errors: list[str], elapsed: float):
-    """Print summary table."""
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+
+def _compute_summary(results: list[dict]) -> dict:
     total = len(results)
     passed = sum(1 for r in results if r["verdict"] == "PASS")
     failed = sum(1 for r in results if r["verdict"] == "FAIL")
     errored = sum(1 for r in results if r["verdict"] == "ERROR")
+    by_pattern: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"PASS": 0, "FAIL": 0, "ERROR": 0}
+    )
+    for r in results:
+        by_pattern[r["risk_pattern"]][r["verdict"]] += 1
+    return {
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "error": errored,
+        "pass_rate": round(passed / total, 4) if total else 0,
+        "by_risk_pattern": {k: dict(v) for k, v in sorted(by_pattern.items())},
+    }
+
+
+def print_summary(agent_id: str, results: list[dict], errors: list[str], elapsed: float):
+    """Print summary table to console."""
+    s = _compute_summary(results)
+    total = s["total"]
 
     print(f"\n{'='*60}")
     print(f"Agent: {agent_id}")
     print(f"{'='*60}")
-    print(f"Total: {total} | PASS: {passed} | FAIL: {failed} | ERROR: {errored}")
-    print(f"Pass Rate: {passed/total*100:.1f}% ({passed}/{total})")
-    print(f"Time: {elapsed:.1f}s ({elapsed/total:.1f}s per TC)")
-
-    # Breakdown by risk pattern
-    from collections import Counter, defaultdict
-    by_pattern: dict[str, dict[str, int]] = defaultdict(lambda: {"PASS": 0, "FAIL": 0, "ERROR": 0})
-    for r in results:
-        by_pattern[r["risk_pattern"]][r["verdict"]] += 1
+    print(f"Total: {total} | PASS: {s['passed']} | FAIL: {s['failed']} | ERROR: {s['error']}")
+    print(f"Pass Rate: {s['pass_rate']*100:.1f}% ({s['passed']}/{total})")
+    print(f"Time: {elapsed:.1f}s ({elapsed/total:.1f}s per TC)" if total else "")
 
     print(f"\n{'Pattern':<8} {'PASS':>6} {'FAIL':>6} {'ERROR':>6} {'Rate':>8}")
     print(f"{'-'*36}")
-    for pattern in sorted(by_pattern):
-        counts = by_pattern[pattern]
+    for pattern, counts in sorted(s["by_risk_pattern"].items()):
         p, f, e = counts["PASS"], counts["FAIL"], counts["ERROR"]
         t = p + f + e
         rate = f"{p/t*100:.0f}%" if t > 0 else "N/A"
@@ -184,18 +250,191 @@ def print_summary(agent_id: str, results: list[dict], errors: list[str], elapsed
             print(f"  ... and {len(errors)-5} more")
 
 
+# ---------------------------------------------------------------------------
+# Export functions
+# ---------------------------------------------------------------------------
+
+def _detect_format(filepath: str) -> str:
+    ext = Path(filepath).suffix.lower()
+    return {"json": "json", ".csv": "csv", ".md": "markdown", ".markdown": "markdown"}.get(ext, "json")
+
+
+def export_json(all_runs: dict[str, dict], filepath: str):
+    """Export all runs to a single JSON file."""
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(all_runs, f, ensure_ascii=False, indent=2)
+    print(f"\nExported JSON -> {filepath}")
+
+
+def export_csv(all_runs: dict[str, dict], filepath: str):
+    """Export all runs to CSV with agent_id column."""
+    fieldnames = [
+        "agent_id", "test_case_id", "verdict", "risk_type",
+        "risk_pattern", "severity", "defense_labels",
+        "tool_calls_count", "duration_s",
+    ]
+    with open(filepath, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for agent_id, run_data in all_runs.items():
+            for r in run_data["results"]:
+                writer.writerow({
+                    "agent_id": agent_id,
+                    "test_case_id": r["test_case_id"],
+                    "verdict": r["verdict"],
+                    "risk_type": r["risk_type"],
+                    "risk_pattern": r["risk_pattern"],
+                    "severity": r["severity"],
+                    "defense_labels": "; ".join(r.get("defense_labels", [])),
+                    "tool_calls_count": len(r.get("tool_calls", [])),
+                    "duration_s": r.get("duration_s", 0),
+                })
+    print(f"\nExported CSV -> {filepath}")
+
+
+def export_markdown(all_runs: dict[str, dict], filepath: str):
+    """Export comparison report in Markdown."""
+    lines: list[str] = []
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    lines.append(f"# 86 TC Baseline Report")
+    lines.append(f"")
+    lines.append(f"Generated: {timestamp}")
+    lines.append(f"")
+
+    # Summary comparison table
+    lines.append("## Summary Comparison")
+    lines.append("")
+    lines.append("| Agent | PASS | FAIL | ERROR | Pass Rate | Time |")
+    lines.append("|-------|------|------|-------|-----------|------|")
+    for agent_id, run_data in all_runs.items():
+        s = run_data["summary"]
+        elapsed = run_data["elapsed_s"]
+        short = agent_id.replace("-v0", "")
+        lines.append(
+            f"| {short} | {s['passed']} | {s['failed']} | {s['error']} "
+            f"| {s['pass_rate']*100:.1f}% | {elapsed:.1f}s |"
+        )
+    lines.append("")
+
+    # Per-pattern comparison
+    all_patterns = sorted(
+        set().union(
+            *(run_data["summary"]["by_risk_pattern"].keys() for run_data in all_runs.values())
+        )
+    )
+    lines.append("## By Risk Pattern")
+    lines.append("")
+    header = "| Pattern | " + " | ".join(
+        a.replace("-v0", "") for a in all_runs
+    ) + " |"
+    sep = "|---------|" + "|".join("------" for _ in all_runs) + "|"
+    lines.append(header)
+    lines.append(sep)
+    for pattern in all_patterns:
+        cells = []
+        for run_data in all_runs.values():
+            c = run_data["summary"]["by_risk_pattern"].get(
+                pattern, {"PASS": 0, "FAIL": 0, "ERROR": 0}
+            )
+            t = c["PASS"] + c["FAIL"] + c["ERROR"]
+            rate = f"{c['PASS']}/{t}" if t else "N/A"
+            cells.append(rate)
+        lines.append(f"| {pattern} | " + " | ".join(cells) + " |")
+    lines.append("")
+
+    # FAIL details
+    lines.append("## Failure Details")
+    lines.append("")
+    any_fail = False
+    for agent_id, run_data in all_runs.items():
+        fails = [r for r in run_data["results"] if r["verdict"] == "FAIL"]
+        if fails:
+            any_fail = True
+            lines.append(f"### {agent_id}")
+            lines.append("")
+            for r in fails:
+                tools = ", ".join(
+                    tc["tool_name"] for tc in r.get("tool_calls", [])
+                )
+                defenses = "; ".join(r.get("defense_labels", [])) or "none"
+                lines.append(
+                    f"- **{r['test_case_id']}** ({r['risk_pattern']}) "
+                    f"tools=[{tools}] defenses=[{defenses}]"
+                )
+            lines.append("")
+    if not any_fail:
+        lines.append("No failures across all agents.")
+        lines.append("")
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print(f"\nExported Markdown -> {filepath}")
+
+
+def export_results(
+    all_runs: dict[str, dict], filepath: str, fmt: str | None = None
+):
+    """Export results to the specified file.
+
+    Args:
+        all_runs: {agent_id: {"results": [...], "errors": [...],
+                    "elapsed_s": float, "summary": {...}}}
+        filepath: Output file path
+        fmt: Force format (json/csv/markdown). Auto-detected from extension if None.
+    """
+    if fmt is None:
+        fmt = _detect_format(filepath)
+
+    exporters = {"json": export_json, "csv": export_csv, "markdown": export_markdown}
+    exporter = exporters.get(fmt)
+    if not exporter:
+        print(f"Unknown format: {fmt}. Supported: json, csv, markdown")
+        return
+    exporter(all_runs, filepath)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main():
-    parser = argparse.ArgumentParser(description="86 TC Baseline Runner")
-    parser.add_argument("--agent", type=str, help="Agent ID (corpmate-v0, llm-agent-v0, defended-llm-v0)")
+    parser = argparse.ArgumentParser(
+        description="86 TC Baseline Runner",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  python -m backend.scripts.run_baseline --output results.json\n"
+            "  python -m backend.scripts.run_baseline --agent corpmate-v0 --output report.md\n"
+            "  python -m backend.scripts.run_baseline --agent defended-llm-v0 --output data.csv\n"
+        ),
+    )
+    parser.add_argument(
+        "--agent", type=str,
+        help="Agent ID (corpmate-v0, llm-agent-v0, defended-llm-v0). "
+             "Default: run all 3.",
+    )
     parser.add_argument("--limit", type=int, help="Limit number of TCs")
     parser.add_argument("--quiet", action="store_true", help="Suppress per-TC output")
+    parser.add_argument(
+        "--output", type=str,
+        help="Export results to file (.json / .csv / .md)",
+    )
+    parser.add_argument(
+        "--format", type=str, choices=["json", "csv", "markdown"],
+        help="Force export format (auto-detected from extension if omitted)",
+    )
     args = parser.parse_args()
 
     raw_cases = load_all_test_case_files()
     test_cases = [TestCase.model_validate(raw) for raw in raw_cases]
     print(f"Loaded {len(test_cases)} test cases")
 
-    agents = [args.agent] if args.agent else ["corpmate-v0", "llm-agent-v0", "defended-llm-v0"]
+    agents = (
+        [args.agent] if args.agent
+        else ["corpmate-v0", "llm-agent-v0", "defended-llm-v0"]
+    )
+
+    all_runs: dict[str, dict] = {}
 
     for agent_id in agents:
         print(f"\n{'#'*60}")
@@ -205,6 +444,15 @@ def main():
             agent_id, test_cases, limit=args.limit, verbose=not args.quiet
         )
         print_summary(agent_id, results, errors, elapsed)
+        all_runs[agent_id] = {
+            "results": results,
+            "errors": errors,
+            "elapsed_s": round(elapsed, 2),
+            "summary": _compute_summary(results),
+        }
+
+    if args.output:
+        export_results(all_runs, args.output, args.format)
 
 
 if __name__ == "__main__":
