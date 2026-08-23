@@ -300,10 +300,12 @@ function MainWindowContent({
 export function MainWindow({
   accountIdentity = null,
   initialAgentId = DEFAULT_AGENT_ID,
+  mockMode = false,
   onLogout = () => undefined,
 }: {
   initialAgentId?: string;
   accountIdentity?: AccountIdentity | null;
+  mockMode?: boolean;
   onLogout?: () => void;
 }) {
   const [activeAgentId, setActiveAgentId] = useState(initialAgentId);
@@ -655,6 +657,7 @@ export function MainWindow({
       <EvaluationWorkspaceProvider
         key={activeAgentId}
         activeAgentId={activeAgentId}
+        mockMode={mockMode}
         onNavigate={handleMainNavSelect}
       >
         <section className="main-content-region">

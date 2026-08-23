@@ -5,7 +5,7 @@
 - [ ] Read [`frozen-frontend-contracts.md`](frozen-frontend-contracts.md) before changing Evaluation or Anatomy behavior.
 - [ ] `evaluation-types.ts` keeps the exact frozen 18-value `EventType` type sourced from generated `backend-api.d.ts`; no new, removed, renamed, or changed values, and no parallel frontend enum.
 - [ ] `parseEvent()` and `reduceEvaluationEvent()` remain the single SSE parsing/reduction path; new UI does not duplicate, bypass, or rewrite them.
-- [ ] `BatchProgressPanel.tsx` continues to derive progress from existing event state and remains Agent-agnostic.
+- [ ] `BatchProgressPanel.tsx` continues to derive progress from existing event state and remains Agent-agnostic; the selector owns `开始批量测评`, while the execution panel owns `开始测评` and its adjacent `返回选择 TestCase` ArrowLeft action.
 - [ ] `EvaluationTerminal` keeps the existing event format and stream lifecycle. Its current implementation is inside `EvaluationRunWorkspace.tsx`; do not infer a separate file boundary.
 - [ ] Anatomy keeps the existing `RiskPattern` definitions and verification semantics; data-source changes adapt to the existing view model.
 - [ ] GSAP changes remain visual-only and cannot alter business events, verdicts, reducers, or persistence.
@@ -14,6 +14,7 @@
 - [ ] Evaluation run header keeps only `EvaluationAgentBadge`; rotating loading-tip copy stays removed from the upper-right header, while real LLM inference feedback remains in `EvaluationInferenceStatus`.
 - [ ] Evaluation selection/execution content remains inside one view shell; GSAP only fades the shell when `selecting`/`running` changes and does not run on SSE/event updates.
 - [ ] `EvaluationInferenceStatus` is an absolutely positioned, non-interactive header overlay; it must not add a grid row, alter run status, or change event-derived inference semantics.
+- [ ] `evaluationMock=1` is a development-only, in-memory Provider branch. It must remain opt-in, avoid `sessionStorage`, `fetch`, and `EventSource`, clear all timers on reset/unmount, and leave the default real-backend path unchanged.
 
 ## 2026-08-19 Stable Verification Tooling
 

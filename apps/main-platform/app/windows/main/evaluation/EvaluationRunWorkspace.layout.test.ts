@@ -19,6 +19,23 @@ test("batch runs group TestCase progress and terminal into the desktop split wor
   );
 });
 
+test("batch flow keeps the selection entry action and run-page back action", () => {
+  const selector = readFileSync(
+    new URL("./TestCaseSelector.tsx", import.meta.url),
+    "utf8",
+  );
+  const batchPanel = readFileSync(
+    new URL("./BatchProgressPanel.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(selector, /开始批量测评/);
+  assert.doesNotMatch(selector, /创建批量测评/);
+  assert.match(batchPanel, /ArrowLeft/);
+  assert.match(batchPanel, /title="返回选择 TestCase"/);
+  assert.match(batchPanel, /onClick=\{resetEvaluationSelection\}/);
+  assert.match(batchPanel, /isActive \? "批量运行中" : "开始测评"/);
+});
+
 test("batch workspace keeps the R4 desktop split and stacks below the compact breakpoint", () => {
   assert.match(
     styles,

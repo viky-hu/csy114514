@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare2, CircleAlert, LoaderCircle, Search, Square, X } from "lucide-react";
+import { CheckSquare2, CircleAlert, LoaderCircle, Play, Search, Square, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLoadingTip } from "../../shared/loading-tips";
 import { useEvaluationWorkspace } from "./EvaluationWorkspaceProvider";
@@ -64,7 +64,7 @@ export function TestCaseSelector() {
       </div>
       <footer className="evaluation-selector-footer">
         <span className={error ? "is-error" : ""}>{error ?? (isBootstrapping ? tip : `共 ${testCases.length} 条可用 TestCase`)}</span>
-        <button type="button" className="evaluation-primary-button" disabled={selectedTestCaseIds.length === 0 || isBootstrapping || isLoadingTestCases} onClick={() => void prepareEvaluation()}>{isBootstrapping ? <LoaderCircle className="evaluation-spin" size={15} /> : <CheckSquare2 size={15} />}{isBootstrapping ? "正在创建" : `创建批量测评 (${selectedTestCaseIds.length})`}</button>
+        <button type="button" className="evaluation-primary-button" disabled={selectedTestCaseIds.length === 0 || isBootstrapping || isLoadingTestCases} onClick={() => void prepareEvaluation()}>{isBootstrapping ? <LoaderCircle className="evaluation-spin" size={15} /> : <Play size={15} />}{isBootstrapping ? "正在创建" : `开始批量测评 (${selectedTestCaseIds.length})`}</button>
       </footer>
     </section>
   );

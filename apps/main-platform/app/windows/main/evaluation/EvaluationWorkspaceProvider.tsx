@@ -40,6 +40,13 @@ import {
   selectHandoffTestCase,
   toggleTestCaseSelection as toggleTestCaseSelectionIds,
 } from "./test-case-selection";
+import {
+  buildMockEventSequence,
+  createMockReport,
+  createMockRun,
+  createMockTestCases,
+  createMockTrace,
+} from "./evaluation-mock";
 
 type ProviderState = {
   run: EvaluationRun | null;
@@ -112,34 +119,44 @@ function parseEvent(data: string, lastEventId: string, fallbackRunId: string): S
 
 export function EvaluationWorkspaceProvider({
   activeAgentId = DEFAULT_AGENT_ID,
+  mockMode = false,
   children,
 }: PropsWithChildren<{
   activeAgentId?: string;
+  mockMode?: boolean;
   onNavigate?: EvaluationWorkspaceNavigate;
 }>) {
-  const [state, setState] = useState<ProviderState>({
+  const [state, setState] = useState<ProviderState>(() => ({
     run: null,
     events: [],
     evaluationId: null,
     activeStage: null,
     report: null,
     trace: null,
-    testCases: [],
-    selectedTestCaseIds: [],
+    testCases: mockMode ? createMockTestCases() : [],
+    selectedTestCaseIds: mockMode ? createMockTestCases().map((item) => item.id) : [],
     evaluationAgentId: DEFAULT_EVALUATION_AGENT_ID,
     emailConfirmations: [],
     emailConfirmationDecisions: {},
-    isBootstrapping: true,
-    isLoadingTestCases: true,
+    isBootstrapping: !mockMode,
+    isLoadingTestCases: !mockMode,
     isStarting: false,
     isLoadingReport: false,
     error: null,
     reportError: null,
     testCaseError: null,
-  });
+  }));
   const sourceRef = useRef<EventSource | null>(null);
   const cursorRef = useRef(0);
   const seenEmailEventIdsRef = useRef(new Set<string>());
+  const mockTimersRef = useRef<number[]>([]);
+  const mockRunRef = useRef<EvaluationRun | null>(null);
+  const mockEventsRef = useRef<SequencedEvent[]>([]);
+
+  const clearMockTimers = useCallback(() => {
+    for (const timer of mockTimersRef.current) window.clearTimeout(timer);
+    mockTimersRef.current = [];
+  }, []);
 
   const closeStream = useCallback(() => {
     sourceRef.current?.close();
@@ -164,11 +181,76 @@ export function EvaluationWorkspaceProvider({
       error: run.error?.message ?? null,
       isBootstrapping: false,
     }));
-  }, []);
+  }, [mockMode]);
 
   void activeAgentId;
 
+  const appendMockEvent = useCallback((event: SequencedEvent) => {
+    if (!mockMode || !mockRunRef.current) return;
+    const events = [...mockEventsRef.current, event];
+    const stage = eventStage(event);
+    const run: EvaluationRun = {
+      ...mockRunRef.current,
+      status: event.type === "RUN_STARTED" ? "running" : event.type === "RUN_FINISHED" ? "completed" : mockRunRef.current.status,
+      current_stage: stage ?? mockRunRef.current.current_stage,
+      last_event_seq: event.seq,
+      report_available: event.type === "RUN_FINISHED",
+      finished_at: event.type === "RUN_FINISHED" ? event.timestamp : mockRunRef.current.finished_at,
+    };
+    mockEventsRef.current = events;
+    mockRunRef.current = run;
+    setState((current) => ({
+      ...current,
+      run,
+      events,
+      activeStage: stage ?? current.activeStage,
+      report: event.type === "RUN_FINISHED" ? createMockReport(run, events) : current.report,
+      trace: event.type === "RUN_FINISHED" ? createMockTrace(run, events) : current.trace,
+    }));
+  }, [mockMode]);
+
+  const createMockEvaluation = useCallback(async (agentId: string, testCaseIds: string[]) => {
+    clearMockTimers();
+    const run = createMockRun(`mock-run-${Date.now()}`, agentId, testCaseIds);
+    mockRunRef.current = run;
+    mockEventsRef.current = [];
+    setState((current) => ({
+      ...current,
+      run,
+      events: [],
+      evaluationId: run.run_id,
+      activeStage: run.current_stage ?? null,
+      report: null,
+      trace: null,
+      selectedTestCaseIds: run.test_case_ids,
+      evaluationAgentId: run.agent_id as EvaluationAgentId,
+      isBootstrapping: false,
+      error: null,
+      reportError: null,
+      emailConfirmations: [],
+      emailConfirmationDecisions: {},
+    }));
+    return run;
+  }, [clearMockTimers]);
+
+  const startMockEvaluation = useCallback(() => {
+    const run = mockRunRef.current;
+    if (!run || run.status === "completed") return;
+    clearMockTimers();
+    const queuedRun: EvaluationRun = { ...run, status: "queued", started_at: new Date().toISOString() };
+    mockRunRef.current = queuedRun;
+    setState((current) => ({ ...current, run: queuedRun, isStarting: false, error: null }));
+    for (const [index, event] of buildMockEventSequence(queuedRun).entries()) {
+      const timer = window.setTimeout(() => appendMockEvent(event), 260 + index * 260);
+      mockTimersRef.current.push(timer);
+    }
+  }, [appendMockEvent, clearMockTimers]);
+
   const startEvaluation = useCallback(async () => {
+    if (mockMode) {
+      startMockEvaluation();
+      return;
+    }
     const runId = state.evaluationId;
     if (!runId || state.isStarting || !state.run || ["preflighting", "preflight_failed"].includes(state.run.status)) {
       return;
@@ -189,9 +271,10 @@ export function EvaluationWorkspaceProvider({
     } finally {
       setState((current) => ({ ...current, isStarting: false }));
     }
-  }, [setRun, state.evaluationId, state.isStarting, state.run]);
+  }, [mockMode, setRun, startMockEvaluation, state.evaluationId, state.isStarting, state.run]);
 
   const createEvaluation = useCallback(async (agentId: string, testCaseIds: string[], signal?: AbortSignal, requestId = newRequestId()) => {
+    if (mockMode) return createMockEvaluation(agentId, testCaseIds);
     const response = await fetch("/api/evaluations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -206,7 +289,7 @@ export function EvaluationWorkspaceProvider({
     storeEvaluationRunId(run.run_id);
     setRun(run, false);
     return run;
-  }, [setRun]);
+  }, [createMockEvaluation, mockMode, setRun]);
 
   const prepareEvaluation = useCallback(async () => {
     if (state.selectedTestCaseIds.length === 0 || state.isBootstrapping) return;
@@ -233,6 +316,13 @@ export function EvaluationWorkspaceProvider({
   }, [closeStream, createEvaluation, state.evaluationAgentId, state.run?.test_case_ids, state.selectedTestCaseIds]);
 
   const resetEvaluationSelection = useCallback(() => {
+    if (mockMode) {
+      clearMockTimers();
+      mockRunRef.current = null;
+      mockEventsRef.current = [];
+      setState((current) => ({ ...current, run: null, events: [], evaluationId: null, activeStage: null, report: null, trace: null, isBootstrapping: false, isStarting: false, isLoadingReport: false, error: null, reportError: null, emailConfirmations: [], emailConfirmationDecisions: {} }));
+      return;
+    }
     closeStream();
     clearEvaluationWorkspaceSession();
     cursorRef.current = 0;
@@ -253,7 +343,7 @@ export function EvaluationWorkspaceProvider({
       emailConfirmations: [],
       emailConfirmationDecisions: {},
     }));
-  }, [closeStream]);
+  }, [clearMockTimers, closeStream, mockMode]);
 
   const adoptEvaluationHandoff = useCallback((handoff: EvaluationHandoff) => {
     closeStream();
@@ -280,15 +370,17 @@ export function EvaluationWorkspaceProvider({
   }, [closeStream]);
 
   useEffect(() => {
+    if (mockMode) return;
     const handleHandoff = () => {
       const handoff = readEvaluationHandoff();
       if (handoff) adoptEvaluationHandoff(handoff);
     };
     window.addEventListener(EVALUATION_HANDOFF_EVENT, handleHandoff);
     return () => window.removeEventListener(EVALUATION_HANDOFF_EVENT, handleHandoff);
-  }, [adoptEvaluationHandoff]);
+  }, [adoptEvaluationHandoff, mockMode]);
 
   useEffect(() => {
+    if (mockMode) return;
     const controller = new AbortController();
     const bootstrap = async () => {
       const storedRunId = readStoredEvaluationRunId();
@@ -313,9 +405,10 @@ export function EvaluationWorkspaceProvider({
     };
     void bootstrap();
     return () => controller.abort();
-  }, [setRun]);
+  }, [mockMode, setRun]);
 
   useEffect(() => {
+    if (mockMode) return;
     const controller = new AbortController();
     const loadTestCases = async () => {
       try {
@@ -340,11 +433,15 @@ export function EvaluationWorkspaceProvider({
     };
     void loadTestCases();
     return () => controller.abort();
-  }, []);
+  }, [mockMode]);
 
   const runStatus = state.run?.status;
 
   useEffect(() => {
+    if (mockMode) {
+      closeStream();
+      return;
+    }
     const runId = state.evaluationId;
     const hasReplayCursor = cursorRef.current > 0;
     if (!runId || !runStatus || ((isTerminalStatus(runStatus) || runStatus === "preflight_failed") && hasReplayCursor)) {
@@ -385,7 +482,7 @@ export function EvaluationWorkspaceProvider({
       setState((current) => ({ ...current, error: "实时事件流暂时中断，正在等待后端恢复" }));
     };
     return closeStream;
-  }, [closeStream, runStatus, setRun, state.evaluationId]);
+  }, [closeStream, mockMode, runStatus, setRun, state.evaluationId]);
 
   useEffect(() => {
     for (const event of state.events) {
@@ -414,11 +511,24 @@ export function EvaluationWorkspaceProvider({
     return () => window.clearInterval(timer);
   }, [activeInference?.invoked.event_id, inferenceAgentId]);
 
-  useEffect(() => () => closeStream(), [closeStream]);
+  useEffect(() => () => {
+    clearMockTimers();
+    closeStream();
+  }, [clearMockTimers, closeStream]);
 
   const loadReport = useCallback(async () => {
     const runId = state.evaluationId;
     if (!runId || state.isLoadingReport) {
+      return;
+    }
+    if (mockMode) {
+      const run = mockRunRef.current;
+      const events = mockEventsRef.current;
+      if (run?.status === "completed") {
+        setState((current) => ({ ...current, report: createMockReport(run, events), trace: createMockTrace(run, events), isLoadingReport: false, reportError: null }));
+      } else {
+        setState((current) => ({ ...current, isLoadingReport: false, reportError: "报告尚未生成" }));
+      }
       return;
     }
     setState((current) => ({ ...current, isLoadingReport: true, reportError: null }));
@@ -436,7 +546,7 @@ export function EvaluationWorkspaceProvider({
     } catch (error) {
       setState((current) => ({ ...current, isLoadingReport: false, reportError: error instanceof Error ? error.message : "报告读取失败" }));
     }
-  }, [state.evaluationId, state.isLoadingReport]);
+  }, [mockMode, state.evaluationId, state.isLoadingReport]);
 
   useEffect(() => {
     if (state.run?.status === "completed" && !state.report && !state.isLoadingReport) {
@@ -447,7 +557,7 @@ export function EvaluationWorkspaceProvider({
   const clearReportError = useCallback(() => setState((current) => ({ ...current, reportError: null })), []);
   const setEvaluationAgentId = useCallback((agentId: EvaluationAgentId) => {
     setState((current) => ({ ...current, evaluationAgentId: agentId }));
-  }, []);
+  }, [mockMode]);
   const resolveEmailConfirmation = useCallback((eventId: string, decision: EmailConfirmationDecision) => {
     setState((current) => ({
       ...current,

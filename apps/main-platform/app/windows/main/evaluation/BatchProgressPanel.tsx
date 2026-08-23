@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleAlert, CircleDashed, Play, RotateCcw, Settings2, XCircle } from "lucide-react";
+import { ArrowLeft, Check, CircleAlert, CircleDashed, Play, RotateCcw, XCircle } from "lucide-react";
 import { useMemo } from "react";
 import {
   resolveEvaluationLoadingTipPhase,
@@ -51,8 +51,8 @@ export function BatchProgressPanel({
       <header className="evaluation-batch-heading">
         <div><span className="evaluation-eyebrow">BATCH EXECUTION</span><h2>{summary.completed} / {summary.total} 已完成</h2></div>
         <div className="evaluation-batch-actions">
-          {!isActive && <button type="button" className="evaluation-icon-command" title="重新选择 TestCase" aria-label="重新选择 TestCase" onClick={resetEvaluationSelection}><Settings2 size={16} /></button>}
-          {run?.status === "completed" ? <button type="button" className="evaluation-primary-button" onClick={onViewReport ?? (() => onNavigate?.("report"))}><Check size={15} />查看报告</button> : isFailed ? <button type="button" className="evaluation-primary-button" onClick={() => void retryEvaluation()}><RotateCcw size={15} />重新创建</button> : <button type="button" className="evaluation-primary-button" disabled={run?.status !== "ready" || isStarting} onClick={() => void startEvaluation()}>{isActive || isStarting ? <CircleDashed className="evaluation-spin" size={15} /> : <Play size={15} />}{isStarting ? "正在启动" : isActive ? "批量运行中" : "开始批量测评"}</button>}
+          {!isActive && <button type="button" className="evaluation-icon-command" title="返回选择 TestCase" aria-label="返回选择 TestCase" onClick={resetEvaluationSelection}><ArrowLeft size={16} /></button>}
+          {run?.status === "completed" ? <button type="button" className="evaluation-primary-button" onClick={onViewReport ?? (() => onNavigate?.("report"))}><Check size={15} />查看报告</button> : isFailed ? <button type="button" className="evaluation-primary-button" onClick={() => void retryEvaluation()}><RotateCcw size={15} />重新创建</button> : <button type="button" className="evaluation-primary-button" disabled={run?.status !== "ready" || isStarting} onClick={() => void startEvaluation()}>{isActive || isStarting ? <CircleDashed className="evaluation-spin" size={15} /> : <Play size={15} />}{isStarting ? "正在启动" : isActive ? "批量运行中" : "开始测评"}</button>}
         </div>
       </header>
       <div className="evaluation-batch-track" role="progressbar" aria-label="批量测评完成进度" aria-valuemin={0} aria-valuemax={summary.total} aria-valuenow={summary.completed}><span style={{ width: `${percentage}%` }} /></div>
