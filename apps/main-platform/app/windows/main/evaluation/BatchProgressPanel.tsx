@@ -17,8 +17,20 @@ function StateIcon({ state }: { state: BatchTestState }) {
   return <CircleDashed className={state === "running" ? "evaluation-spin" : ""} size={15} />;
 }
 
-export function BatchProgressPanel({ onViewReport, onNavigate }: { onViewReport?: () => void; onNavigate?: EvaluationWorkspaceNavigate }) {
-  const { run, events, testCases, isStarting, error, startEvaluation, retryEvaluation, resetEvaluationSelection } = useEvaluationWorkspace();
+export function BatchProgressPanel({
+  onViewReport,
+  onNavigate,
+  runOverride,
+  eventsOverride,
+}: {
+  onViewReport?: () => void;
+  onNavigate?: EvaluationWorkspaceNavigate;
+  runOverride?: ReturnType<typeof useEvaluationWorkspace>["run"];
+  eventsOverride?: ReturnType<typeof useEvaluationWorkspace>["events"];
+}) {
+  const { run: workspaceRun, events: workspaceEvents, testCases, isStarting, error, startEvaluation, retryEvaluation, resetEvaluationSelection } = useEvaluationWorkspace();
+  const run = runOverride ?? workspaceRun;
+  const events = eventsOverride ?? workspaceEvents;
   const progress = useMemo(() => deriveBatchProgress(run?.test_case_ids ?? [], events), [events, run?.test_case_ids]);
   const summary = useMemo(() => summarizeBatchProgress(progress), [progress]);
   const names = useMemo(() => new Map(testCases.map((item) => [item.id, item.name])), [testCases]);

@@ -11,6 +11,9 @@
 - [ ] GSAP changes remain visual-only and cannot alter business events, verdicts, reducers, or persistence.
 - [ ] `evaluation-session.ts` keeps its `sessionStorage` key, snapshot semantics, recovery conditions, and cleanup timing.
 - [ ] Any intentional exception is documented as a “冻结契约变更” and includes synchronized backend/generated-contract updates, focused tests, this module index, and this checklist.
+- [ ] Evaluation run header keeps only `EvaluationAgentBadge`; rotating loading-tip copy stays removed from the upper-right header, while real LLM inference feedback remains in `EvaluationInferenceStatus`.
+- [ ] Evaluation selection/execution content remains inside one view shell; GSAP only fades the shell when `selecting`/`running` changes and does not run on SSE/event updates.
+- [ ] `EvaluationInferenceStatus` is an absolutely positioned, non-interactive header overlay; it must not add a grid row, alter run status, or change event-derived inference semantics.
 
 ## 2026-08-19 Stable Verification Tooling
 

@@ -15,7 +15,7 @@ const styles = readFileSync(
 test("batch runs group TestCase progress and terminal into the desktop split workspace", () => {
   assert.match(
     source,
-    /<div className="evaluation-batch-run-body">\s*<BatchProgressPanel[\s\S]*?<EvaluationTerminal emptyTip=\{statusTip\} events=\{events\} \/>\s*<\/div>/,
+    /evaluation-batch-run-body[\s\S]*?<BatchProgressPanel[\s\S]*?<EvaluationTerminal emptyTip=\{statusTip\} events=\{renderedEvents\} \/>/,
   );
 });
 
@@ -37,7 +37,7 @@ test("legacy R4 offers TestCase reselection whenever it is not running", () => {
   );
   assert.match(
     source,
-    /const \{ run, activeStage, events, isStarting, isBootstrapping, error, retryEvaluation, resetEvaluationSelection \} = useEvaluationWorkspace\(\);/,
+    /run: workspaceRun,[\s\S]*?activeStage: workspaceActiveStage,[\s\S]*?events: workspaceEvents,[\s\S]*?resetEvaluationSelection,/,
   );
   assert.match(
     source,
@@ -53,8 +53,37 @@ test("legacy R4 offers TestCase reselection whenever it is not running", () => {
   );
 });
 
-test("run workspace renders Agent identity and LLM inference status", () => {
+test("run workspace renders Agent identity without rotating header loading copy", () => {
   assert.match(runSource, /EvaluationAgentBadge/);
   assert.match(runSource, /EvaluationInferenceStatus/);
   assert.match(runSource, /activeInference/);
+  assert.doesNotMatch(runSource, /evaluation-run-status/);
+});
+
+test("run workspace keeps selecting and running views inside one animated shell", () => {
+  assert.match(
+    source,
+    /className="evaluation-run-view-shell"[\s\S]*?\{renderedView === "selecting" \? <TestCaseSelector \/> :/,
+  );
+  assert.match(source, /const viewMode = run \? "running" : "selecting";/);
+  assert.match(source, /useGSAP\(/);
+  assert.match(source, /setRenderedView\(viewMode\)/);
+});
+
+test("run workspace anchors inference status inside the page header", () => {
+  assert.match(
+    source,
+    /<header className="evaluation-page-header">[\s\S]*?<EvaluationInferenceStatus \/>[\s\S]*?<\/header>/,
+  );
+  assert.doesNotMatch(
+    source,
+    /<\/header>\s*\{run && activeInference && <EvaluationInferenceStatus \/>\}/,
+  );
+  assert.match(styles, /\.evaluation-page-header \{[^}]*position: relative;/);
+  assert.match(styles, /\.evaluation-page-header \.evaluation-inference-status \{[^}]*position: absolute;/);
+  assert.match(styles, /width: min\(50%, 560px\)/);
+  assert.match(
+    styles,
+    /@container evaluation-page \(max-width: 560px\)[\s\S]*?\.evaluation-page-header \.evaluation-inference-status \{[^}]*width: calc\(100% - 20px\);/,
+  );
 });

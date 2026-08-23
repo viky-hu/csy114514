@@ -151,8 +151,32 @@ function ProcessColumn({
   );
 }
 
-function TestPointRail({ onStart, onReport }: { onStart: () => void; onReport?: () => void }) {
-  const { run, activeStage, events, isStarting, isBootstrapping, error, retryEvaluation, resetEvaluationSelection } = useEvaluationWorkspace();
+function TestPointRail({
+  onStart,
+  onReport,
+  runOverride,
+  activeStageOverride,
+  eventsOverride,
+}: {
+  onStart: () => void;
+  onReport?: () => void;
+  runOverride?: ReturnType<typeof useEvaluationWorkspace>["run"];
+  activeStageOverride?: ReturnType<typeof useEvaluationWorkspace>["activeStage"];
+  eventsOverride?: ReturnType<typeof useEvaluationWorkspace>["events"];
+}) {
+  const {
+    run: workspaceRun,
+    activeStage: workspaceActiveStage,
+    events: workspaceEvents,
+    isStarting,
+    isBootstrapping,
+    error,
+    retryEvaluation,
+    resetEvaluationSelection,
+  } = useEvaluationWorkspace();
+  const run = runOverride ?? workspaceRun;
+  const activeStage = activeStageOverride ?? workspaceActiveStage;
+  const events = eventsOverride ?? workspaceEvents;
   const root = useRef<HTMLDivElement>(null);
   const canStart = run?.status === "ready";
   const running = run?.status === "queued" || run?.status === "running";
@@ -231,27 +255,79 @@ function EvaluationTerminal({ emptyTip, events }: { emptyTip: string; events: Se
 
 export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewReport?: () => void; onNavigate?: EvaluationWorkspaceNavigate }) {
   const { run, events, activeStage, isBootstrapping, isLoadingTestCases, testCaseError, error, startEvaluation, evaluationAgentId, activeInference } = useEvaluationWorkspace();
-  const stage = activeStage ?? "web_content_injection";
-  const isLegacyR4 = run?.test_case_ids.length === 1 && run.test_case_ids[0] === "tc_pipi_001";
+  const viewMode = run ? "running" : "selecting";
+  const [renderedView, setRenderedView] = useState(viewMode);
+  const viewShellRef = useRef<HTMLDivElement>(null);
+  const transitionRef = useRef<gsap.core.Tween | gsap.core.Timeline | null>(null);
+  const previousRunRef = useRef(run);
+  const previousEventsRef = useRef(events);
+  const previousActiveStageRef = useRef(activeStage);
+
+  useEffect(() => {
+    if (run) {
+      previousRunRef.current = run;
+      previousEventsRef.current = events;
+      previousActiveStageRef.current = activeStage;
+    }
+  }, [activeStage, events, run]);
+
+  useGSAP(() => {
+    const shell = viewShellRef.current;
+    if (!shell) return;
+    transitionRef.current?.kill();
+    const matchMedia = gsap.matchMedia();
+    matchMedia.add("(prefers-reduced-motion: reduce)", () => {
+      if (viewMode !== renderedView) {
+        setRenderedView(viewMode);
+      } else {
+        gsap.set(shell, { clearProps: "opacity,visibility,transform" });
+      }
+    });
+    matchMedia.add("(prefers-reduced-motion: no-preference)", () => {
+      if (viewMode !== renderedView) {
+        transitionRef.current = gsap.timeline({
+          onComplete: () => setRenderedView(viewMode),
+        }).to(shell, { autoAlpha: 0, y: 8, duration: 0.14, ease: "power1.out" });
+      } else {
+        transitionRef.current = gsap.fromTo(
+          shell,
+          { autoAlpha: 0, y: -8 },
+          { autoAlpha: 1, y: 0, duration: 0.18, ease: LINE_DRAW_EASE },
+        );
+      }
+    });
+    return () => {
+      transitionRef.current?.kill();
+      transitionRef.current = null;
+      matchMedia.revert();
+    };
+  }, { scope: viewShellRef, dependencies: [renderedView, viewMode], revertOnUpdate: true });
+
+  const renderedRun = renderedView === "running" ? run ?? previousRunRef.current : run;
+  const renderedEvents = renderedView === "running" && !run ? previousEventsRef.current : events;
+  const renderedActiveStage = renderedView === "running" && !run ? previousActiveStageRef.current : activeStage;
+  const stage = renderedActiveStage ?? "web_content_injection";
+  const isLegacyR4 = renderedRun?.test_case_ids.length === 1 && renderedRun.test_case_ids[0] === "tc_pipi_001";
   const tipPhase = resolveEvaluationLoadingTipPhase({
-    activeStage,
+    activeStage: renderedActiveStage,
     isBootstrapping,
     isLoadingTestCases,
-    latestEventType: events.at(-1)?.type,
-    runStatus: run?.status,
+    latestEventType: renderedEvents.at(-1)?.type,
+    runStatus: renderedRun?.status,
     testCaseError,
     workspaceError: error,
   });
   const statusTip = useLoadingTip(tipPhase, {
-    active: isBootstrapping || isLoadingTestCases || run?.status === "ready" || run?.status === "preflighting" || run?.status === "queued" || run?.status === "running",
+    active: isBootstrapping || isLoadingTestCases || renderedRun?.status === "ready" || renderedRun?.status === "preflighting" || renderedRun?.status === "queued" || renderedRun?.status === "running",
     categories: isLegacyR4 && tipPhase === "running" ? R4_TIP_CATEGORIES : undefined,
   });
-  const showStatusTip = isBootstrapping || isLoadingTestCases || run?.status === "ready" || run?.status === "preflighting" || run?.status === "queued" || run?.status === "running";
-  const statusText = showStatusTip ? statusTip : run?.status ?? "选择用例";
   return <section className={`evaluation-page evaluation-run-page ${!run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
     <EvaluationWorkspaceStatusAnnouncer />
-    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><div className="evaluation-run-header-actions"><EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} /><span className={`evaluation-run-status is-${run?.status ?? "selection"}`}>{statusText}</span></div></header>
-    {run && activeInference && <EvaluationInferenceStatus />}
-    {!run ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={events} runStatus={run.status} /><EvaluationTerminal emptyTip={statusTip} events={events} /></div></> : <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} /><EvaluationTerminal emptyTip={statusTip} events={events} /></div>}
+    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><div className="evaluation-run-header-actions"><EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} /></div>{run && activeInference && <EvaluationInferenceStatus />}</header>
+    <div ref={viewShellRef} className="evaluation-run-view-shell">
+      <div className={`evaluation-run-view-content ${isLegacyR4 && renderedView === "running" ? "is-legacy" : ""}`}>
+        {renderedView === "selecting" ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} runOverride={renderedRun} activeStageOverride={renderedActiveStage} eventsOverride={renderedEvents} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={renderedEvents} runStatus={renderedRun?.status} /><EvaluationTerminal emptyTip={statusTip} events={renderedEvents} /></div></> : renderedRun ? <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} runOverride={renderedRun} eventsOverride={renderedEvents} /><EvaluationTerminal emptyTip={statusTip} events={renderedEvents} /></div> : null}
+      </div>
+    </div>
   </section>;
 }
