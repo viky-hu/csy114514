@@ -115,6 +115,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evaluations/comparisons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Evaluation Comparison */
+        post: operations["create_evaluation_comparison_evaluations_comparisons_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/evaluations/comparisons/{comparison_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Evaluation Comparison */
+        get: operations["get_evaluation_comparison_evaluations_comparisons__comparison_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/evaluations/comparisons/{comparison_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Evaluation Comparison Report */
+        get: operations["get_evaluation_comparison_report_evaluations_comparisons__comparison_id__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/evaluations/comparisons/{comparison_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Evaluation Comparison */
+        post: operations["retry_evaluation_comparison_evaluations_comparisons__comparison_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/evaluations/comparisons/{comparison_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Evaluation Comparison Events */
+        get: operations["stream_evaluation_comparison_events_evaluations_comparisons__comparison_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/evaluations/{evaluation_id}/start": {
         parameters: {
             query?: never;
@@ -209,7 +294,7 @@ export interface paths {
         };
         /**
          * List Test Cases
-         * @description 返回全部 TestCase 摘要 (供前端选择器 + OpenAPI types 生成).
+         * @description ����ȫ�� TestCase ժҪ (��ǰ��ѡ���� + OpenAPI types ����).
          */
         get: operations["list_test_cases_test_cases_get"];
         put?: never;
@@ -229,10 +314,10 @@ export interface paths {
         };
         /**
          * Get Test Case
-         * @description 返回单个完整 TestCase (含 scenario.turns + env_delta), 供前端/联调消费.
+         * @description ���ص������� TestCase (�� scenario.turns + env_delta), ��ǰ��/��������.
          *
-         *     L4 签字备注: Frontend 以 OpenAPI schema 为准, 消费 ScenarioTurn.input /
-         *     ScenarioTurn.env_delta / turn_count 等字段。
+         *     L4 ǩ�ֱ�ע: Frontend �� OpenAPI schema Ϊ׼, ���� ScenarioTurn.input /
+         *     ScenarioTurn.env_delta / turn_count ���ֶΡ�
          */
         get: operations["get_test_case_test_cases__test_case_id__get"];
         put?: never;
@@ -249,45 +334,45 @@ export interface components {
     schemas: {
         /**
          * AgentManifest
-         * @description 用户接入 Agent 时提交的声明文件.
+         * @description �û����� Agent ʱ�ύ�������ļ�.
          */
         AgentManifest: {
             /**
              * Agent Id
-             * @description Agent 唯一标识
+             * @description Agent Ψһ��ʶ
              */
             agent_id: string;
             /**
              * Name
-             * @description Agent 名称
+             * @description Agent ����
              */
             name: string;
             /**
              * Version
-             * @description 版本号
+             * @description �汾��
              * @default 0.1.0
              */
             version: string;
             /**
              * Capabilities
-             * @description 能力清单(工具名)
+             * @description �����嵥(������)
              */
             capabilities?: string[];
             /**
              * Data Sources
-             * @description 数据源列表
+             * @description ����Դ�б�
              */
             data_sources?: string[];
             /**
              * Memory
-             * @description 记忆配置
+             * @description ��������
              */
             memory?: {
                 [key: string]: unknown;
             };
             /**
              * Tool Permissions
-             * @description 工具权限映射, tool_name → ALLOW|CONFIRM|DENY
+             * @description ����Ȩ��ӳ��, tool_name �� ALLOW|CONFIRM|DENY
              */
             tool_permissions?: {
                 [key: string]: string;
@@ -308,6 +393,13 @@ export interface components {
         ApiErrorResponse: {
             error: components["schemas"]["ApiErrorDetail"];
         };
+        /** CreateEvaluationComparisonRequest */
+        CreateEvaluationComparisonRequest: {
+            /** Request Id */
+            request_id: string;
+            /** Test Case Ids */
+            test_case_ids: string[];
+        };
         /** CreateEvaluationRequest */
         CreateEvaluationRequest: {
             /** Request Id */
@@ -319,26 +411,89 @@ export interface components {
         };
         /**
          * EnvDelta
-         * @description L4 新增 (SECURITY_CONTRACTS §3.2) — 单轮环境增量变更, 增量合并而非全量替换.
+         * @description L4 ���� (SECURITY_CONTRACTS ��3.2) �� ���ֻ����������, �����ϲ�����ȫ���滻.
          */
         EnvDelta: {
             /**
              * Browser Pages
-             * @description 新增/更新的浏览器页面 (URL → fixture_id 或页面原始 HTML 内容)
+             * @description ����/���µ������ҳ�� (URL �� fixture_id ��ҳ��ԭʼ HTML ����)
              */
             browser_pages?: {
                 [key: string]: string;
             } | null;
             /**
              * Memory
-             * @description 新增的记忆条目 (key=value 格式, Runner 应用时写入 MemorySandbox)
+             * @description �����ļ�����Ŀ (key=value ��ʽ, Runner Ӧ��ʱд�� MemorySandbox)
              */
             memory?: string[] | null;
             /**
              * Email Inbox
-             * @description 新增的邮件 fixture ID
+             * @description �������ʼ� fixture ID
              */
             email_inbox?: string[] | null;
+        };
+        /** EvaluationComparisonReport */
+        EvaluationComparisonReport: {
+            /** Comparison Id */
+            comparison_id: string;
+            /** Mode */
+            mode: string;
+            /** Test Case Ids */
+            test_case_ids: string[];
+            /** Status */
+            status: string;
+            /** Bare Run Id */
+            bare_run_id: string;
+            /** Defended Run Id */
+            defended_run_id: string | null;
+            /** Summary */
+            summary: {
+                [key: string]: unknown;
+            };
+            /** Results */
+            results: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** EvaluationComparisonSnapshot */
+        EvaluationComparisonSnapshot: {
+            /** Comparison Id */
+            comparison_id: string;
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "bare_vs_defended";
+            /** Test Case Ids */
+            test_case_ids: string[];
+            /** Bare Run Id */
+            bare_run_id: string;
+            /** Defended Run Id */
+            defended_run_id?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "creating" | "queued" | "running_bare" | "running_defended" | "completed" | "partial" | "failed";
+            /** Comparison Seed */
+            comparison_seed: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Bare Agent Id
+             * @default llm-agent-v0
+             */
+            bare_agent_id: string;
+            /**
+             * Defended Agent Id
+             * @default defended-llm-v0
+             */
+            defended_agent_id: string;
+            bare_run: components["schemas"]["EvaluationRun"];
+            defended_run?: components["schemas"]["EvaluationRun"] | null;
         };
         /** EvaluationError */
         EvaluationError: {
@@ -351,49 +506,49 @@ export interface components {
         };
         /**
          * EvaluationReport
-         * @description 安全测评上线报告.
+         * @description ��ȫ�������߱���.
          */
         EvaluationReport: {
             /**
              * Report Id
-             * @description 报告唯一标识
+             * @description ����Ψһ��ʶ
              */
             report_id: string;
             /**
              * Evaluation Id
-             * @description 关联的 Evaluation ID
+             * @description ������ Evaluation ID
              */
             evaluation_id: string;
             /**
              * Agent Id
-             * @description 被测 Agent ID
+             * @description ���� Agent ID
              */
             agent_id: string;
             /**
              * Overall Score
-             * @description 综合评分
+             * @description �ۺ�����
              * @default 0
              */
             overall_score: number;
             /**
              * Severity
-             * @description 最高严重等级
+             * @description ������صȼ�
              * @default LOW
              */
             severity: string;
             /**
              * Findings
-             * @description 风险发现列表
+             * @description ���շ����б�
              */
             findings?: components["schemas"]["RiskFinding"][];
             /**
              * Conclusion
-             * @description 测评结论
+             * @description ��������
              * @default
              */
             conclusion: string;
             score_breakdown: components["schemas"]["ScoreBreakdown"];
-            /** @description L6: 批量统计摘要 (可选) */
+            /** @description L6: ����ͳ��ժҪ (��ѡ) */
             summary?: components["schemas"]["ReportSummary"] | null;
             /**
              * Created At
@@ -403,27 +558,27 @@ export interface components {
         };
         /**
          * EvaluationRun
-         * @description 一次安全测评的运行实例.
+         * @description һ�ΰ�ȫ����������ʵ��.
          */
         EvaluationRun: {
             /**
              * Run Id
-             * @description Run 唯一标识
+             * @description Run Ψһ��ʶ
              */
             run_id: string;
             /**
              * Agent Id
-             * @description 被测 Agent ID
+             * @description ���� Agent ID
              */
             agent_id: string;
             /**
              * Test Case Ids
-             * @description 执行的 TestCase ID 列表
+             * @description ִ�е� TestCase ID �б�
              */
             test_case_ids: string[];
             /**
              * Status
-             * @description 运行状态
+             * @description ����״̬
              * @enum {string}
              */
             status: "preflighting" | "ready" | "preflight_failed" | "queued" | "running" | "completed" | "failed" | "interrupted";
@@ -452,36 +607,36 @@ export interface components {
         };
         /**
          * EventType
-         * @description 事件类型 — §2.1 冻结.
+         * @description �¼����� �� ��2.1 ����.
          * @enum {string}
          */
         EventType: "RUN_STARTED" | "ANATOMY_READY" | "RISK_PATH_FOUND" | "TEST_STARTED" | "SEED_SELECTED" | "MUTATION_CREATED" | "TOOL_CALLED" | "MEMORY_WRITTEN" | "JUDGE_DECISION" | "FINDING_CREATED" | "RUN_FINISHED" | "PREFLIGHT_COMPLETED" | "PREFLIGHT_FAILED" | "AGENT_INVOKED" | "AGENT_RESPONDED" | "TOOL_RESULT" | "RUN_FAILED" | "TEST_COMPLETED";
         /**
          * ExecutionEvent
-         * @description 运行时统一事件, 用于 Trace 和 SSE.
+         * @description ����ʱͳһ�¼�, ���� Trace �� SSE.
          */
         ExecutionEvent: {
             /**
              * Event Id
-             * @description 事件唯一标识
+             * @description �¼�Ψһ��ʶ
              */
             event_id: string;
             /**
              * Run Id
-             * @description 所属 Run ID
+             * @description ���� Run ID
              */
             run_id: string;
             /**
              * Timestamp
              * Format: date-time
-             * @description 事件时间戳
+             * @description �¼�ʱ���
              */
             timestamp: string;
-            /** @description 事件类型, 见 EventType 枚举 */
+            /** @description �¼�����, �� EventType ö�� */
             type: components["schemas"]["EventType"];
             /**
              * Payload
-             * @description 事件负载
+             * @description �¼�����
              */
             payload?: {
                 [key: string]: unknown;
@@ -489,17 +644,17 @@ export interface components {
         };
         /**
          * ExecutionTrace
-         * @description 一次 Agent 执行的完整事件轨迹.
+         * @description һ�� Agent ִ�е������¼��켣.
          */
         ExecutionTrace: {
             /**
              * Trace Id
-             * @description Trace 唯一标识
+             * @description Trace Ψһ��ʶ
              */
             trace_id: string;
             /**
              * Run Id
-             * @description 所属 Run ID
+             * @description ���� Run ID
              */
             run_id: string;
             /**
@@ -509,23 +664,23 @@ export interface components {
             agent_id: string;
             /**
              * Events
-             * @description 事件序列
+             * @description �¼�����
              */
             events?: components["schemas"]["ExecutionEvent"][];
         };
         /**
          * FindingEvidence
-         * @description RiskFinding 中的证据条目.
+         * @description RiskFinding �е�֤����Ŀ.
          */
         FindingEvidence: {
             /**
              * Event Id
-             * @description 证据事件 ID
+             * @description ֤���¼� ID
              */
             event_id: string;
             /**
              * Description
-             * @description 证据描述
+             * @description ֤������
              */
             description: string;
         };
@@ -536,24 +691,24 @@ export interface components {
         };
         /**
          * InitialState
-         * @description Sandbox 初始状态.
+         * @description Sandbox ��ʼ״̬.
          */
         InitialState: {
             /**
              * Email Inbox
-             * @description 邮箱 fixture ID 列表
+             * @description ���� fixture ID �б�
              */
             email_inbox?: string[];
             /**
              * Memory
-             * @description 预写入记忆键值对
+             * @description Ԥд������ֵ��
              */
             memory?: {
                 [key: string]: string;
             }[];
             /**
              * Browser Pages
-             * @description URL → 页面 fixture ID 映射
+             * @description URL �� ҳ�� fixture ID ӳ��
              */
             browser_pages?: {
                 [key: string]: string;
@@ -561,7 +716,7 @@ export interface components {
         };
         /**
          * ReportSummary
-         * @description L6: 批量执行统计摘要 (Optional, 向后兼容).
+         * @description L6: ����ִ��ͳ��ժҪ (Optional, ������).
          */
         ReportSummary: {
             /**
@@ -608,59 +763,64 @@ export interface components {
                 };
             };
         };
+        /** RetryEvaluationComparisonRequest */
+        RetryEvaluationComparisonRequest: {
+            /** Side */
+            side: string;
+        };
         /**
          * RiskFinding
-         * @description 一条确认的风险发现.
+         * @description һ��ȷ�ϵķ��շ���.
          */
         RiskFinding: {
             /**
              * Finding Id
-             * @description Finding 唯一标识
+             * @description Finding Ψһ��ʶ
              */
             finding_id: string;
             /**
              * Evaluation Id
-             * @description 所属 Evaluation ID
+             * @description ���� Evaluation ID
              */
             evaluation_id: string;
             /**
              * Risk Type
-             * @description 风险类型枚举值
+             * @description ��������ö��ֵ
              */
             risk_type: string;
             /**
              * Severity
-             * @description 严重等级
+             * @description ���صȼ�
              */
             severity: string;
             /**
              * Risk Pattern Id
-             * @description 关联的 RiskPattern ID
+             * @description ������ RiskPattern ID
              */
             risk_pattern_id: string;
             /**
              * Attack Path Id
-             * @description 关联的 AttackPath ID
+             * @description ������ AttackPath ID
              */
             attack_path_id?: string | null;
             /**
              * Description
-             * @description 风险描述
+             * @description ��������
              */
             description: string;
             /**
              * Evidence
-             * @description 证据列表
+             * @description ֤���б�
              */
             evidence?: components["schemas"]["FindingEvidence"][];
             /**
              * Rule Types
-             * @description 命中的规则类型
+             * @description ���еĹ�������
              */
             rule_types?: string[];
             /**
              * Remediation
-             * @description 处置建议
+             * @description ���ý���
              */
             remediation?: string | null;
             /**
@@ -671,30 +831,30 @@ export interface components {
         };
         /**
          * Scenario
-         * @description 测试场景.
+         * @description ���Գ���.
          */
         Scenario: {
             /**
              * Summary
-             * @description 场景概述
+             * @description ��������
              */
             summary: string;
-            /** @description Sandbox 初始状态 */
+            /** @description Sandbox ��ʼ״̬ */
             initial_state: components["schemas"]["InitialState"];
             /**
              * Target Agent
-             * @description 目标 Agent 名称
+             * @description Ŀ�� Agent ����
              */
             target_agent: string;
             /**
              * Turns
-             * @description 可选多轮会话；缺失时执行 TestCase 顶层 input
+             * @description ��ѡ���ֻỰ��ȱʧʱִ�� TestCase ���� input
              */
             turns?: components["schemas"]["ScenarioTurn"][];
         };
         /**
          * ScenarioTurn
-         * @description 一次真实 Agent 会话调用.
+         * @description һ����ʵ Agent �Ự����.
          */
         ScenarioTurn: {
             /** Turn Id */
@@ -703,7 +863,7 @@ export interface components {
             input: string;
             /** Starts New Session */
             starts_new_session: boolean;
-            /** @description 本轮环境增量变更 (L4 新增, 不传则保持上一轮状态) */
+            /** @description ���ֻ���������� (L4 ����, �����򱣳���һ��״̬) */
             env_delta?: components["schemas"]["EnvDelta"] | null;
         };
         /** ScoreBreakdown */
@@ -779,123 +939,123 @@ export interface components {
         };
         /**
          * SuccessCriteria
-         * @description 通过/失败判定条件.
+         * @description ͨ��/ʧ���ж�����.
          */
         SuccessCriteria: {
             /**
              * Pass If
-             * @description PASS 条件(全部满足)
+             * @description PASS ����(ȫ������)
              */
             pass_if: string[];
             /**
              * Fail If
-             * @description FAIL 条件(任一命中)
+             * @description FAIL ����(��һ����)
              */
             fail_if: string[];
         };
         /**
          * TestCase
-         * @description 一条可独立执行的安全测试.
+         * @description һ���ɶ���ִ�еİ�ȫ����.
          */
         TestCase: {
             /**
              * Id
-             * @description 全项目唯一标识 (tc_{type}[_{subtype}]_{n})
+             * @description ȫ��ĿΨһ��ʶ (tc_{type}[_{subtype}]_{n})
              */
             id: string;
             /**
              * Name
-             * @description 人读名称
+             * @description �˶�����
              */
             name: string;
             /**
              * Description
-             * @description 测试描述
+             * @description ��������
              */
             description: string;
             /**
              * Risk Type
-             * @description 风险类型枚举值
+             * @description ��������ö��ֵ
              */
             risk_type: string;
             /**
              * Severity
-             * @description 严重等级
+             * @description ���صȼ�
              */
             severity: string;
-            /** @description 测试场景 */
+            /** @description ���Գ��� */
             scenario: components["schemas"]["Scenario"];
             /**
              * Input
-             * @description 单轮输入 (L4: 当 scenario.turns 非空时可省略)
+             * @description �������� (L4: �� scenario.turns �ǿ�ʱ��ʡ��)
              */
             input?: string | null;
             /**
              * Expected Behavior
-             * @description 期望的安全行为
+             * @description �����İ�ȫ��Ϊ
              */
             expected_behavior: string;
             /**
              * Forbidden Actions
-             * @description 禁止执行的动作
+             * @description ��ִֹ�еĶ���
              */
             forbidden_actions: string[];
             /**
              * Judge Policy
-             * @description 判定策略
+             * @description �ж�����
              */
             judge_policy: string;
-            /** @description 判定条件 */
+            /** @description �ж����� */
             success_criteria: components["schemas"]["SuccessCriteria"];
             /**
              * Attack Seed Ids
-             * @description 关联 AttackSeed ID
+             * @description ���� AttackSeed ID
              */
             attack_seed_ids?: string[];
             /**
              * Tags
-             * @description 分类标签
+             * @description �����ǩ
              */
             tags?: string[];
         };
         /**
          * TestCaseSummary
-         * @description 前端 TestCase 选择器消费的摘要字段.
+         * @description ǰ�� TestCase ѡ�������ѵ�ժҪ�ֶ�.
          */
         TestCaseSummary: {
             /**
              * Id
-             * @description TestCase 唯一标识
+             * @description TestCase Ψһ��ʶ
              */
             id: string;
             /**
              * Name
-             * @description 人读名称
+             * @description �˶�����
              */
             name: string;
             /**
              * Risk Type
-             * @description 风险类型
+             * @description ��������
              */
             risk_type: string;
             /**
              * Severity
-             * @description 严重等级
+             * @description ���صȼ�
              */
             severity: string;
             /**
              * Target Risk Pattern
-             * @description 目标 RiskPattern ID (R1-R4)
+             * @description Ŀ�� RiskPattern ID (R1-R4)
              */
             target_risk_pattern: string;
             /**
              * Turn Count
-             * @description 轮次数 (多轮 turns 数, 单轮为 1)
+             * @description �ִ��� (���� turns ��, ����Ϊ 1)
              */
             turn_count: number;
             /**
              * Description
-             * @description 测试描述
+             * @description ��������
              */
             description: string;
         };
@@ -1094,6 +1254,180 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    create_evaluation_comparison_evaluations_comparisons_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEvaluationComparisonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationComparisonSnapshot"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_evaluation_comparison_evaluations_comparisons__comparison_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comparison_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationComparisonSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_evaluation_comparison_report_evaluations_comparisons__comparison_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comparison_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationComparisonReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_evaluation_comparison_evaluations_comparisons__comparison_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comparison_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryEvaluationComparisonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationComparisonSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_evaluation_comparison_events_evaluations_comparisons__comparison_id__events_get: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: {
+                "Last-Event-ID"?: string | null;
+            };
+            path: {
+                comparison_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

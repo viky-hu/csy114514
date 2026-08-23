@@ -14,6 +14,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.app.domain.enums import EventType
+from backend.app.domain.evaluation_comparison import EvaluationComparison
 from backend.app.domain.evaluation_report import EvaluationReport
 from backend.app.domain.evaluation_run import EvaluationRun
 from backend.app.domain.execution_event import ExecutionEvent
@@ -151,6 +152,21 @@ class SQLiteEvaluationStore:
                 report_json TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS comparisons (
+                comparison_id TEXT PRIMARY KEY,
+                request_id TEXT NOT NULL UNIQUE,
+                request_body_json TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                test_case_ids_json TEXT NOT NULL,
+                bare_run_id TEXT NOT NULL REFERENCES runs(run_id),
+                defended_run_id TEXT REFERENCES runs(run_id),
+                status TEXT NOT NULL,
+                comparison_seed TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                bare_agent_id TEXT NOT NULL,
+                defended_agent_id TEXT NOT NULL
+            );
             """
         )
 
@@ -270,6 +286,97 @@ class SQLiteEvaluationStore:
             "SELECT * FROM runs WHERE request_id = ?", (request_id,)
         ).fetchone()
         return self._run_from_row(row) if row is not None else None
+
+    def create_comparison(
+        self,
+        comparison: EvaluationComparison,
+        *,
+        request_id: str,
+    ) -> tuple[EvaluationComparison, bool]:
+        request_body = self._json(
+            {"mode": comparison.mode, "test_case_ids": comparison.test_case_ids}
+        )
+        with self._immediate() as connection:
+            existing = connection.execute(
+                "SELECT * FROM comparisons WHERE request_id = ?", (request_id,)
+            ).fetchone()
+            if existing is not None:
+                if existing["request_body_json"] != request_body:
+                    raise IdempotencyConflictError(
+                        "comparison request_id was already used with different request data"
+                    )
+                return self._comparison_from_row(existing), False
+            connection.execute(
+                """
+                INSERT INTO comparisons (
+                    comparison_id, request_id, request_body_json, mode,
+                    test_case_ids_json, bare_run_id, defended_run_id, status,
+                    comparison_seed, created_at, bare_agent_id, defended_agent_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    comparison.comparison_id,
+                    request_id,
+                    request_body,
+                    comparison.mode,
+                    self._json(comparison.test_case_ids),
+                    comparison.bare_run_id,
+                    comparison.defended_run_id,
+                    comparison.status,
+                    comparison.comparison_seed,
+                    self._timestamp(comparison.created_at),
+                    comparison.bare_agent_id,
+                    comparison.defended_agent_id,
+                ),
+            )
+        return comparison, True
+
+    def get_comparison(self, comparison_id: str) -> EvaluationComparison | None:
+        row = self._connection().execute(
+            "SELECT * FROM comparisons WHERE comparison_id = ?", (comparison_id,)
+        ).fetchone()
+        return self._comparison_from_row(row) if row is not None else None
+
+    def get_comparison_by_request_id(self, request_id: str) -> EvaluationComparison | None:
+        row = self._connection().execute(
+            "SELECT * FROM comparisons WHERE request_id = ?", (request_id,)
+        ).fetchone()
+        return self._comparison_from_row(row) if row is not None else None
+
+    def list_active_comparisons(self) -> list[EvaluationComparison]:
+        rows = self._connection().execute(
+            """
+            SELECT * FROM comparisons
+            WHERE status IN ('creating', 'queued', 'running_bare', 'running_defended')
+            ORDER BY created_at, comparison_id
+            """
+        ).fetchall()
+        return [self._comparison_from_row(row) for row in rows]
+
+    def update_comparison(
+        self,
+        comparison_id: str,
+        *,
+        status: str,
+        bare_run_id: str | None = None,
+        defended_run_id: str | None = None,
+    ) -> EvaluationComparison:
+        with self._immediate() as connection:
+            connection.execute(
+                """
+                UPDATE comparisons
+                SET status = ?, bare_run_id = COALESCE(?, bare_run_id),
+                    defended_run_id = COALESCE(?, defended_run_id)
+                WHERE comparison_id = ?
+                """,
+                (status, bare_run_id, defended_run_id, comparison_id),
+            )
+            row = connection.execute(
+                "SELECT * FROM comparisons WHERE comparison_id = ?", (comparison_id,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(comparison_id)
+        return self._comparison_from_row(row)
 
     def queue_run(self, run_id: str) -> bool:
         with self._immediate() as connection:
@@ -737,6 +844,23 @@ class SQLiteEvaluationStore:
             "SELECT report_json FROM reports WHERE run_id = ?", (run_id,)
         ).fetchone()
         return EvaluationReport.model_validate_json(row["report_json"]) if row else None
+
+    @staticmethod
+    def _comparison_from_row(row: sqlite3.Row) -> EvaluationComparison:
+        return EvaluationComparison.model_validate(
+            {
+                "comparison_id": row["comparison_id"],
+                "mode": row["mode"],
+                "test_case_ids": json.loads(row["test_case_ids_json"]),
+                "bare_run_id": row["bare_run_id"],
+                "defended_run_id": row["defended_run_id"],
+                "status": row["status"],
+                "comparison_seed": row["comparison_seed"],
+                "created_at": row["created_at"],
+                "bare_agent_id": row["bare_agent_id"],
+                "defended_agent_id": row["defended_agent_id"],
+            }
+        )
 
     @staticmethod
     def _run_from_row(row: sqlite3.Row) -> EvaluationRun:

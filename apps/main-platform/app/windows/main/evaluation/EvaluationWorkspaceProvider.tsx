@@ -24,6 +24,12 @@ import {
   storeEvaluationRunId,
 } from "./evaluation-session";
 import {
+  clearEvaluationComparisonSession,
+  readStoredEvaluationComparisonId,
+  storeEvaluationComparisonId,
+} from "./comparison-session";
+import type { ComparisonReport, ComparisonSide, EvaluationComparison } from "./comparison-types";
+import {
   eventStage,
   eventText,
   isTerminalStatus,
@@ -56,6 +62,11 @@ type ProviderState = {
   testCases: TestCaseSummary[];
   selectedTestCaseIds: string[];
   evaluationAgentId: EvaluationAgentId;
+  evaluationMode: "single" | "comparison";
+  comparison: EvaluationComparison | null;
+  comparisonReport: ComparisonReport | null;
+  isLoadingComparisonReport: boolean;
+  comparisonError: string | null;
   emailConfirmations: EmailConfirmation[];
   emailConfirmationDecisions: Record<string, EmailConfirmationDecision>;
   isBootstrapping: boolean;
@@ -70,13 +81,17 @@ type ProviderState = {
 type WorkspaceContextValue = ProviderState & {
   startEvaluation: () => Promise<void>;
   prepareEvaluation: () => Promise<void>;
+  prepareComparison: () => Promise<void>;
   retryEvaluation: () => Promise<void>;
   resetEvaluationSelection: () => void;
   setSelectedTestCaseIds: (ids: string[]) => void;
   toggleTestCaseSelection: (testCaseId: string) => void;
   loadReport: () => Promise<void>;
+  loadComparisonReport: () => Promise<void>;
+  retryComparison: (side: ComparisonSide) => Promise<void>;
   clearReportError: () => void;
   setEvaluationAgentId: (agentId: EvaluationAgentId) => void;
+  setEvaluationMode: (mode: "single" | "comparison") => void;
   pendingEmailConfirmation: EmailConfirmation | null;
   resolveEmailConfirmation: (eventId: string, decision: EmailConfirmationDecision) => void;
 };
@@ -133,6 +148,11 @@ export function EvaluationWorkspaceProvider({
     testCases: mockMode ? createMockTestCases() : [],
     selectedTestCaseIds: mockMode ? createMockTestCases().map((item) => item.id) : [],
     evaluationAgentId: DEFAULT_EVALUATION_AGENT_ID,
+    evaluationMode: "single",
+    comparison: null,
+    comparisonReport: null,
+    isLoadingComparisonReport: false,
+    comparisonError: null,
     emailConfirmations: [],
     emailConfirmationDecisions: {},
     isBootstrapping: !mockMode,
@@ -199,6 +219,10 @@ export function EvaluationWorkspaceProvider({
     setState((current) => ({
       ...current,
       run,
+      evaluationMode: "single",
+      comparison: null,
+      comparisonReport: null,
+      comparisonError: null,
       events,
       activeStage: stage ?? current.activeStage,
       report: event.type === "RUN_FINISHED" ? createMockReport(run, events) : current.report,
@@ -288,8 +312,36 @@ export function EvaluationWorkspaceProvider({
     return run;
   }, [createMockEvaluation, mockMode, setRun]);
 
+  const createComparison = useCallback(async (testCaseIds: string[], requestId = newRequestId()) => {
+    if (mockMode) {
+      const cases = testCaseIds.map((testCaseId, index) => ({
+        test_case_id: testCaseId,
+        bare_verdict: index % 2 === 0 ? "FAIL" : "PASS",
+        defended_verdict: "PASS",
+        transition: index % 2 === 0 ? "defense_blocked" : "both_pass",
+      })) as ComparisonReport["results"];
+      const bareRun = createMockRun(`mock-bare-${Date.now()}`, "llm-agent-v0", testCaseIds);
+      const defendedRun = createMockRun(`mock-defended-${Date.now() + 1}`, "defended-llm-v0", testCaseIds);
+      const comparison = { comparison_id: `mock-comparison-${Date.now()}`, mode: "bare_vs_defended" as const, test_case_ids: testCaseIds, bare_run_id: bareRun.run_id, defended_run_id: defendedRun.run_id, status: "completed" as const, comparison_seed: "mock-seed", bare_run: { ...bareRun, status: "completed" as const }, defended_run: { ...defendedRun, status: "completed" as const } };
+      const comparable = cases.length;
+      const summary = { total: cases.length, comparable, bare_passed: cases.filter((item) => item.bare_verdict === "PASS").length, defended_passed: comparable, defense_blocked: cases.filter((item) => item.transition === "defense_blocked").length, bare_pass_rate: comparable ? cases.filter((item) => item.bare_verdict === "PASS").length / comparable : 0, defended_pass_rate: comparable ? 1 : 0, pass_rate_delta: comparable ? cases.filter((item) => item.bare_verdict !== "PASS").length / comparable : 0 };
+      setState((current) => ({ ...current, run: null, events: [], evaluationId: null, comparison, comparisonReport: { comparison_id: comparison.comparison_id, mode: comparison.mode, test_case_ids: testCaseIds, status: comparison.status, bare_run_id: bareRun.run_id, defended_run_id: defendedRun.run_id, summary, results: cases }, evaluationMode: "comparison", isBootstrapping: false, isLoadingComparisonReport: false, error: null, comparisonError: null }));
+      return comparison;
+    }
+    const response = await fetch("/api/evaluations/comparisons", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request_id: requestId, test_case_ids: testCaseIds }) });
+    const body = (await response.json()) as EvaluationComparison | { error?: { message?: string } };
+    if (!response.ok) throw new Error(getErrorMessage(body, "比较任务创建失败"));
+    const comparison = body as EvaluationComparison;
+    storeEvaluationComparisonId(comparison.comparison_id);
+    setState((current) => ({ ...current, run: null, events: [], evaluationId: null, comparison, comparisonReport: null, evaluationMode: "comparison", isBootstrapping: false, error: null, comparisonError: null }));
+    return comparison;
+  }, [mockMode]);
+
   const prepareEvaluation = useCallback(async () => {
     if (state.selectedTestCaseIds.length === 0 || state.isBootstrapping) return;
+    if (state.evaluationMode === "comparison") {
+      return;
+    }
     const agentId = state.evaluationAgentId;
     setState((current) => ({ ...current, isBootstrapping: true, error: null }));
     try {
@@ -298,6 +350,16 @@ export function EvaluationWorkspaceProvider({
       setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "测评任务创建失败" }));
     }
   }, [createEvaluation, state.evaluationAgentId, state.isBootstrapping, state.selectedTestCaseIds]);
+
+  const prepareComparison = useCallback(async () => {
+    if (state.selectedTestCaseIds.length === 0 || state.isBootstrapping) return;
+    setState((current) => ({ ...current, isBootstrapping: true, error: null, comparisonError: null }));
+    try {
+      await createComparison(state.selectedTestCaseIds);
+    } catch (error) {
+      setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "比较任务创建失败" }));
+    }
+  }, [createComparison, state.isBootstrapping, state.selectedTestCaseIds]);
 
   const retryEvaluation = useCallback(async () => {
     closeStream();
@@ -312,16 +374,30 @@ export function EvaluationWorkspaceProvider({
     }
   }, [closeStream, createEvaluation, state.evaluationAgentId, state.run?.test_case_ids, state.selectedTestCaseIds]);
 
+  const retryComparison = useCallback(async (side: ComparisonSide) => {
+    if (!state.comparison || mockMode) return;
+    setState((current) => ({ ...current, isBootstrapping: true, comparisonError: null }));
+    try {
+      const response = await fetch(`/api/evaluations/comparisons/${encodeURIComponent(state.comparison.comparison_id)}/retry`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ side }) });
+      const body = (await response.json()) as EvaluationComparison | { error?: { message?: string } };
+      if (!response.ok) throw new Error(getErrorMessage(body, "比较侧重试失败"));
+      setState((current) => ({ ...current, comparison: body as EvaluationComparison, comparisonReport: null, isBootstrapping: false }));
+    } catch (error) {
+      setState((current) => ({ ...current, isBootstrapping: false, comparisonError: error instanceof Error ? error.message : "比较侧重试失败" }));
+    }
+  }, [mockMode, state.comparison]);
+
   const resetEvaluationSelection = useCallback(() => {
     if (mockMode) {
       clearMockTimers();
       mockRunRef.current = null;
       mockEventsRef.current = [];
-      setState((current) => ({ ...current, run: null, events: [], evaluationId: null, activeStage: null, report: null, trace: null, isBootstrapping: false, isStarting: false, isLoadingReport: false, error: null, reportError: null, emailConfirmations: [], emailConfirmationDecisions: {} }));
+      setState((current) => ({ ...current, run: null, events: [], evaluationId: null, activeStage: null, report: null, trace: null, comparison: null, comparisonReport: null, evaluationMode: "single", isBootstrapping: false, isStarting: false, isLoadingReport: false, isLoadingComparisonReport: false, error: null, reportError: null, comparisonError: null, emailConfirmations: [], emailConfirmationDecisions: {} }));
       return;
     }
     closeStream();
     clearEvaluationWorkspaceSession();
+    clearEvaluationComparisonSession();
     cursorRef.current = 0;
     seenEmailEventIdsRef.current.clear();
     setState((current) => ({
@@ -332,11 +408,15 @@ export function EvaluationWorkspaceProvider({
       activeStage: null,
       report: null,
       trace: null,
+      comparison: null,
+      comparisonReport: null,
+      evaluationMode: "single",
       isBootstrapping: false,
       isStarting: false,
       isLoadingReport: false,
       error: null,
       reportError: null,
+      comparisonError: null,
       emailConfirmations: [],
       emailConfirmationDecisions: {},
     }));
@@ -345,6 +425,7 @@ export function EvaluationWorkspaceProvider({
   const adoptEvaluationHandoff = useCallback((handoff: EvaluationHandoff) => {
     closeStream();
     clearEvaluationWorkspaceSession();
+    clearEvaluationComparisonSession();
     cursorRef.current = 0;
     seenEmailEventIdsRef.current.clear();
     setState((current) => ({
@@ -355,12 +436,16 @@ export function EvaluationWorkspaceProvider({
       activeStage: null,
       report: null,
       trace: null,
+      comparison: null,
+      comparisonReport: null,
+      evaluationMode: "single",
       selectedTestCaseIds: selectHandoffTestCase(handoff.testCaseId),
       isBootstrapping: false,
       isStarting: false,
       isLoadingReport: false,
       error: null,
       reportError: null,
+      comparisonError: null,
       emailConfirmations: [],
       emailConfirmationDecisions: {},
     }));
@@ -380,6 +465,19 @@ export function EvaluationWorkspaceProvider({
     if (mockMode) return;
     const controller = new AbortController();
     const bootstrap = async () => {
+      const storedComparisonId = readStoredEvaluationComparisonId();
+      if (storedComparisonId) {
+        try {
+          const response = await fetch(`/api/evaluations/comparisons/${encodeURIComponent(storedComparisonId)}`, { signal: controller.signal });
+          if (response.ok) {
+            const comparison = (await response.json()) as EvaluationComparison;
+            if (!controller.signal.aborted) setState((current) => ({ ...current, comparison, comparisonReport: null, evaluationMode: "comparison", isBootstrapping: false }));
+            return;
+          }
+        } catch (error) {
+          if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        }
+      }
       const storedRunId = readStoredEvaluationRunId();
       if (storedRunId) {
         try {
@@ -403,6 +501,24 @@ export function EvaluationWorkspaceProvider({
     void bootstrap();
     return () => controller.abort();
   }, [mockMode, setRun]);
+
+  useEffect(() => {
+    if (mockMode || !state.comparison) return;
+    const comparisonId = state.comparison.comparison_id;
+    const controller = new AbortController();
+    const source = new EventSource(`/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}/events?after=0`);
+    sourceRef.current = source;
+    source.onmessage = () => {
+      void fetch(`/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}`, { signal: controller.signal }).then(async (response) => {
+        if (response.ok && !controller.signal.aborted) {
+          const nextComparison = await response.json() as EvaluationComparison;
+          if (!controller.signal.aborted) setState((current) => ({ ...current, comparison: nextComparison }));
+        }
+      }).catch(() => undefined);
+    };
+    source.onerror = () => setState((current) => ({ ...current, comparisonError: "比较事件流暂时中断，正在等待后端恢复" }));
+    return () => { controller.abort(); source.close(); if (sourceRef.current === source) sourceRef.current = null; };
+  }, [mockMode, state.comparison?.comparison_id]);
 
   useEffect(() => {
     if (mockMode) return;
@@ -532,16 +648,37 @@ export function EvaluationWorkspaceProvider({
     }
   }, [mockMode, state.evaluationId, state.isLoadingReport]);
 
+  const loadComparisonReport = useCallback(async () => {
+    const comparisonId = state.comparison?.comparison_id;
+    if (!comparisonId || state.isLoadingComparisonReport || mockMode) return;
+    setState((current) => ({ ...current, isLoadingComparisonReport: true, comparisonError: null }));
+    try {
+      const response = await fetch(`/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}/report`);
+      const body = (await response.json()) as ComparisonReport | { error?: { message?: string } };
+      if (!response.ok) throw new Error(getErrorMessage(body, "比较报告尚未生成"));
+      setState((current) => ({ ...current, comparisonReport: body as ComparisonReport, isLoadingComparisonReport: false }));
+    } catch (error) {
+      setState((current) => ({ ...current, isLoadingComparisonReport: false, comparisonError: error instanceof Error ? error.message : "比较报告读取失败" }));
+    }
+  }, [mockMode, state.comparison?.comparison_id, state.isLoadingComparisonReport]);
+
   useEffect(() => {
     if (state.run?.status === "completed" && !state.report && !state.isLoadingReport) {
       void loadReport();
     }
   }, [loadReport, state.isLoadingReport, state.report, state.run?.status]);
 
+  useEffect(() => {
+    if (["completed", "partial", "failed"].includes(state.comparison?.status ?? "") && !state.comparisonReport && !state.isLoadingComparisonReport) void loadComparisonReport();
+  }, [loadComparisonReport, state.comparison?.status, state.comparisonReport, state.isLoadingComparisonReport]);
+
   const clearReportError = useCallback(() => setState((current) => ({ ...current, reportError: null })), []);
   const setEvaluationAgentId = useCallback((agentId: EvaluationAgentId) => {
     setState((current) => ({ ...current, evaluationAgentId: agentId }));
-  }, [mockMode]);
+  }, []);
+  const setEvaluationMode = useCallback((mode: "single" | "comparison") => {
+    setState((current) => ({ ...current, evaluationMode: mode, comparisonError: null }));
+  }, []);
   const resolveEmailConfirmation = useCallback((eventId: string, decision: EmailConfirmationDecision) => {
     setState((current) => ({
       ...current,
@@ -562,16 +699,20 @@ export function EvaluationWorkspaceProvider({
     ...state,
     startEvaluation,
     prepareEvaluation,
+    prepareComparison,
     retryEvaluation,
     resetEvaluationSelection,
     setSelectedTestCaseIds,
     toggleTestCaseSelection,
     loadReport,
+    loadComparisonReport,
+    retryComparison,
     clearReportError,
     setEvaluationAgentId,
+    setEvaluationMode,
     pendingEmailConfirmation,
     resolveEmailConfirmation,
-  }), [clearReportError, loadReport, pendingEmailConfirmation, prepareEvaluation, resetEvaluationSelection, resolveEmailConfirmation, retryEvaluation, setEvaluationAgentId, setSelectedTestCaseIds, startEvaluation, state, toggleTestCaseSelection]);
+  }), [clearReportError, loadComparisonReport, loadReport, pendingEmailConfirmation, prepareComparison, prepareEvaluation, resetEvaluationSelection, resolveEmailConfirmation, retryComparison, retryEvaluation, setEvaluationAgentId, setEvaluationMode, setSelectedTestCaseIds, startEvaluation, state, toggleTestCaseSelection]);
 
   return <EvaluationWorkspaceContext.Provider value={value}>
     {children}

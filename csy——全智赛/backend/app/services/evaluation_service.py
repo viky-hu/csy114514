@@ -12,6 +12,11 @@ from pathlib import Path
 
 from backend.app.adapter.reference_adapter import ReferenceAgentAdapter
 from backend.app.domain.enums import EventType
+from backend.app.domain.evaluation_comparison import (
+    EvaluationComparison,
+    compare_case_results,
+    summarize_comparison,
+)
 from backend.app.domain.evaluation_report import ReportSummary
 from backend.app.domain.evaluation_run import EvaluationRun
 from backend.app.domain.execution_event import ExecutionEvent
@@ -56,6 +61,14 @@ class ReportNotReadyError(RuntimeError):
 
 
 class InvalidEventCursorError(ValueError):
+    pass
+
+
+class ComparisonNotFoundError(LookupError):
+    pass
+
+
+class ComparisonNotStartableError(RuntimeError):
     pass
 
 
@@ -256,9 +269,231 @@ class EvaluationCoordinator:
             if run is None:
                 return False
             self._execute(run)
+            self._advance_comparisons()
             return True
         finally:
             self._process_lock.release()
+
+    def create_comparison(
+        self,
+        *,
+        request_id: str,
+        test_case_ids: list[str],
+    ) -> tuple[EvaluationComparison, bool]:
+        if not test_case_ids:
+            raise InvalidTestCaseSelectionError
+        known_ids = {raw["id"] for raw in load_all_test_case_files()}
+        if any(test_case_id not in known_ids for test_case_id in test_case_ids):
+            raise InvalidTestCaseSelectionError
+        comparison_seed = f"comparison-seed-{uuid.uuid4().hex[:16]}"
+        existing = self.store.get_comparison_by_request_id(request_id)
+        if existing is not None:
+            if existing.test_case_ids != test_case_ids:
+                raise IdempotencyConflictError(
+                    "comparison request_id was already used with different request data"
+                )
+            return existing, False
+
+        comparison_id = f"cmp-{uuid.uuid4().hex[:16]}"
+        bare, _ = self.create(
+            request_id=f"{request_id}:bare",
+            agent_id="llm-agent-v0",
+            test_case_ids=test_case_ids,
+        )
+        defended, _ = self.create(
+            request_id=f"{request_id}:defended",
+            agent_id="defended-llm-v0",
+            test_case_ids=test_case_ids,
+        )
+        comparison = EvaluationComparison(
+            comparison_id=comparison_id,
+            mode="bare_vs_defended",
+            test_case_ids=test_case_ids,
+            bare_run_id=bare.run_id,
+            defended_run_id=defended.run_id,
+            status="creating",
+            comparison_seed=comparison_seed,
+            created_at=datetime.now(timezone.utc),
+        )
+        comparison, created = self.store.create_comparison(
+            comparison,
+            request_id=request_id,
+        )
+        if not created:
+            return comparison, False
+        if bare.status == "ready":
+            self.start(bare.run_id)
+            comparison = self.store.update_comparison(
+                comparison.comparison_id,
+                status="running_bare",
+            )
+        elif self.is_terminal(bare):
+            comparison = self.store.update_comparison(
+                comparison.comparison_id,
+                status="failed",
+            )
+        else:
+            comparison = self.store.update_comparison(
+                comparison.comparison_id,
+                status="queued",
+            )
+        return comparison, True
+
+    def get_comparison(self, comparison_id: str) -> EvaluationComparison:
+        comparison = self.store.get_comparison(comparison_id)
+        if comparison is None:
+            raise ComparisonNotFoundError(comparison_id)
+        return comparison
+
+    def comparison_snapshot(self, comparison_id: str) -> dict:
+        comparison = self.get_comparison(comparison_id)
+        bare = self.get(comparison.bare_run_id)
+        defended = self.get(comparison.defended_run_id) if comparison.defended_run_id else None
+        return {
+            **comparison.model_dump(mode="json"),
+            "bare_run": bare.model_dump(mode="json"),
+            "defended_run": defended.model_dump(mode="json") if defended else None,
+        }
+
+    def comparison_report(self, comparison_id: str) -> dict:
+        comparison = self.get_comparison(comparison_id)
+        bare = self.get(comparison.bare_run_id)
+        defended = self.get(comparison.defended_run_id) if comparison.defended_run_id else None
+        bare_results = self._comparison_case_results(bare.run_id, comparison.test_case_ids)
+        defended_results = self._comparison_case_results(defended.run_id, comparison.test_case_ids) if defended else []
+        results = compare_case_results(
+            bare_results,
+            defended_results,
+            comparison.test_case_ids,
+        )
+        return {
+            "comparison_id": comparison.comparison_id,
+            "mode": comparison.mode,
+            "test_case_ids": comparison.test_case_ids,
+            "status": comparison.status,
+            "bare_run_id": bare.run_id,
+            "defended_run_id": defended.run_id if defended else None,
+            "summary": summarize_comparison(results).model_dump(mode="json"),
+            "results": [result.model_dump(mode="json") for result in results],
+        }
+
+    def list_comparison_events(self, comparison_id: str, *, after: int = 0) -> list[dict]:
+        comparison = self.get_comparison(comparison_id)
+        events: list[tuple[datetime, str, StoredExecutionEvent]] = []
+        for side, run_id in (("bare", comparison.bare_run_id), ("defended", comparison.defended_run_id)):
+            if not run_id:
+                continue
+            for event in self.store.list_events(run_id, limit=1000):
+                events.append((event.timestamp, side, event))
+        events.sort(key=lambda item: (item[0], item[2].run_id, item[2].seq))
+        return [
+            {
+                "seq": index,
+                "side": side,
+                "event": event.model_dump(mode="json", exclude={"seq"}),
+            }
+            for index, (_, side, event) in enumerate(events, start=1)
+            if index > after
+        ]
+
+    def retry_comparison(self, comparison_id: str, side: str) -> EvaluationComparison:
+        comparison = self.get_comparison(comparison_id)
+        if side not in {"bare", "defended"}:
+            raise ComparisonNotStartableError(side)
+        old_run_id = comparison.bare_run_id if side == "bare" else comparison.defended_run_id
+        if not old_run_id:
+            raise ComparisonNotStartableError("missing child run")
+        old_run = self.get(old_run_id)
+        if not self.is_terminal(old_run) or old_run.status == "completed":
+            raise ComparisonNotStartableError(old_run.status)
+        agent_id = "llm-agent-v0" if side == "bare" else "defended-llm-v0"
+        run, _ = self.create(
+            request_id=f"{comparison.comparison_id}:{side}:{uuid.uuid4().hex}",
+            agent_id=agent_id,
+            test_case_ids=comparison.test_case_ids,
+        )
+        if run.status != "ready":
+            raise ComparisonNotStartableError(run.status)
+        self.start(run.run_id)
+        if side == "bare":
+            return self.store.update_comparison(
+                comparison.comparison_id,
+                status="running_bare",
+                bare_run_id=run.run_id,
+                defended_run_id=comparison.defended_run_id,
+            )
+        return self.store.update_comparison(
+            comparison.comparison_id,
+            status="running_defended",
+            defended_run_id=run.run_id,
+        )
+
+    def _advance_comparisons(self) -> None:
+        for comparison in self.store.list_active_comparisons():
+            bare = self.get(comparison.bare_run_id)
+            defended = self.get(comparison.defended_run_id) if comparison.defended_run_id else None
+            if comparison.status in {"creating", "queued", "running_bare"} and self.is_terminal(bare):
+                if bare.status == "completed" and defended and defended.status == "ready":
+                    self.start(defended.run_id)
+                    self.store.update_comparison(
+                        comparison.comparison_id,
+                        status="running_defended",
+                    )
+                elif defended and self.is_terminal(defended):
+                    self.store.update_comparison(
+                        comparison.comparison_id,
+                        status=(
+                            "completed"
+                            if bare.status == "completed" and defended.status == "completed"
+                            else "partial"
+                        ),
+                    )
+                else:
+                    self.store.update_comparison(
+                        comparison.comparison_id,
+                        status="failed",
+                    )
+                continue
+            if comparison.status == "running_defended" and defended and self.is_terminal(defended):
+                self.store.update_comparison(
+                    comparison.comparison_id,
+                    status="completed" if bare.status == "completed" and defended.status == "completed" else "partial",
+                )
+
+    def _comparison_case_results(self, run_id: str, test_case_ids: list[str]) -> list[dict]:
+        results: dict[str, dict] = {}
+        findings: dict[str, list[dict[str, object]]] = {}
+        fallback_verdict: str | None = None
+        for event in self.store.list_events(run_id, limit=1000):
+            test_case_id = event.payload.get("test_case_id")
+            verdict = event.payload.get("verdict")
+            if event.type == EventType.TEST_COMPLETED and isinstance(test_case_id, str):
+                results[test_case_id] = {
+                    "test_case_id": test_case_id,
+                    "verdict": verdict,
+                    "findings": findings.get(test_case_id, []),
+                }
+            elif event.type == EventType.FINDING_CREATED and isinstance(test_case_id, str):
+                findings.setdefault(test_case_id, []).append(
+                    {
+                        "finding_id": event.payload.get("finding_id"),
+                        "severity": event.payload.get("severity"),
+                        "description": event.payload.get("description"),
+                        "rule_types": event.payload.get("rule_types", []),
+                        "evidence_count": event.payload.get("evidence_count", 0),
+                    }
+                )
+            elif event.type == EventType.JUDGE_DECISION and isinstance(verdict, str):
+                fallback_verdict = verdict
+        for test_case_id, result in results.items():
+            result["findings"] = findings.get(test_case_id, [])
+        if not results and fallback_verdict is not None and test_case_ids:
+            results[test_case_ids[0]] = {
+                "test_case_id": test_case_ids[0],
+                "verdict": fallback_verdict,
+                "findings": findings.get(test_case_ids[0], []),
+            }
+        return list(results.values())
 
     def _execute(self, run: EvaluationRun) -> None:
         if run.test_case_ids != ["tc_pipi_001"]:
@@ -397,8 +632,11 @@ class EvaluationCoordinator:
                         EventType.FINDING_CREATED,
                         {
                             "finding_id": finding.finding_id,
+                            "test_case_id": "tc_pipi_001",
                             "severity": finding.severity,
+                            "description": finding.description,
                             "rule_types": finding.rule_types,
+                            "evidence_count": len(finding.evidence),
                         },
                     )
                     for finding in findings
@@ -556,7 +794,9 @@ class EvaluationCoordinator:
                                 "finding_id": finding.finding_id,
                                 "test_case_id": test_case.id,
                                 "severity": finding.severity,
+                                "description": finding.description,
                                 "rule_types": finding.rule_types,
+                                "evidence_count": len(finding.evidence),
                             },
                         )
                     )

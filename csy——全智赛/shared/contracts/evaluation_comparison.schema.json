@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://corpsec.local/contracts/evaluation-comparison.schema.json",
+  "title": "EvaluationComparison",
+  "type": "object",
+  "required": ["comparison_id", "mode", "test_case_ids", "bare_run_id", "defended_run_id", "status", "comparison_seed"],
+  "properties": {
+    "comparison_id": {"type": "string"},
+    "mode": {"const": "bare_vs_defended"},
+    "test_case_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "bare_run_id": {"type": "string"},
+    "defended_run_id": {"type": ["string", "null"]},
+    "status": {"enum": ["creating", "queued", "running_bare", "running_defended", "completed", "partial", "failed"]},
+    "comparison_seed": {"type": "string"}
+  }
+}

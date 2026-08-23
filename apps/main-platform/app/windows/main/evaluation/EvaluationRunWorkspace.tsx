@@ -17,6 +17,7 @@ import { useEvaluationWorkspace, EvaluationWorkspaceStatusAnnouncer, type Evalua
 import { EVALUATION_STAGES, eventText, finalJudgeVerdict, type EvaluationStage, type SequencedEvent } from "./evaluation-types";
 import { isInferenceRunActive } from "./inference-status";
 import { TestCaseSelector } from "./TestCaseSelector";
+import { EvaluationComparisonWorkspace } from "./EvaluationComparisonWorkspace";
 
 gsap.registerPlugin(useGSAP);
 
@@ -255,8 +256,8 @@ function EvaluationTerminal({ events }: { events: SequencedEvent[] }) {
 }
 
 export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewReport?: () => void; onNavigate?: EvaluationWorkspaceNavigate }) {
-  const { run, events, activeStage, isStarting, startEvaluation, evaluationAgentId } = useEvaluationWorkspace();
-  const viewMode = run ? "running" : "selecting";
+  const { run, events, activeStage, isStarting, startEvaluation, evaluationAgentId, comparison, evaluationMode } = useEvaluationWorkspace();
+  const viewMode = comparison && evaluationMode === "comparison" ? "comparison" : run ? "running" : "selecting";
   const [renderedView, setRenderedView] = useState(viewMode);
   const viewShellRef = useRef<HTMLDivElement>(null);
   const transitionRef = useRef<gsap.core.Tween | gsap.core.Timeline | null>(null);
@@ -309,12 +310,12 @@ export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewRep
   const renderedActiveStage = renderedView === "running" && !run ? previousActiveStageRef.current : activeStage;
   const stage = renderedActiveStage ?? "web_content_injection";
   const isLegacyR4 = renderedRun?.test_case_ids.length === 1 && renderedRun.test_case_ids[0] === "tc_pipi_001";
-  return <section className={`evaluation-page evaluation-run-page ${!run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
+  return <section className={`evaluation-page evaluation-run-page ${viewMode === "comparison" ? "is-comparison" : !run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
     <EvaluationWorkspaceStatusAnnouncer />
-    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><div className="evaluation-run-header-actions"><EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} /></div><EvaluationInferenceStatus isRunActive={isInferenceRunActive(run?.status, isStarting)} /></header>
+    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>{viewMode === "comparison" ? "对齐同一组 TestCase，观察防御前后的状态转移。" : "以持久事件和 SSE 实时复盘 Agent 的真实执行路径。"}</p></div><div className="evaluation-run-header-actions">{viewMode === "comparison" ? <span className="evaluation-comparison-header-badge">Bare vs Defended</span> : <EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} />}</div><EvaluationInferenceStatus isRunActive={isInferenceRunActive(run?.status, isStarting)} /></header>
     <div ref={viewShellRef} className="evaluation-run-view-shell">
       <div className={`evaluation-run-view-content ${isLegacyR4 && renderedView === "running" ? "is-legacy" : ""}`}>
-        {renderedView === "selecting" ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} runOverride={renderedRun} activeStageOverride={renderedActiveStage} eventsOverride={renderedEvents} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={renderedEvents} runStatus={renderedRun?.status} /><EvaluationTerminal events={renderedEvents} /></div></> : renderedRun ? <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} runOverride={renderedRun} eventsOverride={renderedEvents} /><EvaluationTerminal events={renderedEvents} /></div> : null}
+        {renderedView === "selecting" ? <TestCaseSelector /> : renderedView === "comparison" ? <EvaluationComparisonWorkspace onViewReport={onViewReport ?? (() => onNavigate?.("report"))} /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} runOverride={renderedRun} activeStageOverride={renderedActiveStage} eventsOverride={renderedEvents} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={renderedEvents} runStatus={renderedRun?.status} /><EvaluationTerminal events={renderedEvents} /></div></> : renderedRun ? <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} runOverride={renderedRun} eventsOverride={renderedEvents} /><EvaluationTerminal events={renderedEvents} /></div> : null}
       </div>
     </div>
   </section>;

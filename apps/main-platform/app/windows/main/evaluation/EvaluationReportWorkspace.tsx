@@ -13,6 +13,7 @@ import { useEvaluationWorkspace, type EvaluationWorkspaceNavigate } from "./Eval
 import { EvaluationAgentBadge } from "./EvaluationAgentBadge";
 import type { RiskFinding, SequencedEvent } from "./evaluation-types";
 import { ReportSummaryPanel } from "./ReportSummaryPanel";
+import { EvaluationComparisonWorkspace } from "./EvaluationComparisonWorkspace";
 
 gsap.registerPlugin(useGSAP);
 
@@ -73,7 +74,7 @@ function EvidenceDetail({ finding, traceEvents, onClose }: { finding: RiskFindin
 }
 
 export function EvaluationReportWorkspace({ onNavigate }: { onNavigate?: EvaluationWorkspaceNavigate }) {
-  const { run, report, trace, isLoadingReport, reportError, loadReport, clearReportError } = useEvaluationWorkspace();
+  const { run, report, trace, comparison, evaluationMode, isLoadingReport, reportError, loadReport, clearReportError } = useEvaluationWorkspace();
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const root = useRef<HTMLElement>(null);
@@ -96,6 +97,10 @@ export function EvaluationReportWorkspace({ onNavigate }: { onNavigate?: Evaluat
     });
     return () => matchMedia.revert();
   }, { scope: root, dependencies: [report?.report_id] });
+
+  if (comparison && evaluationMode === "comparison") {
+    return <EvaluationComparisonWorkspace />;
+  }
 
   if (isLoadingReport || !report) {
     return <section ref={root} className="evaluation-page evaluation-report-page" aria-label="测评报告工作台"><div className="evaluation-report-loading"><LoaderIcon />{reportError ? <><h1>报告暂不可用</h1><p>{reportError || tip}</p><button type="button" className="evaluation-primary-button" onClick={() => { clearReportError(); void loadReport(); }}>重新读取</button></> : <><h1>{run?.status === "completed" ? "正在读取测评报告" : "测评尚未完成"}</h1><p>{tip}</p>{run?.status !== "completed" && <button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}><ArrowLeft size={15} />返回测评运行</button>}</>}</div></section>;
