@@ -15,6 +15,7 @@ import { EvaluationAgentBadge } from "./EvaluationAgentBadge";
 import { EvaluationInferenceStatus } from "./EvaluationInferenceStatus";
 import { useEvaluationWorkspace, EvaluationWorkspaceStatusAnnouncer, type EvaluationWorkspaceNavigate } from "./EvaluationWorkspaceProvider";
 import { EVALUATION_STAGES, eventText, finalJudgeVerdict, type EvaluationStage, type SequencedEvent } from "./evaluation-types";
+import { isInferenceRunActive } from "./inference-status";
 import { TestCaseSelector } from "./TestCaseSelector";
 
 gsap.registerPlugin(useGSAP);
@@ -229,7 +230,7 @@ function TestPointRail({
   </div>;
 }
 
-function EvaluationTerminal({ emptyTip, events }: { emptyTip: string; events: SequencedEvent[] }) {
+function EvaluationTerminal({ events }: { events: SequencedEvent[] }) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [kind, setKind] = useState<EventKind>("全部事件");
   const [query, setQuery] = useState("");
@@ -248,13 +249,13 @@ function EvaluationTerminal({ emptyTip, events }: { emptyTip: string; events: Se
     <header className="evaluation-panel-header"><div><span className="evaluation-eyebrow">BACKEND TRACE</span><h2><TerminalSquare size={17} /> Runner terminal</h2></div><button className="evaluation-icon-button" type="button" title="复制当前日志" aria-label="复制当前日志" onClick={() => void copyLog()}><Clipboard size={15} /></button></header>
     <div className="evaluation-terminal-toolbar"><label><Filter size={13} /><span className="evaluation-visually-hidden">筛选事件类型</span><select value={kind} onChange={(event) => setKind(event.target.value as EventKind)}>{EVENT_KINDS.map((item) => <option key={item}>{item}</option>)}</select></label><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索事件" aria-label="搜索事件" /></div>
     <div ref={terminalRef} className="evaluation-terminal" tabIndex={0}>
-      {filteredEvents.length === 0 ? <div className="evaluation-terminal-empty">{emptyTip}</div> : filteredEvents.map((event) => <div className="evaluation-log-line" key={`${event.run_id}:${event.seq}`}><time>{formatTime(event.timestamp)}</time><b className={`is-${eventKind(event).toLowerCase()}`}>{eventKind(event)}</b><span>{eventText(event)}</span>{safePayload(event) && <small>{safePayload(event)}</small>}</div>)}
+      {filteredEvents.length === 0 ? null : filteredEvents.map((event) => <div className="evaluation-log-line" key={`${event.run_id}:${event.seq}`}><time>{formatTime(event.timestamp)}</time><b className={`is-${eventKind(event).toLowerCase()}`}>{eventKind(event)}</b><span>{eventText(event)}</span>{safePayload(event) && <small>{safePayload(event)}</small>}</div>)}
     </div>
   </section>;
 }
 
 export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewReport?: () => void; onNavigate?: EvaluationWorkspaceNavigate }) {
-  const { run, events, activeStage, isBootstrapping, isLoadingTestCases, testCaseError, error, startEvaluation, evaluationAgentId, activeInference } = useEvaluationWorkspace();
+  const { run, events, activeStage, isStarting, startEvaluation, evaluationAgentId } = useEvaluationWorkspace();
   const viewMode = run ? "running" : "selecting";
   const [renderedView, setRenderedView] = useState(viewMode);
   const viewShellRef = useRef<HTMLDivElement>(null);
@@ -308,25 +309,12 @@ export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewRep
   const renderedActiveStage = renderedView === "running" && !run ? previousActiveStageRef.current : activeStage;
   const stage = renderedActiveStage ?? "web_content_injection";
   const isLegacyR4 = renderedRun?.test_case_ids.length === 1 && renderedRun.test_case_ids[0] === "tc_pipi_001";
-  const tipPhase = resolveEvaluationLoadingTipPhase({
-    activeStage: renderedActiveStage,
-    isBootstrapping,
-    isLoadingTestCases,
-    latestEventType: renderedEvents.at(-1)?.type,
-    runStatus: renderedRun?.status,
-    testCaseError,
-    workspaceError: error,
-  });
-  const statusTip = useLoadingTip(tipPhase, {
-    active: isBootstrapping || isLoadingTestCases || renderedRun?.status === "ready" || renderedRun?.status === "preflighting" || renderedRun?.status === "queued" || renderedRun?.status === "running",
-    categories: isLegacyR4 && tipPhase === "running" ? R4_TIP_CATEGORIES : undefined,
-  });
   return <section className={`evaluation-page evaluation-run-page ${!run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
     <EvaluationWorkspaceStatusAnnouncer />
-    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><div className="evaluation-run-header-actions"><EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} /></div>{run && activeInference && <EvaluationInferenceStatus />}</header>
+    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>以持久事件和 SSE 实时复盘 Agent 的真实执行路径。</p></div><div className="evaluation-run-header-actions"><EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} /></div><EvaluationInferenceStatus isRunActive={isInferenceRunActive(run?.status, isStarting)} /></header>
     <div ref={viewShellRef} className="evaluation-run-view-shell">
       <div className={`evaluation-run-view-content ${isLegacyR4 && renderedView === "running" ? "is-legacy" : ""}`}>
-        {renderedView === "selecting" ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} runOverride={renderedRun} activeStageOverride={renderedActiveStage} eventsOverride={renderedEvents} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={renderedEvents} runStatus={renderedRun?.status} /><EvaluationTerminal emptyTip={statusTip} events={renderedEvents} /></div></> : renderedRun ? <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} runOverride={renderedRun} eventsOverride={renderedEvents} /><EvaluationTerminal emptyTip={statusTip} events={renderedEvents} /></div> : null}
+        {renderedView === "selecting" ? <TestCaseSelector /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} runOverride={renderedRun} activeStageOverride={renderedActiveStage} eventsOverride={renderedEvents} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={renderedEvents} runStatus={renderedRun?.status} /><EvaluationTerminal events={renderedEvents} /></div></> : renderedRun ? <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} runOverride={renderedRun} eventsOverride={renderedEvents} /><EvaluationTerminal events={renderedEvents} /></div> : null}
       </div>
     </div>
   </section>;

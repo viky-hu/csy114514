@@ -1,4 +1,4 @@
-import type { SequencedEvent } from "./evaluation-types";
+import type { EvaluationRun, SequencedEvent } from "./evaluation-types";
 import { getEvaluationAgentMeta } from "./evaluation-agent.ts";
 
 export type ActiveInference = {
@@ -9,6 +9,10 @@ export type ActiveInference = {
   waitedSeconds: number;
   isLongWait: boolean;
 };
+
+export function isInferenceRunActive(status: EvaluationRun["status"] | undefined, isStarting = false) {
+  return isStarting || status === "preflighting" || status === "queued" || status === "running";
+}
 
 type CorrelationKey =
   | { kind: "batch"; testCaseId: string; turnIndex: number }

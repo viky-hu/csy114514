@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EmailConfirmation, EmailConfirmationDecision } from "./email-confirmation";
+
+const CONFIRMATION_EXIT_DURATION_MS = 180;
 
 export function EmailConfirmationDialog({
   confirmation,
@@ -12,14 +14,42 @@ export function EmailConfirmationDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstActionRef = useRef<HTMLButtonElement>(null);
+  const exitTimerRef = useRef<number | null>(null);
+  const isExitingRef = useRef(false);
+  const [isExiting, setIsExiting] = useState(false);
+
+  const clearExitTimer = useCallback(() => {
+    if (exitTimerRef.current === null) return;
+    window.clearTimeout(exitTimerRef.current);
+    exitTimerRef.current = null;
+  }, []);
+
+  const decide = useCallback((decision: EmailConfirmationDecision) => {
+    if (!confirmation || isExitingRef.current) return;
+    isExitingRef.current = true;
+    setIsExiting(true);
+    const eventId = confirmation.eventId;
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 0
+      : CONFIRMATION_EXIT_DURATION_MS;
+    clearExitTimer();
+    exitTimerRef.current = window.setTimeout(() => {
+      exitTimerRef.current = null;
+      onDecision(eventId, decision);
+    }, duration);
+  }, [clearExitTimer, confirmation, onDecision]);
 
   useEffect(() => {
+    isExitingRef.current = false;
+    setIsExiting(false);
+    clearExitTimer();
     if (!confirmation) return;
     const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     firstActionRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onDecision(confirmation.eventId, "dismissed");
+        event.preventDefault();
+        decide("dismissed");
         return;
       }
       if (event.key !== "Tab") return;
@@ -38,16 +68,16 @@ export function EmailConfirmationDialog({
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
+      clearExitTimer();
       if (previousActiveElement?.isConnected) previousActiveElement.focus();
     };
-  }, [confirmation, onDecision]);
+  }, [clearExitTimer, confirmation, decide]);
 
   if (!confirmation) return null;
 
-  const decide = (decision: EmailConfirmationDecision) => onDecision(confirmation.eventId, decision);
   return (
-    <div className="evaluation-confirmation-backdrop">
-      <div ref={dialogRef} className="evaluation-confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="evaluation-confirmation-title">
+    <div className={`evaluation-confirmation-backdrop${isExiting ? " is-exiting" : ""}`}>
+      <div ref={dialogRef} className={`evaluation-confirmation-dialog${isExiting ? " is-exiting" : ""}`} role="dialog" aria-modal="true" aria-labelledby="evaluation-confirmation-title">
         <span className="evaluation-eyebrow">TOOL CONFIRMATION</span>
         <h2 id="evaluation-confirmation-title">Agent 请求发送邮件</h2>
         <p>Agent 想要发送邮件到 <strong>{confirmation.recipient}</strong>，是否允许？</p>

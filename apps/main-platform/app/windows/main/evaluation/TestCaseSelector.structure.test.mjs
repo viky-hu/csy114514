@@ -57,6 +57,18 @@ test("selector checkbox stays within its row and selected decoration does not ch
   );
 });
 
+test("selector row focus outline is reserved for keyboard-visible checkbox focus", () => {
+  assert.match(
+    evaluationStyles,
+    /\.evaluation-selector-row:has\(> input:focus-visible\)\s*\{[^}]*outline:\s*2px solid rgba\(49, 82, 244, \.55\);[^}]*outline-offset:\s*-2px;/s,
+  );
+  assert.doesNotMatch(evaluationStyles, /\.evaluation-selector-row:focus-within\s*\{/);
+  assert.match(
+    evaluationStyles,
+    /\.evaluation-selector-row:hover, \.evaluation-selector-row\.is-selected\s*\{[^}]*background:/s,
+  );
+});
+
 test("selector exposes the Stage 3 Agent choices without owning TestCase state", () => {
   assert.match(selectorSource, /evaluationAgentId/);
   assert.match(selectorSource, /setEvaluationAgentId/);

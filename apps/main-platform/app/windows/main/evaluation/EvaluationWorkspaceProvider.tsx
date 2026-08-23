@@ -15,7 +15,6 @@ import { DEFAULT_AGENT_ID } from "../../shared/agent-config";
 import { EmailConfirmationDialog } from "./EmailConfirmationDialog";
 import {
   DEFAULT_EVALUATION_AGENT_ID,
-  getEvaluationAgentMeta,
   type EvaluationAgentId,
 } from "./evaluation-agent";
 import { enqueueEmailConfirmation, getEmailConfirmationFromEvent, resolveEmailConfirmationQueue, type EmailConfirmation, type EmailConfirmationDecision } from "./email-confirmation";
@@ -35,7 +34,6 @@ import {
   type SequencedEvent,
   type TestCaseSummary,
 } from "./evaluation-types";
-import { findActiveInference, type ActiveInference } from "./inference-status";
 import {
   selectHandoffTestCase,
   toggleTestCaseSelection as toggleTestCaseSelectionIds,
@@ -79,7 +77,6 @@ type WorkspaceContextValue = ProviderState & {
   loadReport: () => Promise<void>;
   clearReportError: () => void;
   setEvaluationAgentId: (agentId: EvaluationAgentId) => void;
-  activeInference: ActiveInference | null;
   pendingEmailConfirmation: EmailConfirmation | null;
   resolveEmailConfirmation: (eventId: string, decision: EmailConfirmationDecision) => void;
 };
@@ -496,20 +493,7 @@ export function EvaluationWorkspaceProvider({
     }
   }, [state.events]);
 
-  const inferenceAgentId = state.run?.agent_id ?? state.evaluationAgentId;
-  const [inferenceNow, setInferenceNow] = useState(() => Date.now());
-  const activeInference = useMemo(
-    () => findActiveInference(state.events, inferenceAgentId, inferenceNow),
-    [inferenceAgentId, inferenceNow, state.events],
-  );
   const pendingEmailConfirmation = state.emailConfirmations[0] ?? null;
-
-  useEffect(() => {
-    if (!activeInference || !getEvaluationAgentMeta(inferenceAgentId).isLlm) return;
-    setInferenceNow(Date.now());
-    const timer = window.setInterval(() => setInferenceNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [activeInference?.invoked.event_id, inferenceAgentId]);
 
   useEffect(() => () => {
     clearMockTimers();
@@ -585,10 +569,9 @@ export function EvaluationWorkspaceProvider({
     loadReport,
     clearReportError,
     setEvaluationAgentId,
-    activeInference,
     pendingEmailConfirmation,
     resolveEmailConfirmation,
-  }), [activeInference, clearReportError, loadReport, pendingEmailConfirmation, prepareEvaluation, resetEvaluationSelection, resolveEmailConfirmation, retryEvaluation, setEvaluationAgentId, setSelectedTestCaseIds, startEvaluation, state, toggleTestCaseSelection]);
+  }), [clearReportError, loadReport, pendingEmailConfirmation, prepareEvaluation, resetEvaluationSelection, resolveEmailConfirmation, retryEvaluation, setEvaluationAgentId, setSelectedTestCaseIds, startEvaluation, state, toggleTestCaseSelection]);
 
   return <EvaluationWorkspaceContext.Provider value={value}>
     {children}

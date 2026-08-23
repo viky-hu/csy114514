@@ -2,10 +2,6 @@
 
 import { ArrowLeft, Check, CircleAlert, CircleDashed, Play, RotateCcw, XCircle } from "lucide-react";
 import { useMemo } from "react";
-import {
-  resolveEvaluationLoadingTipPhase,
-  useLoadingTip,
-} from "../../shared/loading-tips";
 import { deriveBatchProgress, summarizeBatchProgress, type BatchTestState } from "./batch-progress";
 import { useEvaluationWorkspace, type EvaluationWorkspaceNavigate } from "./EvaluationWorkspaceProvider";
 
@@ -37,15 +33,6 @@ export function BatchProgressPanel({
   const percentage = summary.total ? Math.round((summary.completed / summary.total) * 100) : 0;
   const isActive = run?.status === "queued" || run?.status === "running";
   const isFailed = run?.status === "failed" || run?.status === "interrupted" || run?.status === "preflight_failed";
-  const phase = resolveEvaluationLoadingTipPhase({
-    latestEventType: events.at(-1)?.type,
-    runStatus: run?.status,
-    workspaceError: error,
-  });
-  const tip = useLoadingTip(phase, {
-    active: isStarting || isActive || isFailed || Boolean(error),
-  });
-
   return (
     <section className="evaluation-batch-panel" aria-label="批量 TestCase 进度">
       <header className="evaluation-batch-heading">
@@ -56,7 +43,7 @@ export function BatchProgressPanel({
         </div>
       </header>
       <div className="evaluation-batch-track" role="progressbar" aria-label="批量测评完成进度" aria-valuemin={0} aria-valuemax={summary.total} aria-valuenow={summary.completed}><span style={{ width: `${percentage}%` }} /></div>
-      <div className="evaluation-batch-totals"><span className="is-pass">PASS <b>{summary.passed}</b></span><span className="is-fail">FAIL <b>{summary.failed}</b></span><span className="is-error">ERROR <b>{summary.error}</b></span><span>运行中 <b>{summary.running}</b></span><span>等待 <b>{summary.pending}</b></span>{error ? <span className="evaluation-batch-error"><CircleAlert size={13} />{error}</span> : (isStarting || isActive || isFailed) ? <span className="evaluation-batch-tip">{tip}</span> : null}</div>
+      <div className="evaluation-batch-totals"><span className="is-pass">PASS <b>{summary.passed}</b></span><span className="is-fail">FAIL <b>{summary.failed}</b></span><span className="is-error">ERROR <b>{summary.error}</b></span><span>运行中 <b>{summary.running}</b></span><span>等待 <b>{summary.pending}</b></span>{error ? <span className="evaluation-batch-error"><CircleAlert size={13} />{error}</span> : null}</div>
       <div className="evaluation-batch-list">
         {progress.map((item, index) => <div className={`evaluation-batch-row is-${item.state}`} key={item.testCaseId}><span className="evaluation-batch-index">{String(index + 1).padStart(2, "0")}</span><span className="evaluation-batch-name"><strong>{names.get(item.testCaseId) ?? item.testCaseId}</strong><small>{item.testCaseId}</small></span><span className="evaluation-batch-evidence">{item.evidenceCount ? `${item.evidenceCount} 证据` : ""}</span><span className="evaluation-batch-state"><StateIcon state={item.state} />{STATE_LABEL[item.state]}</span></div>)}
       </div>
