@@ -1,5 +1,17 @@
 # Extension Review Checklist
 
+## Frozen Frontend Contracts (A.3)
+
+- [ ] Read [`frozen-frontend-contracts.md`](frozen-frontend-contracts.md) before changing Evaluation or Anatomy behavior.
+- [ ] `evaluation-types.ts` keeps the exact frozen 18-value `EventType` type sourced from generated `backend-api.d.ts`; no new, removed, renamed, or changed values, and no parallel frontend enum.
+- [ ] `parseEvent()` and `reduceEvaluationEvent()` remain the single SSE parsing/reduction path; new UI does not duplicate, bypass, or rewrite them.
+- [ ] `BatchProgressPanel.tsx` continues to derive progress from existing event state and remains Agent-agnostic.
+- [ ] `EvaluationTerminal` keeps the existing event format and stream lifecycle. Its current implementation is inside `EvaluationRunWorkspace.tsx`; do not infer a separate file boundary.
+- [ ] Anatomy keeps the existing `RiskPattern` definitions and verification semantics; data-source changes adapt to the existing view model.
+- [ ] GSAP changes remain visual-only and cannot alter business events, verdicts, reducers, or persistence.
+- [ ] `evaluation-session.ts` keeps its `sessionStorage` key, snapshot semantics, recovery conditions, and cleanup timing.
+- [ ] Any intentional exception is documented as a “冻结契约变更” and includes synchronized backend/generated-contract updates, focused tests, this module index, and this checklist.
+
 ## 2026-08-19 Stable Verification Tooling
 
 - Ownership: `apps/main-platform` owns its daily verification scripts and split TypeScript configs. The root workspace continues to orchestrate package scripts through pnpm/turbo.

@@ -109,10 +109,12 @@ interface DefenseSummary {
 | `evaluation-types.ts` EventType 枚举 | 18 种事件类型冻结契约，不可新增/修改            |
 | SSE 事件处理核心逻辑                 | `parseEvent()` / `reduceEvaluationEvent()` 不变 |
 | `BatchProgressPanel.tsx` 进度追踪    | 已经通用化，适配任何 Agent                      |
-| `EvaluationTerminal.tsx` 事件流      | 事件格式不变                                    |
+| `EvaluationTerminal` 事件流（当前位于 `EvaluationRunWorkspace.tsx`） | 事件格式不变；不要为拆分组件改变事件流边界 |
 | 攻击图谱页面 (anatomy)               | RiskPattern 定义不变                            |
 | GSAP 动画系统                        | 与业务逻辑无关                                  |
 | `evaluation-session.ts`              | sessionStorage 持久化逻辑不变                   |
+
+> 架构级冻结说明见 `docs/architecture/frozen-frontend-contracts.md`，并同步受 `docs/architecture/modules-index.md` 与 `docs/architecture/extension-review-checklist.md` 约束。任何例外必须明确标注为“冻结契约变更”并完成专项评审。
 
 ## A.4 自由发挥区 (胡继天自行设计)
 

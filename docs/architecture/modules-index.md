@@ -1,5 +1,9 @@
 # Modules Index
 
+## 冻结前端契约（A.3）
+
+Evaluation / Anatomy 的冻结边界统一记录在 [`frozen-frontend-contracts.md`](frozen-frontend-contracts.md)。AI 或开发者默认不得修改 `evaluation-types.ts` 引用的 18 种 `EventType`、`parseEvent()` / `reduceEvaluationEvent()` SSE 核心逻辑、`BatchProgressPanel.tsx` 进度语义、`EvaluationTerminal` 事件格式、Anatomy 的 `RiskPattern` 定义、GSAP 与业务逻辑的隔离关系，或 `evaluation-session.ts` 的 `sessionStorage` 持久化语义。`EventType` 的权威来源是 `app/lib/contracts/backend-openapi.json` 生成的 `app/lib/contracts/backend-api.d.ts`；前端不得另建平行枚举。当前 `EvaluationTerminal` 实现在 `EvaluationRunWorkspace.tsx` 内，不应为此改变事件流边界。
+
 ## apps/main-platform
 
 Main Next.js App Router frontend. It owns routing, app layout, first-party CSS, and same-origin BFF route handlers.
