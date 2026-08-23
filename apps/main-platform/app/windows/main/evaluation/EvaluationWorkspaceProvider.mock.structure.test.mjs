@@ -30,3 +30,14 @@ test("mock mode keeps real session storage and event stream out of its branch", 
   assert.match(provider, /resetEvaluationSelection[\s\S]*?clearMockTimers/);
   assert.match(provider, /mock.*timer|timer.*mock/i);
 });
+
+test("comparison mock waits for explicit start and interleaves both child runs", async () => {
+  const provider = await read("./EvaluationWorkspaceProvider.tsx");
+
+  assert.match(provider, /status: "queued"/);
+  assert.match(provider, /startMockComparison/);
+  assert.match(provider, /bare: buildMockEventSequence/);
+  assert.match(provider, /defended: buildMockEventSequence/);
+  assert.match(provider, /side === "defended" \? 115 : 0/);
+  assert.match(provider, /comparisonStatus === "completed"[\s\S]*buildMockComparisonReport/);
+});

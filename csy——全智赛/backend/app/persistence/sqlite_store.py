@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -347,7 +347,13 @@ class SQLiteEvaluationStore:
         rows = self._connection().execute(
             """
             SELECT * FROM comparisons
-            WHERE status IN ('creating', 'queued', 'running_bare', 'running_defended')
+            WHERE status IN (
+                'creating',
+                'queued',
+                'running_bare',
+                'running_defended',
+                'running_parallel'
+            )
             ORDER BY created_at, comparison_id
             """
         ).fetchall()
@@ -526,6 +532,55 @@ class SQLiteEvaluationStore:
                 "SELECT * FROM runs WHERE run_id = ?", (row["run_id"],)
             ).fetchone()
             return self._run_from_row(claimed)
+
+    def claim_ready_runs(self, run_ids: Sequence[str]) -> list[EvaluationRun] | None:
+        ordered_ids = list(dict.fromkeys(run_ids))
+        if not ordered_ids:
+            return []
+        placeholders = ",".join("?" for _ in ordered_ids)
+        with self._immediate() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT * FROM runs
+                WHERE run_id IN ({placeholders}) AND status = 'ready'
+                """,
+                ordered_ids,
+            ).fetchall()
+            rows_by_id = {row["run_id"]: row for row in rows}
+            if len(rows_by_id) != len(ordered_ids):
+                return None
+
+            started_at = self._timestamp(self._now())
+            claimed: list[EvaluationRun] = []
+            for run_id in ordered_ids:
+                row = rows_by_id[run_id]
+                cursor = connection.execute(
+                    """
+                    UPDATE runs SET status = 'running', started_at = ?
+                    WHERE run_id = ? AND status = 'ready'
+                    """,
+                    (started_at, run_id),
+                )
+                if cursor.rowcount != 1:
+                    return None
+                self._append_event(
+                    connection,
+                    ExecutionEvent(
+                        event_id=f"evt-{uuid4()}",
+                        run_id=run_id,
+                        timestamp=self._now(),
+                        type=EventType.RUN_STARTED,
+                        payload={
+                            "agent_id": row["agent_id"],
+                            "test_case_ids": json.loads(row["test_case_ids_json"]),
+                        },
+                    ),
+                )
+                claimed_row = connection.execute(
+                    "SELECT * FROM runs WHERE run_id = ?", (run_id,)
+                ).fetchone()
+                claimed.append(self._run_from_row(claimed_row))
+            return claimed
 
     def append_event(self, event: ExecutionEvent) -> StoredExecutionEvent:
         with self._immediate() as connection:

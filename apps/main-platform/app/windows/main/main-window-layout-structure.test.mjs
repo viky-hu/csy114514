@@ -84,6 +84,25 @@ test("main workspace restores the content region and page shell after interrupte
   );
 });
 
+test("main workspace keeps the target page attached to both navigation directions", () => {
+  assert.match(
+    mainWindowSource,
+    /const navigationTargetRef = useRef<MainNavKey \| null>\(null\);/,
+  );
+  assert.match(
+    mainWindowSource,
+    /navigationTargetRef\.current = nextNavKey;/,
+  );
+  assert.match(
+    mainWindowSource,
+    /const targetNavKey = navigationTargetRef\.current \?\? nextNavKey;/,
+  );
+  assert.match(
+    mainWindowSource,
+    /setRenderedNavKey\(targetNavKey\);/,
+  );
+});
+
 test("visible application branding is unified as AgentProof", () => {
   assert.match(loginSource, /const BRAND_WORD = "AgentProof";/);
   assert.match(layoutSource, /title: "AgentProof \| Agent 安全评估平台"/);
@@ -134,5 +153,16 @@ test("main workspace wordmark styling has stable desktop and mobile dimensions",
   assert.match(
     mainStyles,
     /@media \(max-width:\s*720px\)[\s\S]*?\.main-window-brand-word\s*\{[^}]*font-size:\s*22px;/s,
+  );
+});
+
+test("main Agent interface keeps its narrow-container preview rows content-sized", () => {
+  assert.match(
+    mainStyles,
+    /@container main-content \(max-width:\s*980px\)[\s\S]*?\.agent-interface-page \.login-agent-draft-preview\s*\{\s*grid-template-rows:\s*repeat\(5, auto\);/s,
+  );
+  assert.doesNotMatch(
+    mainStyles,
+    /@container main-content \(max-width:\s*980px\)[\s\S]*?\.agent-interface-page \.login-agent-draft-preview\s*\{[^}]*minmax\(0, 1fr\)/s,
   );
 });

@@ -99,7 +99,7 @@ export function EvaluationReportWorkspace({ onNavigate }: { onNavigate?: Evaluat
   }, { scope: root, dependencies: [report?.report_id] });
 
   if (comparison && evaluationMode === "comparison") {
-    return <EvaluationComparisonWorkspace />;
+    return <EvaluationComparisonWorkspace onNavigate={onNavigate} />;
   }
 
   if (isLoadingReport || !report) {

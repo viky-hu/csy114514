@@ -14,6 +14,7 @@ ComparisonStatus = Literal[
     "queued",
     "running_bare",
     "running_defended",
+    "running_parallel",
     "completed",
     "partial",
     "failed",

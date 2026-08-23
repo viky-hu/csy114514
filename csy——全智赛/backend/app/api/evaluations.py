@@ -179,6 +179,35 @@ async def get_evaluation_comparison(comparison_id: str):
         )
 
 
+@router.post(
+    "/comparisons/{comparison_id}/start",
+    response_model=EvaluationComparisonSnapshot,
+    responses={404: {"model": ApiErrorResponse}, 409: {"model": ApiErrorResponse}},
+)
+async def start_evaluation_comparison(comparison_id: str, response: Response):
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "EVALUATION_SERVICE_UNAVAILABLE", "Evaluation service is unavailable.")
+    try:
+        coordinator.start_comparison(comparison_id)
+        response.status_code = 202
+        return coordinator.comparison_snapshot(comparison_id)
+    except evaluation_service.ComparisonNotFoundError:
+        return _error(
+            404,
+            "COMPARISON_NOT_FOUND",
+            "Comparison was not found.",
+            {"comparison_id": comparison_id},
+        )
+    except evaluation_service.ComparisonNotStartableError as exc:
+        return _error(
+            409,
+            "COMPARISON_NOT_STARTABLE",
+            "Comparison cannot be started from its current state.",
+            {"reason": str(exc), "comparison_id": comparison_id},
+        )
+
+
 @router.get("/comparisons/{comparison_id}/report", response_model=EvaluationComparisonReport)
 async def get_evaluation_comparison_report(comparison_id: str):
     coordinator = _coordinator()
@@ -192,6 +221,13 @@ async def get_evaluation_comparison_report(comparison_id: str):
             "COMPARISON_NOT_FOUND",
             "Comparison was not found.",
             {"comparison_id": comparison_id},
+        )
+    except evaluation_service.ReportNotReadyError as exc:
+        return _error(
+            409,
+            "REPORT_NOT_READY",
+            "Comparison report is not ready.",
+            {"comparison_id": comparison_id, "status": str(exc)},
         )
 
 

@@ -194,3 +194,47 @@ test("later entry is idempotent while the local loading session is active", asyn
   await page.waitForTimeout(400);
   await expect(root).toHaveAttribute("data-agent-entry-stage", "loading");
 });
+
+test("short login viewport keeps Agent preview rows separated and scrollable", async ({ page }) => {
+  await page.setViewportSize({ width: 786, height: 546 });
+  await page.goto("/");
+  await openAgentEntry(page);
+
+  const preview = page.locator(".login-agent-draft-preview");
+  await expect(preview).toBeVisible();
+
+  const metrics = await page.evaluate(() => {
+    const riskList = document.querySelector<HTMLElement>(".login-agent-risk-list");
+    const checkList = document.querySelector<HTMLElement>(".login-agent-check-list");
+
+    if (!riskList || !checkList) {
+      throw new Error("Missing Agent preview lists");
+    }
+
+    const rowHeights = (list: HTMLElement) =>
+      Array.from(list.children).map((row) => Math.round(row.getBoundingClientRect().height));
+    const scrollContainer = riskList.parentElement;
+    const riskRows = Array.from(riskList.children);
+    const checkRows = Array.from(checkList.children);
+    const lastRiskRow = riskRows.at(-1);
+    const firstCheckRow = checkRows.at(0);
+
+    if (!lastRiskRow || !firstCheckRow) {
+      throw new Error("Missing Agent preview row content");
+    }
+
+    return {
+      checkTop: Math.round(firstCheckRow.getBoundingClientRect().top),
+      riskBottom: Math.round(lastRiskRow.getBoundingClientRect().bottom),
+      riskHeights: rowHeights(riskList),
+      checkHeights: rowHeights(checkList),
+      scrollHeight: scrollContainer?.scrollHeight ?? 0,
+      clientHeight: scrollContainer?.clientHeight ?? 0,
+    };
+  });
+
+  expect(metrics.riskHeights.every((height) => height >= 44)).toBe(true);
+  expect(metrics.checkHeights.every((height) => height >= 44)).toBe(true);
+  expect(metrics.riskBottom).toBeLessThanOrEqual(metrics.checkTop);
+  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+});

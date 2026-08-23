@@ -2,7 +2,7 @@
 
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
-import { Check, CircleAlert, CircleDashed, Clipboard, Filter, Play, RotateCcw, Settings2, TerminalSquare } from "lucide-react";
+import { ArrowLeft, Check, CircleAlert, CircleDashed, Clipboard, Filter, Play, RotateCcw, Settings2, TerminalSquare } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
 import {
@@ -17,7 +17,8 @@ import { useEvaluationWorkspace, EvaluationWorkspaceStatusAnnouncer, type Evalua
 import { EVALUATION_STAGES, eventText, finalJudgeVerdict, type EvaluationStage, type SequencedEvent } from "./evaluation-types";
 import { isInferenceRunActive } from "./inference-status";
 import { TestCaseSelector } from "./TestCaseSelector";
-import { EvaluationComparisonWorkspace } from "./EvaluationComparisonWorkspace";
+import { EvaluationComparisonBadge } from "./EvaluationComparisonBadge";
+import { EvaluationComparisonRunWorkspace } from "./EvaluationComparisonRunWorkspace";
 
 gsap.registerPlugin(useGSAP);
 
@@ -231,7 +232,7 @@ function TestPointRail({
   </div>;
 }
 
-function EvaluationTerminal({ events }: { events: SequencedEvent[] }) {
+export function EvaluationTerminal({ events }: { events: SequencedEvent[] }) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [kind, setKind] = useState<EventKind>("全部事件");
   const [query, setQuery] = useState("");
@@ -258,6 +259,8 @@ function EvaluationTerminal({ events }: { events: SequencedEvent[] }) {
 export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewReport?: () => void; onNavigate?: EvaluationWorkspaceNavigate }) {
   const { run, events, activeStage, isStarting, startEvaluation, evaluationAgentId, comparison, evaluationMode } = useEvaluationWorkspace();
   const viewMode = comparison && evaluationMode === "comparison" ? "comparison" : run ? "running" : "selecting";
+  const isComparisonMode = evaluationMode === "comparison";
+  const isComparisonRun = viewMode === "comparison";
   const [renderedView, setRenderedView] = useState(viewMode);
   const viewShellRef = useRef<HTMLDivElement>(null);
   const transitionRef = useRef<gsap.core.Tween | gsap.core.Timeline | null>(null);
@@ -312,11 +315,57 @@ export function EvaluationRunWorkspace({ onViewReport, onNavigate }: { onViewRep
   const isLegacyR4 = renderedRun?.test_case_ids.length === 1 && renderedRun.test_case_ids[0] === "tc_pipi_001";
   return <section className={`evaluation-page evaluation-run-page ${viewMode === "comparison" ? "is-comparison" : !run ? "is-selecting" : isLegacyR4 ? "is-legacy-r4" : "is-batch"}`} aria-label="测评运行工作台">
     <EvaluationWorkspaceStatusAnnouncer />
-    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>{viewMode === "comparison" ? "对齐同一组 TestCase，观察防御前后的状态转移。" : "以持久事件和 SSE 实时复盘 Agent 的真实执行路径。"}</p></div><div className="evaluation-run-header-actions">{viewMode === "comparison" ? <span className="evaluation-comparison-header-badge">Bare vs Defended</span> : <EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} />}</div><EvaluationInferenceStatus isRunActive={isInferenceRunActive(run?.status, isStarting)} /></header>
+    <header className="evaluation-page-header"><div><span className="evaluation-eyebrow">EVALUATION RUN</span><h1>测评运行</h1><p>{viewMode === "comparison" ? "对齐同一组 TestCase，观察防御前后的状态转移。" : "以持久事件和 SSE 实时复盘 Agent 的真实执行路径。"}</p></div><div className={`evaluation-run-header-actions ${isComparisonRun ? "is-comparison" : ""}`}>{isComparisonRun ? <ComparisonRunHeaderActions onViewReport={onViewReport} onNavigate={onNavigate} /> : isComparisonMode ? <EvaluationComparisonBadge /> : <EvaluationAgentBadge agentId={run?.agent_id ?? evaluationAgentId} />}</div><EvaluationInferenceStatus isRunActive={isInferenceRunActive(run?.status, isStarting)} /></header>
     <div ref={viewShellRef} className="evaluation-run-view-shell">
       <div className={`evaluation-run-view-content ${isLegacyR4 && renderedView === "running" ? "is-legacy" : ""}`}>
-        {renderedView === "selecting" ? <TestCaseSelector /> : renderedView === "comparison" ? <EvaluationComparisonWorkspace onViewReport={onViewReport ?? (() => onNavigate?.("report"))} /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} runOverride={renderedRun} activeStageOverride={renderedActiveStage} eventsOverride={renderedEvents} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={renderedEvents} runStatus={renderedRun?.status} /><EvaluationTerminal events={renderedEvents} /></div></> : renderedRun ? <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} runOverride={renderedRun} eventsOverride={renderedEvents} /><EvaluationTerminal events={renderedEvents} /></div> : null}
+        {renderedView === "selecting" ? <TestCaseSelector /> : renderedView === "comparison" ? <EvaluationComparisonRunWorkspace /> : isLegacyR4 ? <><TestPointRail onStart={() => void startEvaluation()} onReport={onViewReport ?? (() => onNavigate?.("report"))} runOverride={renderedRun} activeStageOverride={renderedActiveStage} eventsOverride={renderedEvents} /><div className="evaluation-run-body"><ProcessColumn stage={stage} events={renderedEvents} runStatus={renderedRun?.status} /><EvaluationTerminal events={renderedEvents} /></div></> : renderedRun ? <div className="evaluation-batch-run-body"><BatchProgressPanel onViewReport={onViewReport} onNavigate={onNavigate} runOverride={renderedRun} eventsOverride={renderedEvents} /><EvaluationTerminal events={renderedEvents} /></div> : null}
       </div>
     </div>
   </section>;
+}
+
+function ComparisonRunHeaderActions({
+  onViewReport,
+  onNavigate,
+}: {
+  onViewReport?: () => void;
+  onNavigate?: EvaluationWorkspaceNavigate;
+}) {
+  const { comparison, isStarting, startComparison, resetEvaluationSelection } = useEvaluationWorkspace();
+  if (!comparison || !comparison.defended_run) return null;
+
+  const sides = [comparison.bare_run, comparison.defended_run];
+  const canStart = comparison.status === "queued"
+    && sides.every((run) => run.status === "ready")
+    && !isStarting;
+  const canViewReport = comparison.status === "completed"
+    && sides.every((run) => run.status === "completed");
+  const actionLabel = isStarting
+    ? "正在启动"
+    : comparison.status === "running_parallel"
+      ? "两侧运行中"
+      : canViewReport
+        ? "对比报告"
+        : "开始测评";
+  const viewReport = onViewReport ?? (() => onNavigate?.("report"));
+
+  return (
+    <>
+      <div className="evaluation-comparison-global-actions">
+        <button type="button" className="evaluation-secondary-button evaluation-comparison-global-button" onClick={() => { resetEvaluationSelection(); onNavigate?.("run"); }}>
+          <ArrowLeft size={16} />返回
+        </button>
+        <button
+          type="button"
+          className="evaluation-primary-button evaluation-comparison-global-button"
+          disabled={canViewReport ? false : !canStart}
+          onClick={canViewReport ? viewReport : () => void startComparison()}
+        >
+          {canViewReport ? <Check size={17} /> : isStarting || comparison.status === "running_parallel" ? <CircleDashed className={isStarting ? "evaluation-spin" : ""} size={17} /> : <Play size={17} />}
+          {actionLabel}
+        </button>
+      </div>
+      <EvaluationComparisonBadge />
+    </>
+  );
 }

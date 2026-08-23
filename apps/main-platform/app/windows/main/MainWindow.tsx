@@ -315,6 +315,7 @@ export function MainWindow({
   const rootRef = useRef<HTMLElement>(null);
   const contentPageRef = useRef<HTMLDivElement>(null);
   const contentSwapTimelineRef = useRef<gsap.core.Timeline | null>(null);
+  const navigationTargetRef = useRef<MainNavKey | null>(null);
   const topSurfaceRef = useRef<SVGRectElement>(null);
   const mainSurfaceRef = useRef<SVGRectElement>(null);
   const separatorRef = useRef<SVGRectElement>(null);
@@ -333,21 +334,31 @@ export function MainWindow({
       ).matches;
 
       contentSwapTimelineRef.current?.kill();
+      navigationTargetRef.current = nextNavKey;
       restoreContentPageShell(pageShell);
       setActiveNavKey(nextNavKey);
 
       if (!pageShell || prefersReducedMotion) {
+        navigationTargetRef.current = null;
         setRenderedNavKey(nextNavKey);
         return;
       }
 
       contentSwapTimelineRef.current = gsap.timeline({
         onComplete: () => {
-          setRenderedNavKey(nextNavKey);
+          const targetNavKey = navigationTargetRef.current ?? nextNavKey;
+          if (targetNavKey !== nextNavKey) {
+            return;
+          }
+          setRenderedNavKey(targetNavKey);
+          navigationTargetRef.current = null;
           contentSwapTimelineRef.current = null;
         },
         onInterrupt: () => {
           restoreContentPageShell(pageShell);
+          if (navigationTargetRef.current === nextNavKey) {
+            navigationTargetRef.current = null;
+          }
           contentSwapTimelineRef.current = null;
         },
       });

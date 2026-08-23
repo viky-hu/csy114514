@@ -6,6 +6,7 @@ import hashlib
 import json
 import threading
 import uuid
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -116,6 +117,13 @@ class EvaluationCoordinator:
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._process_lock = threading.Lock()
+        self._comparison_advance_lock = threading.Lock()
+        self._comparison_executor = ThreadPoolExecutor(
+            max_workers=4,
+            thread_name_prefix="evaluation-comparison",
+        )
+        self._comparison_futures: dict[str, set[Future[None]]] = {}
+        self._comparison_futures_lock = threading.Lock()
         self._prepared_sandboxes: dict[str, CompositeSandbox] = {}
         self._worker: threading.Thread | None = None
         if start_worker:
@@ -321,13 +329,12 @@ class EvaluationCoordinator:
         )
         if not created:
             return comparison, False
-        if bare.status == "ready":
-            self.start(bare.run_id)
+        if bare.status == "ready" and defended.status == "ready":
             comparison = self.store.update_comparison(
                 comparison.comparison_id,
-                status="running_bare",
+                status="queued",
             )
-        elif self.is_terminal(bare):
+        elif self.is_terminal(bare) or self.is_terminal(defended):
             comparison = self.store.update_comparison(
                 comparison.comparison_id,
                 status="failed",
@@ -338,6 +345,69 @@ class EvaluationCoordinator:
                 status="queued",
             )
         return comparison, True
+
+    def start_comparison(self, comparison_id: str) -> EvaluationComparison:
+        comparison = self.get_comparison(comparison_id)
+        if comparison.status == "completed":
+            return comparison
+        if comparison.status in {"running_parallel", "running_bare", "running_defended"}:
+            return comparison
+        if comparison.status != "queued":
+            raise ComparisonNotStartableError(comparison.status)
+        if not comparison.defended_run_id:
+            raise ComparisonNotStartableError("missing defended run")
+
+        run_ids = [comparison.bare_run_id, comparison.defended_run_id]
+        claimed = self.store.claim_ready_runs(run_ids)
+        if claimed is None:
+            raise ComparisonNotStartableError("both comparison sides must be ready")
+        comparison = self.store.update_comparison(
+            comparison.comparison_id,
+            status="running_parallel",
+        )
+        self._launch_comparison_runs(comparison.comparison_id, claimed)
+        return comparison
+
+    def wait_for_comparison(self, comparison_id: str, *, timeout: float) -> None:
+        with self._comparison_futures_lock:
+            futures = list(self._comparison_futures.get(comparison_id, set()))
+        for future in futures:
+            future.result(timeout=timeout)
+
+    def _launch_comparison_runs(
+        self,
+        comparison_id: str,
+        runs: list[EvaluationRun],
+    ) -> None:
+        with self._comparison_futures_lock:
+            futures = self._comparison_futures.setdefault(comparison_id, set())
+        for run in runs:
+            future = self._comparison_executor.submit(
+                self._execute_comparison_side,
+                comparison_id,
+                run,
+            )
+            with self._comparison_futures_lock:
+                futures.add(future)
+
+            def finished(done: Future[None], *, key=comparison_id) -> None:
+                self._advance_comparison(key)
+                with self._comparison_futures_lock:
+                    active = self._comparison_futures.get(key)
+                    if active is not None:
+                        active.discard(done)
+                        if not active:
+                            self._comparison_futures.pop(key, None)
+
+            future.add_done_callback(finished)
+
+    def _execute_comparison_side(
+        self,
+        comparison_id: str,
+        run: EvaluationRun,
+    ) -> None:
+        self._execute(run)
+        self._advance_comparison(comparison_id)
 
     def get_comparison(self, comparison_id: str) -> EvaluationComparison:
         comparison = self.store.get_comparison(comparison_id)
@@ -357,6 +427,8 @@ class EvaluationCoordinator:
 
     def comparison_report(self, comparison_id: str) -> dict:
         comparison = self.get_comparison(comparison_id)
+        if comparison.status != "completed":
+            raise ReportNotReadyError(comparison.status)
         bare = self.get(comparison.bare_run_id)
         defended = self.get(comparison.defended_run_id) if comparison.defended_run_id else None
         bare_results = self._comparison_case_results(bare.run_id, comparison.test_case_ids)
@@ -390,6 +462,7 @@ class EvaluationCoordinator:
             {
                 "seq": index,
                 "side": side,
+                "run_seq": event.seq,
                 "event": event.model_dump(mode="json", exclude={"seq"}),
             }
             for index, (_, side, event) in enumerate(events, start=1)
@@ -414,24 +487,54 @@ class EvaluationCoordinator:
         )
         if run.status != "ready":
             raise ComparisonNotStartableError(run.status)
-        self.start(run.run_id)
+        claimed = self.store.claim_ready_runs([run.run_id])
+        if claimed is None:
+            raise ComparisonNotStartableError("retry side is no longer ready")
         if side == "bare":
-            return self.store.update_comparison(
+            updated = self.store.update_comparison(
                 comparison.comparison_id,
-                status="running_bare",
+                status="running_parallel",
                 bare_run_id=run.run_id,
                 defended_run_id=comparison.defended_run_id,
             )
-        return self.store.update_comparison(
-            comparison.comparison_id,
-            status="running_defended",
-            defended_run_id=run.run_id,
-        )
+        else:
+            updated = self.store.update_comparison(
+                comparison.comparison_id,
+                status="running_parallel",
+                defended_run_id=run.run_id,
+            )
+        self._launch_comparison_runs(comparison.comparison_id, claimed)
+        return updated
 
     def _advance_comparisons(self) -> None:
         for comparison in self.store.list_active_comparisons():
+            self._advance_comparison(comparison.comparison_id)
+
+    def _advance_comparison(self, comparison_id: str) -> None:
+        with self._comparison_advance_lock:
+            comparison = self.get_comparison(comparison_id)
             bare = self.get(comparison.bare_run_id)
-            defended = self.get(comparison.defended_run_id) if comparison.defended_run_id else None
+            defended = (
+                self.get(comparison.defended_run_id)
+                if comparison.defended_run_id
+                else None
+            )
+            if comparison.status == "running_parallel":
+                if defended and self.is_terminal(bare) and self.is_terminal(defended):
+                    self.store.update_comparison(
+                        comparison.comparison_id,
+                        status=(
+                            "completed"
+                            if bare.status == "completed"
+                            and defended.status == "completed"
+                            else "partial"
+                            if bare.status == "completed"
+                            or defended.status == "completed"
+                            else "failed"
+                        ),
+                    )
+                return
+
             if comparison.status in {"creating", "queued", "running_bare"} and self.is_terminal(bare):
                 if bare.status == "completed" and defended and defended.status == "ready":
                     self.start(defended.run_id)
@@ -453,11 +556,13 @@ class EvaluationCoordinator:
                         comparison.comparison_id,
                         status="failed",
                     )
-                continue
+                return
             if comparison.status == "running_defended" and defended and self.is_terminal(defended):
                 self.store.update_comparison(
                     comparison.comparison_id,
-                    status="completed" if bare.status == "completed" and defended.status == "completed" else "partial",
+                    status="completed"
+                    if bare.status == "completed" and defended.status == "completed"
+                    else "partial",
                 )
 
     def _comparison_case_results(self, run_id: str, test_case_ids: list[str]) -> list[dict]:
@@ -1131,6 +1236,7 @@ class EvaluationCoordinator:
         self._wake.set()
         if self._worker is not None:
             self._worker.join(timeout=5)
+        self._comparison_executor.shutdown(wait=True, cancel_futures=True)
         self.store.close()
 
 

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from threading import Event
 
 import pytest
 import pytest_asyncio
@@ -94,7 +95,7 @@ async def comparison_client(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_comparison_runs_bare_then_defended_and_returns_projection(comparison_client, monkeypatch):
+async def test_comparison_creation_waits_for_explicit_start(comparison_client, monkeypatch):
     from backend.app.corpmate.agent import CorpMate
 
     monkeypatch.setattr(
@@ -116,16 +117,30 @@ async def test_comparison_runs_bare_then_defended_and_returns_projection(compari
     )
     assert created.status_code == 201
     body = created.json()
-    assert body["status"] == "running_bare"
+    assert body["status"] == "queued"
     assert body["bare_run_id"]
     assert body["defended_run_id"]
+    assert body["bare_run"]["status"] == "ready"
+    assert body["defended_run"]["status"] == "ready"
 
-    assert evaluation_service.coordinator().process_queued_once() is True
-    after_bare = await comparison_client.get(f"/evaluations/comparisons/{body['comparison_id']}")
-    assert after_bare.json()["status"] == "running_defended"
+    not_started = await comparison_client.get(
+        f"/evaluations/comparisons/{body['comparison_id']}/report"
+    )
+    assert not_started.status_code == 409
 
-    assert evaluation_service.coordinator().process_queued_once() is True
-    completed = await comparison_client.get(f"/evaluations/comparisons/{body['comparison_id']}")
+    started = await comparison_client.post(
+        f"/evaluations/comparisons/{body['comparison_id']}/start"
+    )
+    assert started.status_code == 202
+    assert started.json()["status"] == "running_parallel"
+    assert started.json()["bare_run"]["status"] == "running"
+    assert started.json()["defended_run"]["status"] == "running"
+
+    coordinator = evaluation_service.coordinator()
+    coordinator.wait_for_comparison(body["comparison_id"], timeout=5)
+    completed = await comparison_client.get(
+        f"/evaluations/comparisons/{body['comparison_id']}"
+    )
     assert completed.json()["status"] == "completed"
 
     report = await comparison_client.get(
@@ -134,3 +149,90 @@ async def test_comparison_runs_bare_then_defended_and_returns_projection(compari
     assert report.status_code == 200
     assert report.json()["summary"]["total"] == 2
     assert len(report.json()["results"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_comparison_start_rejects_unready_side(comparison_client, monkeypatch):
+    from backend.app.corpmate.agent import CorpMate
+
+    monkeypatch.setattr(
+        evaluation_service.EvaluationCoordinator,
+        "_create_agent",
+        staticmethod(lambda _agent_id, sandbox: CorpMate(sandbox=sandbox)),
+    )
+    monkeypatch.setattr(
+        evaluation_service.EvaluationCoordinator,
+        "_create_judge",
+        staticmethod(lambda _agent_id: evaluation_service.CompositeJudge()),
+    )
+    coordinator = evaluation_service.coordinator()
+    monkeypatch.setattr(
+        coordinator,
+        "get",
+        lambda run_id: coordinator.store.get_run(run_id),
+    )
+    created = await comparison_client.post(
+        "/evaluations/comparisons",
+        json={
+            "request_id": "comparison-unready",
+            "test_case_ids": ["tc_pi_001", "tc_unauth_001"],
+        },
+    )
+    comparison_id = created.json()["comparison_id"]
+    coordinator.store.queue_run(created.json()["bare_run_id"])
+
+    started = await comparison_client.post(
+        f"/evaluations/comparisons/{comparison_id}/start"
+    )
+    assert started.status_code == 409
+    assert started.json()["error"]["code"] == "COMPARISON_NOT_STARTABLE"
+
+
+@pytest.mark.asyncio
+async def test_comparison_start_launches_both_sides_concurrently(comparison_client, monkeypatch):
+    from backend.app.corpmate.agent import CorpMate
+
+    monkeypatch.setattr(
+        evaluation_service.EvaluationCoordinator,
+        "_create_agent",
+        staticmethod(lambda _agent_id, sandbox: CorpMate(sandbox=sandbox)),
+    )
+    monkeypatch.setattr(
+        evaluation_service.EvaluationCoordinator,
+        "_create_judge",
+        staticmethod(lambda _agent_id: evaluation_service.CompositeJudge()),
+    )
+    coordinator = evaluation_service.coordinator()
+    entered = Event()
+    release = Event()
+    entered_runs: list[str] = []
+
+    def fake_execute(run):
+        entered_runs.append(run.run_id)
+        if len(entered_runs) == 2:
+            entered.set()
+        assert release.wait(timeout=5)
+
+    monkeypatch.setattr(coordinator, "_execute", fake_execute)
+    created = await comparison_client.post(
+        "/evaluations/comparisons",
+        json={
+            "request_id": "comparison-concurrent",
+            "test_case_ids": ["tc_pi_001", "tc_unauth_001"],
+        },
+    )
+    comparison_id = created.json()["comparison_id"]
+    await comparison_client.post(
+        f"/evaluations/comparisons/{comparison_id}/start"
+    )
+
+    assert entered.wait(timeout=5)
+    assert set(entered_runs) == {
+        created.json()["bare_run_id"],
+        created.json()["defended_run_id"],
+    }
+    stream_events = coordinator.list_comparison_events(comparison_id)
+    assert {item["side"] for item in stream_events} == {"bare", "defended"}
+    assert all(item["run_seq"] >= 1 for item in stream_events)
+    release.set()
+    coordinator.wait_for_comparison(comparison_id, timeout=5)

@@ -1,6 +1,20 @@
+import type { EvaluationRun } from "./evaluation-types";
+
 export type ComparisonSide = "bare" | "defended";
 export type ComparisonMode = "bare_vs_defended";
-export type ComparisonStatus = "creating" | "queued" | "running_bare" | "running_defended" | "completed" | "partial" | "failed";
+export type ComparisonStatus = "creating" | "queued" | "running_bare" | "running_defended" | "running_parallel" | "completed" | "partial" | "failed";
+export type ComparisonStreamEvent = {
+  seq: number;
+  side: ComparisonSide;
+  run_seq: number;
+  event: {
+    event_id: string;
+    run_id: string;
+    timestamp: string;
+    type: import("./evaluation-types").EventType;
+    payload?: Record<string, unknown>;
+  };
+};
 export type ComparisonTransition = "defense_blocked" | "both_pass" | "defense_failed" | "possible_regression" | "incomplete";
 
 export type ComparisonCaseResult = {
@@ -31,15 +45,7 @@ export type ComparisonSummary = {
   pass_rate_delta: number;
 };
 
-export type ComparisonRunSnapshot = {
-  run_id: string;
-  agent_id: string;
-  test_case_ids: string[];
-  status: string;
-  report_available: boolean;
-  last_event_seq: number;
-  error?: { code: string; message: string; retryable: boolean } | null;
-};
+export type ComparisonRunSnapshot = EvaluationRun;
 
 export type EvaluationComparison = {
   comparison_id: string;

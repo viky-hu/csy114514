@@ -23,6 +23,80 @@ test("batch runs group TestCase progress and terminal into the desktop split wor
   );
 });
 
+test("comparison run keeps live side modules and moves controls to one global action group", () => {
+  const comparisonRun = readFileSync(
+    new URL("./EvaluationComparisonRunWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const comparisonReport = readFileSync(
+    new URL("./EvaluationComparisonWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const comparisonBadge = readFileSync(
+    new URL("./EvaluationComparisonBadge.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(comparisonRun, /BatchProgressPanel[\s\S]*showControls=\{false\}/);
+  assert.match(comparisonRun, /comparisonEvents\[side\]/);
+  assert.doesNotMatch(comparisonRun, /BARE VS DEFENDED · LIVE RUN/);
+  assert.doesNotMatch(comparisonRun, /双侧测评运行/);
+  assert.doesNotMatch(comparisonRun, /同一组 TestCase 同时进入 Bare 与 Defended 两条独立执行链/);
+  assert.doesNotMatch(comparisonRun, /evaluation-comparison-global-actions/);
+  assert.doesNotMatch(comparisonRun, /<button/);
+  assert.doesNotMatch(comparisonRun, /evaluation-comparison-table/);
+  assert.match(source, /evaluation-comparison-global-actions/);
+  assert.match(source, /evaluation-comparison-global-actions[\s\S]*EvaluationComparisonBadge/);
+  assert.match(source, /EvaluationComparisonBadge/);
+  assert.match(comparisonBadge, /Brain/);
+  assert.match(comparisonBadge, /ShieldCheck/);
+  assert.match(comparisonBadge, /Bare/);
+  assert.match(comparisonBadge, /Defended/);
+  assert.match(comparisonBadge, /evaluation-comparison-badge/);
+  assert.match(source, /对比报告/);
+  assert.match(comparisonReport, /evaluation-comparison-table/);
+  assert.doesNotMatch(comparisonReport, /开始测评/);
+  assert.match(
+    styles,
+    /\.evaluation-comparison-run-grid \{[^}]*display: grid;[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\);/,
+  );
+  assert.match(
+    styles,
+    /@container evaluation-page \(max-width: 920px\)[\s\S]*?\.evaluation-comparison-run-grid \{ grid-template-columns: minmax\(0, 1fr\);/,
+  );
+  assert.match(
+    styles,
+    /\.evaluation-comparison-run-workspace \{[^}]*height: 100%;/,
+  );
+  assert.match(
+    styles,
+    /\.evaluation-comparison-run-content \{[^}]*height: 100%;/,
+  );
+  assert.match(
+    styles,
+    /\.evaluation-comparison-run-grid \{[^}]*height: 100%;/,
+  );
+  assert.match(
+    styles,
+    /\.evaluation-comparison-run-group \{[^}]*height: 100%;/,
+  );
+  assert.match(styles, /\.evaluation-comparison-badge/);
+});
+
+test("comparison header places global actions to the left of the mode badge", () => {
+  assert.match(
+    styles,
+    /\.evaluation-run-header-actions\.is-comparison \{[^}]*display: flex;[^}]*align-items: center;[^}]*justify-content: flex-end;[^}]*gap: 12px;/,
+  );
+  assert.doesNotMatch(
+    styles,
+    /\.evaluation-run-header-actions\.is-comparison \{[^}]*display: grid;/,
+  );
+  assert.match(
+    source,
+    /<div className="evaluation-comparison-global-actions">[\s\S]*?<\/div>\s*<EvaluationComparisonBadge \/>/,
+  );
+});
+
 test("batch flow keeps the selection entry action and run-page back action", () => {
   const selector = readFileSync(
     new URL("./TestCaseSelector.tsx", import.meta.url),
@@ -87,7 +161,12 @@ test("run workspace keeps selecting and running views inside one animated shell"
     source,
     /className="evaluation-run-view-shell"[\s\S]*?\{renderedView === "selecting" \? <TestCaseSelector \/> :/,
   );
-  assert.match(source, /const viewMode = run \? "running" : "selecting";/);
+  assert.match(source, /const viewMode = comparison && evaluationMode === "comparison" \? "comparison" : run \? "running" : "selecting";/);
+  assert.match(source, /const isComparisonMode = evaluationMode === "comparison";/);
+  assert.match(
+    source,
+    /isComparisonRun \? <ComparisonRunHeaderActions[\s\S]*?isComparisonMode \? <EvaluationComparisonBadge/,
+  );
   assert.match(source, /useGSAP\(/);
   assert.match(source, /setRenderedView\(viewMode\)/);
 });

@@ -1,6 +1,31 @@
 import type { ComparisonCaseResult, ComparisonTransition } from "./comparison-types.ts";
+import type { ComparisonSide, ComparisonStreamEvent } from "./comparison-types.ts";
+import type { SequencedEvent } from "./evaluation-types.ts";
 
 export type ComparisonRow = ComparisonCaseResult;
+
+export type ComparisonStreamState = {
+  cursor: number;
+  events: Record<ComparisonSide, SequencedEvent[]>;
+};
+
+export function reduceComparisonStreamEvent(
+  current: ComparisonStreamState,
+  streamEvent: ComparisonStreamEvent,
+): ComparisonStreamState {
+  const sideEvents = current.events[streamEvent.side];
+  if (sideEvents.some((event) => event.run_id === streamEvent.event.run_id && event.seq === streamEvent.run_seq)) {
+    return current;
+  }
+  const event = { ...streamEvent.event, seq: streamEvent.run_seq } as SequencedEvent;
+  return {
+    cursor: Math.max(current.cursor, streamEvent.seq),
+    events: {
+      ...current.events,
+      [streamEvent.side]: [...sideEvents, event].sort((left, right) => left.seq - right.seq),
+    },
+  };
+}
 
 export function compareComparisonRows(results: ComparisonCaseResult[]): ComparisonRow[] {
   return results.map((result) => ({

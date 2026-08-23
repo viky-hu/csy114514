@@ -272,6 +272,10 @@
   padding-right: 8px;
 }
 
+.agent-interface-page .login-agent-draft-preview {
+  grid-template-rows: auto auto minmax(max-content, 1fr) minmax(max-content, 1fr) auto;
+}
+
 .agent-interface-page .login-agent-draft-divider {
   background: linear-gradient(
     180deg,

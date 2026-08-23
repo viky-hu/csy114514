@@ -28,7 +28,16 @@ import {
   readStoredEvaluationComparisonId,
   storeEvaluationComparisonId,
 } from "./comparison-session";
-import type { ComparisonReport, ComparisonSide, EvaluationComparison } from "./comparison-types";
+import {
+  reduceComparisonStreamEvent,
+  type ComparisonStreamState,
+} from "./comparison-progress";
+import type {
+  ComparisonReport,
+  ComparisonSide,
+  ComparisonStreamEvent,
+  EvaluationComparison,
+} from "./comparison-types";
 import {
   eventStage,
   eventText,
@@ -64,6 +73,7 @@ type ProviderState = {
   evaluationAgentId: EvaluationAgentId;
   evaluationMode: "single" | "comparison";
   comparison: EvaluationComparison | null;
+  comparisonEvents: ComparisonStreamState["events"];
   comparisonReport: ComparisonReport | null;
   isLoadingComparisonReport: boolean;
   comparisonError: string | null;
@@ -82,6 +92,7 @@ type WorkspaceContextValue = ProviderState & {
   startEvaluation: () => Promise<void>;
   prepareEvaluation: () => Promise<void>;
   prepareComparison: () => Promise<void>;
+  startComparison: () => Promise<void>;
   retryEvaluation: () => Promise<void>;
   resetEvaluationSelection: () => void;
   setSelectedTestCaseIds: (ids: string[]) => void;
@@ -150,6 +161,7 @@ export function EvaluationWorkspaceProvider({
     evaluationAgentId: DEFAULT_EVALUATION_AGENT_ID,
     evaluationMode: "single",
     comparison: null,
+    comparisonEvents: EMPTY_COMPARISON_EVENTS,
     comparisonReport: null,
     isLoadingComparisonReport: false,
     comparisonError: null,
@@ -169,6 +181,10 @@ export function EvaluationWorkspaceProvider({
   const mockTimersRef = useRef<number[]>([]);
   const mockRunRef = useRef<EvaluationRun | null>(null);
   const mockEventsRef = useRef<SequencedEvent[]>([]);
+  const mockComparisonRunsRef = useRef<Record<ComparisonSide, EvaluationRun> | null>(null);
+  const mockComparisonEventsRef = useRef<ComparisonStreamState["events"]>(EMPTY_COMPARISON_EVENTS);
+  const comparisonCursorRef = useRef(0);
+  const comparisonSeenEventsRef = useRef(new Set<string>());
 
   const clearMockTimers = useCallback(() => {
     for (const timer of mockTimersRef.current) window.clearTimeout(timer);
@@ -314,18 +330,35 @@ export function EvaluationWorkspaceProvider({
 
   const createComparison = useCallback(async (testCaseIds: string[], requestId = newRequestId()) => {
     if (mockMode) {
-      const cases = testCaseIds.map((testCaseId, index) => ({
-        test_case_id: testCaseId,
-        bare_verdict: index % 2 === 0 ? "FAIL" : "PASS",
-        defended_verdict: "PASS",
-        transition: index % 2 === 0 ? "defense_blocked" : "both_pass",
-      })) as ComparisonReport["results"];
       const bareRun = createMockRun(`mock-bare-${Date.now()}`, "llm-agent-v0", testCaseIds);
       const defendedRun = createMockRun(`mock-defended-${Date.now() + 1}`, "defended-llm-v0", testCaseIds);
-      const comparison = { comparison_id: `mock-comparison-${Date.now()}`, mode: "bare_vs_defended" as const, test_case_ids: testCaseIds, bare_run_id: bareRun.run_id, defended_run_id: defendedRun.run_id, status: "completed" as const, comparison_seed: "mock-seed", bare_run: { ...bareRun, status: "completed" as const }, defended_run: { ...defendedRun, status: "completed" as const } };
-      const comparable = cases.length;
-      const summary = { total: cases.length, comparable, bare_passed: cases.filter((item) => item.bare_verdict === "PASS").length, defended_passed: comparable, defense_blocked: cases.filter((item) => item.transition === "defense_blocked").length, bare_pass_rate: comparable ? cases.filter((item) => item.bare_verdict === "PASS").length / comparable : 0, defended_pass_rate: comparable ? 1 : 0, pass_rate_delta: comparable ? cases.filter((item) => item.bare_verdict !== "PASS").length / comparable : 0 };
-      setState((current) => ({ ...current, run: null, events: [], evaluationId: null, comparison, comparisonReport: { comparison_id: comparison.comparison_id, mode: comparison.mode, test_case_ids: testCaseIds, status: comparison.status, bare_run_id: bareRun.run_id, defended_run_id: defendedRun.run_id, summary, results: cases }, evaluationMode: "comparison", isBootstrapping: false, isLoadingComparisonReport: false, error: null, comparisonError: null }));
+      const comparison: EvaluationComparison = {
+        comparison_id: `mock-comparison-${Date.now()}`,
+        mode: "bare_vs_defended",
+        test_case_ids: testCaseIds,
+        bare_run_id: bareRun.run_id,
+        defended_run_id: defendedRun.run_id,
+        status: "queued",
+        comparison_seed: "mock-seed",
+        bare_run: bareRun,
+        defended_run: defendedRun,
+      };
+      mockComparisonRunsRef.current = { bare: bareRun, defended: defendedRun };
+      mockComparisonEventsRef.current = { bare: [], defended: [] };
+      setState((current) => ({
+        ...current,
+        run: null,
+        events: [],
+        evaluationId: null,
+        comparison,
+        comparisonEvents: EMPTY_COMPARISON_EVENTS,
+        comparisonReport: null,
+        evaluationMode: "comparison",
+        isBootstrapping: false,
+        isLoadingComparisonReport: false,
+        error: null,
+        comparisonError: null,
+      }));
       return comparison;
     }
     const response = await fetch("/api/evaluations/comparisons", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request_id: requestId, test_case_ids: testCaseIds }) });
@@ -333,9 +366,93 @@ export function EvaluationWorkspaceProvider({
     if (!response.ok) throw new Error(getErrorMessage(body, "比较任务创建失败"));
     const comparison = body as EvaluationComparison;
     storeEvaluationComparisonId(comparison.comparison_id);
-    setState((current) => ({ ...current, run: null, events: [], evaluationId: null, comparison, comparisonReport: null, evaluationMode: "comparison", isBootstrapping: false, error: null, comparisonError: null }));
+    comparisonCursorRef.current = 0;
+    comparisonSeenEventsRef.current.clear();
+    setState((current) => ({ ...current, run: null, events: [], evaluationId: null, comparison, comparisonEvents: EMPTY_COMPARISON_EVENTS, comparisonReport: null, evaluationMode: "comparison", isBootstrapping: false, error: null, comparisonError: null }));
     return comparison;
   }, [mockMode]);
+
+  const appendMockComparisonEvent = useCallback((side: ComparisonSide, event: SequencedEvent) => {
+    const runs = mockComparisonRunsRef.current;
+    if (!mockMode || !runs) return;
+    const events = {
+      ...mockComparisonEventsRef.current,
+      [side]: [...mockComparisonEventsRef.current[side], event],
+    };
+    const previousRun = runs[side];
+    const nextRun: EvaluationRun = {
+      ...previousRun,
+      status: event.type === "RUN_STARTED" ? "running" : event.type === "RUN_FINISHED" ? "completed" : previousRun.status,
+      current_stage: eventStage(event) ?? previousRun.current_stage,
+      last_event_seq: event.seq,
+      report_available: event.type === "RUN_FINISHED",
+      started_at: event.type === "RUN_STARTED" ? event.timestamp : previousRun.started_at,
+      finished_at: event.type === "RUN_FINISHED" ? event.timestamp : previousRun.finished_at,
+    };
+    const nextRuns = { ...runs, [side]: nextRun };
+    mockComparisonRunsRef.current = nextRuns;
+    mockComparisonEventsRef.current = events;
+    setState((current) => {
+      if (!current.comparison) return current;
+      const comparisonStatus = nextRuns.bare.status === "completed" && nextRuns.defended.status === "completed"
+        ? "completed"
+        : "running_parallel";
+      const nextComparison = {
+        ...current.comparison,
+        status: comparisonStatus as EvaluationComparison["status"],
+        bare_run: nextRuns.bare,
+        defended_run: nextRuns.defended,
+      };
+      return {
+        ...current,
+        comparison: nextComparison,
+        comparisonEvents: events,
+        comparisonReport: comparisonStatus === "completed"
+          ? buildMockComparisonReport(nextComparison, events)
+          : null,
+      };
+    });
+  }, [mockMode]);
+
+  const startMockComparison = useCallback(() => {
+    const runs = mockComparisonRunsRef.current;
+    const comparison = state.comparison;
+    if (!runs || !comparison || comparison.status === "completed") return;
+    clearMockTimers();
+    setState((current) => ({ ...current, isStarting: false, comparison: current.comparison ? { ...current.comparison, status: "running_parallel" } : current.comparison, comparisonError: null }));
+    const baseTimestamp = Date.now();
+    const sequences = {
+      bare: buildMockEventSequence({ ...runs.bare, status: "queued" }, baseTimestamp),
+      defended: buildMockEventSequence({ ...runs.defended, status: "queued" }, baseTimestamp + 120),
+    };
+    for (const side of ["bare", "defended"] as const) {
+      for (const [index, event] of sequences[side].entries()) {
+        const timer = window.setTimeout(
+          () => appendMockComparisonEvent(side, event),
+          240 + index * 230 + (side === "defended" ? 115 : 0),
+        );
+        mockTimersRef.current.push(timer);
+      }
+    }
+  }, [appendMockComparisonEvent, clearMockTimers, state.comparison]);
+
+  const startComparison = useCallback(async () => {
+    if (mockMode) {
+      startMockComparison();
+      return;
+    }
+    const comparisonId = state.comparison?.comparison_id;
+    if (!comparisonId || state.isStarting || state.comparison?.status !== "queued") return;
+    setState((current) => ({ ...current, isStarting: true, comparisonError: null }));
+    try {
+      const response = await fetch(`/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}/start`, { method: "POST" });
+      const body = (await response.json()) as EvaluationComparison | { error?: { message?: string } };
+      if (!response.ok) throw new Error(getErrorMessage(body, "比较测评无法启动"));
+      setState((current) => ({ ...current, comparison: body as EvaluationComparison, isStarting: false }));
+    } catch (error) {
+      setState((current) => ({ ...current, isStarting: false, comparisonError: error instanceof Error ? error.message : "比较测评无法启动" }));
+    }
+  }, [mockMode, startMockComparison, state.comparison, state.isStarting]);
 
   const prepareEvaluation = useCallback(async () => {
     if (state.selectedTestCaseIds.length === 0 || state.isBootstrapping) return;
@@ -381,7 +498,13 @@ export function EvaluationWorkspaceProvider({
       const response = await fetch(`/api/evaluations/comparisons/${encodeURIComponent(state.comparison.comparison_id)}/retry`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ side }) });
       const body = (await response.json()) as EvaluationComparison | { error?: { message?: string } };
       if (!response.ok) throw new Error(getErrorMessage(body, "比较侧重试失败"));
-      setState((current) => ({ ...current, comparison: body as EvaluationComparison, comparisonReport: null, isBootstrapping: false }));
+      setState((current) => ({
+        ...current,
+        comparison: body as EvaluationComparison,
+        comparisonEvents: { ...current.comparisonEvents, [side]: [] },
+        comparisonReport: null,
+        isBootstrapping: false,
+      }));
     } catch (error) {
       setState((current) => ({ ...current, isBootstrapping: false, comparisonError: error instanceof Error ? error.message : "比较侧重试失败" }));
     }
@@ -392,7 +515,9 @@ export function EvaluationWorkspaceProvider({
       clearMockTimers();
       mockRunRef.current = null;
       mockEventsRef.current = [];
-      setState((current) => ({ ...current, run: null, events: [], evaluationId: null, activeStage: null, report: null, trace: null, comparison: null, comparisonReport: null, evaluationMode: "single", isBootstrapping: false, isStarting: false, isLoadingReport: false, isLoadingComparisonReport: false, error: null, reportError: null, comparisonError: null, emailConfirmations: [], emailConfirmationDecisions: {} }));
+      mockComparisonRunsRef.current = null;
+      mockComparisonEventsRef.current = EMPTY_COMPARISON_EVENTS;
+      setState((current) => ({ ...current, run: null, events: [], evaluationId: null, activeStage: null, report: null, trace: null, comparison: null, comparisonEvents: EMPTY_COMPARISON_EVENTS, comparisonReport: null, evaluationMode: "single", isBootstrapping: false, isStarting: false, isLoadingReport: false, isLoadingComparisonReport: false, error: null, reportError: null, comparisonError: null, emailConfirmations: [], emailConfirmationDecisions: {} }));
       return;
     }
     closeStream();
@@ -400,6 +525,8 @@ export function EvaluationWorkspaceProvider({
     clearEvaluationComparisonSession();
     cursorRef.current = 0;
     seenEmailEventIdsRef.current.clear();
+    comparisonCursorRef.current = 0;
+    comparisonSeenEventsRef.current.clear();
     setState((current) => ({
       ...current,
       run: null,
@@ -409,6 +536,7 @@ export function EvaluationWorkspaceProvider({
       report: null,
       trace: null,
       comparison: null,
+      comparisonEvents: EMPTY_COMPARISON_EVENTS,
       comparisonReport: null,
       evaluationMode: "single",
       isBootstrapping: false,
@@ -428,6 +556,8 @@ export function EvaluationWorkspaceProvider({
     clearEvaluationComparisonSession();
     cursorRef.current = 0;
     seenEmailEventIdsRef.current.clear();
+    comparisonCursorRef.current = 0;
+    comparisonSeenEventsRef.current.clear();
     setState((current) => ({
       ...current,
       run: null,
@@ -437,6 +567,7 @@ export function EvaluationWorkspaceProvider({
       report: null,
       trace: null,
       comparison: null,
+      comparisonEvents: EMPTY_COMPARISON_EVENTS,
       comparisonReport: null,
       evaluationMode: "single",
       selectedTestCaseIds: selectHandoffTestCase(handoff.testCaseId),
@@ -471,7 +602,11 @@ export function EvaluationWorkspaceProvider({
           const response = await fetch(`/api/evaluations/comparisons/${encodeURIComponent(storedComparisonId)}`, { signal: controller.signal });
           if (response.ok) {
             const comparison = (await response.json()) as EvaluationComparison;
-            if (!controller.signal.aborted) setState((current) => ({ ...current, comparison, comparisonReport: null, evaluationMode: "comparison", isBootstrapping: false }));
+            if (!controller.signal.aborted) {
+              comparisonCursorRef.current = 0;
+              comparisonSeenEventsRef.current.clear();
+              setState((current) => ({ ...current, comparison, comparisonEvents: EMPTY_COMPARISON_EVENTS, comparisonReport: null, evaluationMode: "comparison", isBootstrapping: false }));
+            }
             return;
           }
         } catch (error) {
@@ -506,13 +641,43 @@ export function EvaluationWorkspaceProvider({
     if (mockMode || !state.comparison) return;
     const comparisonId = state.comparison.comparison_id;
     const controller = new AbortController();
+    comparisonCursorRef.current = 0;
+    comparisonSeenEventsRef.current.clear();
     const source = new EventSource(`/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}/events?after=0`);
     sourceRef.current = source;
-    source.onmessage = () => {
+    source.onmessage = (message) => {
+      const streamEvent = parseComparisonEvent(message.data, message.lastEventId, comparisonId);
+      if (!streamEvent) return;
+      const key = `${streamEvent.side}:${streamEvent.event.run_id}:${streamEvent.run_seq}`;
+      if (comparisonSeenEventsRef.current.has(key)) return;
+      comparisonSeenEventsRef.current.add(key);
+      comparisonCursorRef.current = Math.max(comparisonCursorRef.current, streamEvent.seq);
+      setState((current) => ({
+        ...current,
+        comparisonEvents: reduceComparisonStreamEvent(
+          { cursor: comparisonCursorRef.current, events: current.comparisonEvents },
+          streamEvent,
+        ).events,
+      }));
       void fetch(`/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}`, { signal: controller.signal }).then(async (response) => {
         if (response.ok && !controller.signal.aborted) {
           const nextComparison = await response.json() as EvaluationComparison;
-          if (!controller.signal.aborted) setState((current) => ({ ...current, comparison: nextComparison }));
+          if (!controller.signal.aborted) {
+            setState((current) => {
+              const sideRunChanged = {
+                bare: current.comparison?.bare_run_id !== nextComparison.bare_run_id,
+                defended: current.comparison?.defended_run_id !== nextComparison.defended_run_id,
+              };
+              return {
+                ...current,
+                comparison: nextComparison,
+                comparisonEvents: {
+                  bare: sideRunChanged.bare ? [] : current.comparisonEvents.bare,
+                  defended: sideRunChanged.defended ? [] : current.comparisonEvents.defended,
+                },
+              };
+            });
+          }
         }
       }).catch(() => undefined);
     };
@@ -598,7 +763,11 @@ export function EvaluationWorkspaceProvider({
   }, [closeStream, mockMode, runStatus, setRun, state.evaluationId]);
 
   useEffect(() => {
-    for (const event of state.events) {
+    for (const event of [
+      ...state.events,
+      ...state.comparisonEvents.bare,
+      ...state.comparisonEvents.defended,
+    ]) {
       const confirmation = getEmailConfirmationFromEvent(event);
       const result = enqueueEmailConfirmation([], confirmation, seenEmailEventIdsRef.current);
       if (!confirmation || result.queue.length === 0) continue;
@@ -669,7 +838,7 @@ export function EvaluationWorkspaceProvider({
   }, [loadReport, state.isLoadingReport, state.report, state.run?.status]);
 
   useEffect(() => {
-    if (["completed", "partial", "failed"].includes(state.comparison?.status ?? "") && !state.comparisonReport && !state.isLoadingComparisonReport) void loadComparisonReport();
+    if (state.comparison?.status === "completed" && !state.comparisonReport && !state.isLoadingComparisonReport) void loadComparisonReport();
   }, [loadComparisonReport, state.comparison?.status, state.comparisonReport, state.isLoadingComparisonReport]);
 
   const clearReportError = useCallback(() => setState((current) => ({ ...current, reportError: null })), []);
@@ -700,6 +869,7 @@ export function EvaluationWorkspaceProvider({
     startEvaluation,
     prepareEvaluation,
     prepareComparison,
+    startComparison,
     retryEvaluation,
     resetEvaluationSelection,
     setSelectedTestCaseIds,
@@ -712,12 +882,97 @@ export function EvaluationWorkspaceProvider({
     setEvaluationMode,
     pendingEmailConfirmation,
     resolveEmailConfirmation,
-  }), [clearReportError, loadComparisonReport, loadReport, pendingEmailConfirmation, prepareComparison, prepareEvaluation, resetEvaluationSelection, resolveEmailConfirmation, retryComparison, retryEvaluation, setEvaluationAgentId, setEvaluationMode, setSelectedTestCaseIds, startEvaluation, state, toggleTestCaseSelection]);
+  }), [clearReportError, loadComparisonReport, loadReport, pendingEmailConfirmation, prepareComparison, prepareEvaluation, resetEvaluationSelection, resolveEmailConfirmation, retryComparison, retryEvaluation, setEvaluationAgentId, setEvaluationMode, setSelectedTestCaseIds, startComparison, startEvaluation, state, toggleTestCaseSelection]);
 
   return <EvaluationWorkspaceContext.Provider value={value}>
     {children}
     <EmailConfirmationDialog confirmation={pendingEmailConfirmation} onDecision={resolveEmailConfirmation} />
   </EvaluationWorkspaceContext.Provider>;
+}
+
+function parseComparisonEvent(data: string, lastEventId: string, comparisonId: string): ComparisonStreamEvent | null {
+  try {
+    const item = JSON.parse(data) as ComparisonStreamEvent;
+    const [eventComparisonId, rawSeq] = lastEventId.split(":");
+    const seq = Number(rawSeq);
+    if (
+      !item
+      || eventComparisonId !== comparisonId
+      || !Number.isInteger(seq)
+      || seq < 1
+      || item.seq !== seq
+      || !["bare", "defended"].includes(item.side)
+      || !item.event?.event_id
+      || !item.event?.run_id
+      || !Number.isInteger(item.run_seq)
+      || item.run_seq < 1
+    ) {
+      return null;
+    }
+    return item;
+  } catch {
+    return null;
+  }
+}
+
+const EMPTY_COMPARISON_EVENTS: ComparisonStreamState["events"] = {
+  bare: [],
+  defended: [],
+};
+
+function buildMockComparisonReport(
+  comparison: EvaluationComparison,
+  events: ComparisonStreamState["events"],
+): ComparisonReport {
+  const resultByCase = new Map<string, ComparisonReport["results"][number]>();
+  for (const testCaseId of comparison.test_case_ids) {
+    const bareEvent = [...events.bare].reverse().find((event) => event.type === "TEST_COMPLETED" && event.payload?.test_case_id === testCaseId);
+    const defendedEvent = [...events.defended].reverse().find((event) => event.type === "TEST_COMPLETED" && event.payload?.test_case_id === testCaseId);
+    const bareVerdict = typeof bareEvent?.payload?.verdict === "string" ? bareEvent.payload.verdict : null;
+    const defendedVerdict = typeof defendedEvent?.payload?.verdict === "string" ? defendedEvent.payload.verdict : null;
+    const transition = bareVerdict === "FAIL" && defendedVerdict === "PASS"
+      ? "defense_blocked"
+      : bareVerdict === "PASS" && defendedVerdict === "PASS"
+        ? "both_pass"
+        : bareVerdict === "FAIL" && defendedVerdict === "FAIL"
+          ? "defense_failed"
+          : bareVerdict === "PASS" && defendedVerdict === "FAIL"
+            ? "possible_regression"
+            : "incomplete";
+    resultByCase.set(testCaseId, {
+      test_case_id: testCaseId,
+      bare_verdict: bareVerdict,
+      defended_verdict: defendedVerdict,
+      transition,
+      bare_findings: [],
+      defended_findings: [],
+    });
+  }
+  const results = [...resultByCase.values()];
+  const comparable = results.filter((row) => ["PASS", "FAIL"].includes(row.bare_verdict ?? "") && ["PASS", "FAIL"].includes(row.defended_verdict ?? ""));
+  const barePassed = comparable.filter((row) => row.bare_verdict === "PASS").length;
+  const defendedPassed = comparable.filter((row) => row.defended_verdict === "PASS").length;
+  const bareRate = comparable.length ? barePassed / comparable.length : 0;
+  const defendedRate = comparable.length ? defendedPassed / comparable.length : 0;
+  return {
+    comparison_id: comparison.comparison_id,
+    mode: comparison.mode,
+    test_case_ids: comparison.test_case_ids,
+    status: comparison.status,
+    bare_run_id: comparison.bare_run_id,
+    defended_run_id: comparison.defended_run_id,
+    summary: {
+      total: results.length,
+      comparable: comparable.length,
+      bare_passed: barePassed,
+      defended_passed: defendedPassed,
+      defense_blocked: results.filter((row) => row.transition === "defense_blocked").length,
+      bare_pass_rate: bareRate,
+      defended_pass_rate: defendedRate,
+      pass_rate_delta: defendedRate - bareRate,
+    },
+    results,
+  };
 }
 
 export function useEvaluationWorkspace() {

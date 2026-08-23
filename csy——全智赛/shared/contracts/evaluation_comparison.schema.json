@@ -10,7 +10,7 @@
     "test_case_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
     "bare_run_id": {"type": "string"},
     "defended_run_id": {"type": ["string", "null"]},
-    "status": {"enum": ["creating", "queued", "running_bare", "running_defended", "completed", "partial", "failed"]},
+    "status": {"enum": ["creating", "queued", "running_bare", "running_defended", "running_parallel", "completed", "partial", "failed"]},
     "comparison_seed": {"type": "string"}
   }
 }

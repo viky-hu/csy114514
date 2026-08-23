@@ -328,6 +328,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evaluations/comparisons/{comparison_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Evaluation Comparison */
+        post: operations["start_evaluation_comparison_evaluations_comparisons__comparison_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -474,7 +491,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "creating" | "queued" | "running_bare" | "running_defended" | "completed" | "partial" | "failed";
+            status: "creating" | "queued" | "running_bare" | "running_defended" | "running_parallel" | "completed" | "partial" | "failed";
             /** Comparison Seed */
             comparison_seed: string;
             /**
@@ -1351,6 +1368,15 @@ export interface operations {
                     "application/json": components["schemas"]["EvaluationComparisonReport"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1418,7 +1444,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -1647,6 +1673,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TestCase"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_evaluation_comparison_evaluations_comparisons__comparison_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comparison_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationComparisonSnapshot"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
             /** @description Validation Error */

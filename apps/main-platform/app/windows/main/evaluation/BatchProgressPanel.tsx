@@ -18,11 +18,17 @@ export function BatchProgressPanel({
   onNavigate,
   runOverride,
   eventsOverride,
+  showControls = true,
+  onRetry,
+  sideLabel,
 }: {
   onViewReport?: () => void;
   onNavigate?: EvaluationWorkspaceNavigate;
   runOverride?: ReturnType<typeof useEvaluationWorkspace>["run"];
   eventsOverride?: ReturnType<typeof useEvaluationWorkspace>["events"];
+  showControls?: boolean;
+  onRetry?: () => void;
+  sideLabel?: string;
 }) {
   const { run: workspaceRun, events: workspaceEvents, testCases, isStarting, error, startEvaluation, retryEvaluation, resetEvaluationSelection } = useEvaluationWorkspace();
   const run = runOverride ?? workspaceRun;
@@ -34,12 +40,12 @@ export function BatchProgressPanel({
   const isActive = run?.status === "queued" || run?.status === "running";
   const isFailed = run?.status === "failed" || run?.status === "interrupted" || run?.status === "preflight_failed";
   return (
-    <section className="evaluation-batch-panel" aria-label="批量 TestCase 进度">
+    <section className={`evaluation-batch-panel ${showControls ? "" : "is-comparison-compact"}`} aria-label={`${sideLabel ?? ""}批量 TestCase 进度`}>
       <header className="evaluation-batch-heading">
-        <div><span className="evaluation-eyebrow">BATCH EXECUTION</span><h2>{summary.completed} / {summary.total} 已完成</h2></div>
+        <div><span className="evaluation-eyebrow">BATCH EXECUTION{sideLabel ? ` · ${sideLabel}` : ""}</span><h2>{summary.completed} / {summary.total} 已完成</h2></div>
         <div className="evaluation-batch-actions">
-          {!isActive && <button type="button" className="evaluation-icon-command" title="返回选择 TestCase" aria-label="返回选择 TestCase" onClick={resetEvaluationSelection}><ArrowLeft size={16} /></button>}
-          {run?.status === "completed" ? <button type="button" className="evaluation-primary-button" onClick={onViewReport ?? (() => onNavigate?.("report"))}><Check size={15} />查看报告</button> : isFailed ? <button type="button" className="evaluation-primary-button" onClick={() => void retryEvaluation()}><RotateCcw size={15} />重新创建</button> : <button type="button" className="evaluation-primary-button" disabled={run?.status !== "ready" || isStarting} onClick={() => void startEvaluation()}>{isActive || isStarting ? <CircleDashed className="evaluation-spin" size={15} /> : <Play size={15} />}{isStarting ? "正在启动" : isActive ? "批量运行中" : "开始测评"}</button>}
+          {showControls && !isActive && <button type="button" className="evaluation-icon-command" title="返回选择 TestCase" aria-label="返回选择 TestCase" onClick={resetEvaluationSelection}><ArrowLeft size={16} /></button>}
+          {showControls && run?.status === "completed" ? <button type="button" className="evaluation-primary-button" onClick={onViewReport ?? (() => onNavigate?.("report"))}><Check size={15} />查看报告</button> : showControls && isFailed ? <button type="button" className="evaluation-primary-button" onClick={() => void retryEvaluation()}><RotateCcw size={15} />重新创建</button> : showControls ? <button type="button" className="evaluation-primary-button" disabled={run?.status !== "ready" || isStarting} onClick={() => void startEvaluation()}>{isActive || isStarting ? <CircleDashed className="evaluation-spin" size={15} /> : <Play size={15} />}{isStarting ? "正在启动" : isActive ? "批量运行中" : "开始测评"}</button> : isFailed && onRetry ? <button type="button" className="evaluation-text-button" onClick={onRetry}><RotateCcw size={14} />重试 {sideLabel ?? ""}</button> : null}
         </div>
       </header>
       <div className="evaluation-batch-track" role="progressbar" aria-label="批量测评完成进度" aria-valuemin={0} aria-valuemax={summary.total} aria-valuenow={summary.completed}><span style={{ width: `${percentage}%` }} /></div>
