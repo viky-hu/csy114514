@@ -12,6 +12,7 @@ from fastapi.sse import EventSourceResponse, format_sse_event
 from pydantic import BaseModel, Field
 
 from backend.app.domain.enums import EventType
+from backend.app.domain.evaluation_comparison import EvaluationComparison
 from backend.app.domain.evaluation_report import EvaluationReport
 from backend.app.domain.evaluation_run import EvaluationRun
 from backend.app.domain.execution_trace import ExecutionTrace
@@ -25,6 +26,31 @@ class CreateEvaluationRequest(BaseModel):
     request_id: str = Field(..., min_length=1)
     agent_id: str = Field(..., min_length=1)
     test_case_ids: list[str] = Field(..., min_length=1)
+
+
+class CreateEvaluationComparisonRequest(BaseModel):
+    request_id: str = Field(..., min_length=1)
+    test_case_ids: list[str] = Field(..., min_length=1)
+
+
+class RetryEvaluationComparisonRequest(BaseModel):
+    side: str = Field(..., pattern="^(bare|defended)$")
+
+
+class EvaluationComparisonSnapshot(EvaluationComparison):
+    bare_run: EvaluationRun
+    defended_run: EvaluationRun | None = None
+
+
+class EvaluationComparisonReport(BaseModel):
+    comparison_id: str
+    mode: str
+    test_case_ids: list[str]
+    status: str
+    bare_run_id: str
+    defended_run_id: str | None
+    summary: dict[str, Any]
+    results: list[dict[str, Any]]
 
 
 class ApiErrorDetail(BaseModel):
@@ -100,6 +126,202 @@ async def create_evaluation(req: CreateEvaluationRequest, response: Response):
         )
     response.status_code = 201 if created else 200
     return run
+
+
+@router.post(
+    "/comparisons",
+    response_model=EvaluationComparisonSnapshot,
+    responses={409: {"model": ApiErrorResponse}, 422: {"model": ApiErrorResponse}},
+)
+async def create_evaluation_comparison(
+    req: CreateEvaluationComparisonRequest,
+    response: Response,
+):
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "EVALUATION_SERVICE_UNAVAILABLE", "Evaluation service is unavailable.")
+    try:
+        comparison, created = coordinator.create_comparison(
+            request_id=req.request_id,
+            test_case_ids=req.test_case_ids,
+        )
+    except evaluation_service.InvalidTestCaseSelectionError:
+        return _error(
+            422,
+            "INVALID_TEST_CASE_SELECTION",
+            "All test_case_ids must exist in the security TestCase catalog.",
+            {"test_case_ids": req.test_case_ids},
+        )
+    except IdempotencyConflictError:
+        return _error(
+            409,
+            "IDEMPOTENCY_CONFLICT",
+            "The request_id was already used with different request data.",
+            {"request_id": req.request_id},
+        )
+    response.status_code = 201 if created else 200
+    return coordinator.comparison_snapshot(comparison.comparison_id)
+
+
+@router.get("/comparisons/{comparison_id}", response_model=EvaluationComparisonSnapshot)
+async def get_evaluation_comparison(comparison_id: str):
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "EVALUATION_SERVICE_UNAVAILABLE", "Evaluation service is unavailable.")
+    try:
+        return coordinator.comparison_snapshot(comparison_id)
+    except evaluation_service.ComparisonNotFoundError:
+        return _error(
+            404,
+            "COMPARISON_NOT_FOUND",
+            "Comparison was not found.",
+            {"comparison_id": comparison_id},
+        )
+
+
+@router.post(
+    "/comparisons/{comparison_id}/start",
+    response_model=EvaluationComparisonSnapshot,
+    responses={404: {"model": ApiErrorResponse}, 409: {"model": ApiErrorResponse}},
+)
+async def start_evaluation_comparison(comparison_id: str, response: Response):
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "EVALUATION_SERVICE_UNAVAILABLE", "Evaluation service is unavailable.")
+    try:
+        coordinator.start_comparison(comparison_id)
+        response.status_code = 202
+        return coordinator.comparison_snapshot(comparison_id)
+    except evaluation_service.ComparisonNotFoundError:
+        return _error(
+            404,
+            "COMPARISON_NOT_FOUND",
+            "Comparison was not found.",
+            {"comparison_id": comparison_id},
+        )
+    except evaluation_service.ComparisonNotStartableError as exc:
+        return _error(
+            409,
+            "COMPARISON_NOT_STARTABLE",
+            "Comparison cannot be started from its current state.",
+            {"reason": str(exc), "comparison_id": comparison_id},
+        )
+
+
+@router.get("/comparisons/{comparison_id}/report", response_model=EvaluationComparisonReport)
+async def get_evaluation_comparison_report(comparison_id: str):
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "EVALUATION_SERVICE_UNAVAILABLE", "Evaluation service is unavailable.")
+    try:
+        return coordinator.comparison_report(comparison_id)
+    except evaluation_service.ComparisonNotFoundError:
+        return _error(
+            404,
+            "COMPARISON_NOT_FOUND",
+            "Comparison was not found.",
+            {"comparison_id": comparison_id},
+        )
+    except evaluation_service.ReportNotReadyError as exc:
+        return _error(
+            409,
+            "REPORT_NOT_READY",
+            "Comparison report is not ready.",
+            {"comparison_id": comparison_id, "status": str(exc)},
+        )
+
+
+@router.post("/comparisons/{comparison_id}/retry", response_model=EvaluationComparisonSnapshot)
+async def retry_evaluation_comparison(
+    comparison_id: str,
+    req: RetryEvaluationComparisonRequest,
+):
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "EVALUATION_SERVICE_UNAVAILABLE", "Evaluation service is unavailable.")
+    try:
+        coordinator.retry_comparison(comparison_id, req.side)
+        return coordinator.comparison_snapshot(comparison_id)
+    except evaluation_service.ComparisonNotFoundError:
+        return _error(
+            404,
+            "COMPARISON_NOT_FOUND",
+            "Comparison was not found.",
+            {"comparison_id": comparison_id},
+        )
+    except evaluation_service.ComparisonNotStartableError as exc:
+        return _error(
+            409,
+            "COMPARISON_NOT_RETRYABLE",
+            "The selected comparison side cannot be retried.",
+            {"reason": str(exc), "side": req.side},
+        )
+
+
+@router.get("/comparisons/{comparison_id}/events")
+async def stream_evaluation_comparison_events(
+    comparison_id: str,
+    request: Request,
+    after: int = Query(default=0, ge=0),
+    last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
+):
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "EVALUATION_SERVICE_UNAVAILABLE", "Evaluation service is unavailable.")
+    try:
+        coordinator.get_comparison(comparison_id)
+    except evaluation_service.ComparisonNotFoundError:
+        return _error(
+            404,
+            "COMPARISON_NOT_FOUND",
+            "Comparison was not found.",
+            {"comparison_id": comparison_id},
+        )
+
+    async def generate():
+        cursor = max(after, _comparison_cursor_from_event_id(comparison_id, last_event_id))
+        loop = asyncio.get_running_loop()
+        last_heartbeat = loop.time()
+        while True:
+            if await request.is_disconnected():
+                return
+            batch = coordinator.list_comparison_events(comparison_id, after=cursor)
+            for item in batch:
+                cursor = item["seq"]
+                yield format_sse_event(
+                    data_str=json.dumps(item, ensure_ascii=False, separators=(",", ":")),
+                    id=f"{comparison_id}:{cursor}",
+                    retry=3000,
+                )
+            comparison = coordinator.get_comparison(comparison_id)
+            if comparison.status in {"completed", "partial", "failed"} and not batch:
+                return
+            if loop.time() - last_heartbeat >= 15:
+                yield format_sse_event(comment="heartbeat")
+                last_heartbeat = loop.time()
+            await asyncio.sleep(0.25)
+
+    return EventSourceResponse(
+        generate(),
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+def _comparison_cursor_from_event_id(comparison_id: str, last_event_id: str | None) -> int:
+    if not last_event_id:
+        return 0
+    prefix, separator, raw_cursor = last_event_id.partition(":")
+    if prefix != comparison_id or not separator:
+        return 0
+    try:
+        cursor = int(raw_cursor)
+    except ValueError:
+        return 0
+    return max(cursor, 0)
 
 
 @router.post(

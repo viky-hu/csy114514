@@ -318,7 +318,7 @@ html.login-agent-entry-lock body {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(max-content, 1fr) minmax(max-content, 1fr) auto;
   align-content: stretch;
   gap: 16px;
   overflow: auto;

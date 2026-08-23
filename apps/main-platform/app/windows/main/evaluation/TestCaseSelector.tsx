@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare2, CircleAlert, LoaderCircle, Search, Square, X } from "lucide-react";
+import { CheckSquare2, CircleAlert, LoaderCircle, Play, Search, Square, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLoadingTip } from "../../shared/loading-tips";
 import { useEvaluationWorkspace } from "./EvaluationWorkspaceProvider";
@@ -16,12 +16,15 @@ export function TestCaseSelector() {
     setSelectedTestCaseIds,
     toggleTestCaseSelection,
     prepareEvaluation,
+    prepareComparison,
     isLoadingTestCases,
     isBootstrapping,
     testCaseError,
     error,
     evaluationAgentId,
     setEvaluationAgentId,
+    evaluationMode,
+    setEvaluationMode,
   } = useEvaluationWorkspace();
   const [query, setQuery] = useState("");
   const [riskPattern, setRiskPattern] = useState<(typeof RISK_PATTERNS)[number]>("ALL");
@@ -52,7 +55,7 @@ export function TestCaseSelector() {
       <div className="evaluation-selector-toolbar">
         <label className="evaluation-search-control"><Search size={15} /><span className="evaluation-visually-hidden">搜索 TestCase</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 ID、名称或风险类型" /></label>
         <label className="evaluation-pattern-control"><span className="evaluation-visually-hidden">风险路径</span><select value={riskPattern} onChange={(event) => setRiskPattern(event.target.value as (typeof RISK_PATTERNS)[number])}>{RISK_PATTERNS.map((pattern) => <option key={pattern} value={pattern}>{pattern === "ALL" ? "全部路径" : pattern}</option>)}</select></label>
-        <label className="evaluation-agent-control"><span className="evaluation-visually-hidden">Agent 类型</span><select value={evaluationAgentId} onChange={(event) => setEvaluationAgentId(event.target.value)}>{EVALUATION_AGENT_OPTIONS.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label>
+        <label className="evaluation-agent-control"><span className="evaluation-visually-hidden">Agent 类型</span><select value={evaluationMode === "comparison" ? "comparison" : evaluationAgentId} onChange={(event) => { if (event.target.value === "comparison") setEvaluationMode("comparison"); else { setEvaluationMode("single"); setEvaluationAgentId(event.target.value as typeof evaluationAgentId); } }}>{EVALUATION_AGENT_OPTIONS.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}<option value="comparison">Bare vs Defended（对比）</option></select></label>
         <button type="button" className="evaluation-secondary-button" onClick={toggleVisible} disabled={filtered.length === 0}>{allFilteredSelected ? <CheckSquare2 size={15} /> : <Square size={15} />}{allFilteredSelected ? "取消当前结果" : `选择当前结果 (${filtered.length})`}</button>
         <button type="button" className="evaluation-icon-command" title="清空选择" aria-label="清空选择" onClick={() => setSelectedTestCaseIds([])} disabled={selectedTestCaseIds.length === 0}><X size={16} /></button>
       </div>
@@ -64,7 +67,7 @@ export function TestCaseSelector() {
       </div>
       <footer className="evaluation-selector-footer">
         <span className={error ? "is-error" : ""}>{error ?? (isBootstrapping ? tip : `共 ${testCases.length} 条可用 TestCase`)}</span>
-        <button type="button" className="evaluation-primary-button" disabled={selectedTestCaseIds.length === 0 || isBootstrapping || isLoadingTestCases} onClick={() => void prepareEvaluation()}>{isBootstrapping ? <LoaderCircle className="evaluation-spin" size={15} /> : <CheckSquare2 size={15} />}{isBootstrapping ? "正在创建" : `创建批量测评 (${selectedTestCaseIds.length})`}</button>
+        <button type="button" className="evaluation-primary-button" disabled={selectedTestCaseIds.length === 0 || isBootstrapping || isLoadingTestCases} onClick={() => void (evaluationMode === "comparison" ? prepareComparison() : prepareEvaluation())}>{isBootstrapping ? <LoaderCircle className="evaluation-spin" size={15} /> : <Play size={15} />}{isBootstrapping ? "正在创建" : evaluationMode === "comparison" ? `开始批量对比 (${selectedTestCaseIds.length})` : `开始批量测评 (${selectedTestCaseIds.length})`}</button>
       </footer>
     </section>
   );

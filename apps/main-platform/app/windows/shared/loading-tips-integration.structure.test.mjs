@@ -26,16 +26,15 @@ test("main Agent interface consumes shared loading tips for read and save states
   assert.doesNotMatch(source, /正在保存并准备重启主窗口/);
 });
 
-test("evaluation run surfaces resolve phases and pass tips into status, process, batch, and terminal states", () => {
+test("evaluation run surfaces resolve phases and pass tips into status, process, and terminal states", () => {
   const runSource = read("../main/evaluation/EvaluationRunWorkspace.tsx");
   const batchSource = read("../main/evaluation/BatchProgressPanel.tsx");
   const selectorSource = read("../main/evaluation/TestCaseSelector.tsx");
 
   assert.match(runSource, /resolveEvaluationLoadingTipPhase/);
-  assert.match(runSource, /emptyTip=\{statusTip\}/);
+  assert.doesNotMatch(runSource, /emptyTip=\{statusTip\}/);
   assert.match(runSource, /R4_TIP_CATEGORIES/);
-  assert.match(batchSource, /resolveEvaluationLoadingTipPhase/);
-  assert.match(batchSource, /evaluation-batch-tip/);
+  assert.doesNotMatch(batchSource, /useLoadingTip|resolveEvaluationLoadingTipPhase|evaluation-batch-tip/);
   assert.match(selectorSource, /useLoadingTip/);
 });
 

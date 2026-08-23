@@ -1,7 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { findActiveInference } from "./inference-status.ts";
+import { findActiveInference, isInferenceRunActive } from "./inference-status.ts";
+
+test("keeps the inference overlay active from start through a non-terminal run", () => {
+  assert.equal(isInferenceRunActive(undefined, false), false);
+  assert.equal(isInferenceRunActive("ready", false), false);
+  assert.equal(isInferenceRunActive("preflighting", false), true);
+  assert.equal(isInferenceRunActive("queued", false), true);
+  assert.equal(isInferenceRunActive("running", false), true);
+  assert.equal(isInferenceRunActive("completed", false), false);
+  assert.equal(isInferenceRunActive("failed", false), false);
+  assert.equal(isInferenceRunActive("interrupted", false), false);
+  assert.equal(isInferenceRunActive("preflight_failed", false), false);
+  assert.equal(isInferenceRunActive("ready", true), true);
+});
 
 function event(seq: number, type: string, payload: Record<string, unknown>, timestamp = "2026-08-21T00:00:00.000Z") {
   return {

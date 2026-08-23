@@ -1,33 +1,38 @@
 "use client";
 
-import { Brain, Clock3 } from "lucide-react";
-import { useLoadingTip } from "../../shared/loading-tips";
+import { Brain, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useEvaluationWorkspace } from "./EvaluationWorkspaceProvider";
 import { getEvaluationAgentMeta } from "./evaluation-agent";
 
-export function EvaluationInferenceStatus() {
-  const { run, evaluationAgentId, activeInference } = useEvaluationWorkspace();
+export function EvaluationInferenceStatus({ isRunActive }: { isRunActive: boolean }) {
+  const { run, evaluationAgentId } = useEvaluationWorkspace();
   const agentId = run?.agent_id ?? evaluationAgentId;
   const meta = getEvaluationAgentMeta(agentId);
-  const runningTip = useLoadingTip("running", { active: Boolean(activeInference) });
+  const [isDismissed, setIsDismissed] = useState(false);
 
-  if (!activeInference || !meta.isLlm) {
+  useEffect(() => {
+    if (!isRunActive) {
+      setIsDismissed(false);
+    }
+  }, [isRunActive]);
+
+  if (!meta.isLlm) {
     return null;
   }
 
+  const isVisible = isRunActive && !isDismissed;
+
   return (
-    <section className={`evaluation-inference-status ${activeInference.isLongWait ? "is-long-wait" : ""}`} role="status" aria-live="polite" aria-label={`${meta.label} 推理状态`}>
-      <span className="evaluation-visually-hidden">{meta.shortLabel} {activeInference.isLongWait ? "推理时间较长，请耐心等待" : "正在推理"}</span>
+    <section className={`evaluation-inference-status ${isVisible ? "is-visible" : "is-hidden"}`} role="status" aria-live="polite" aria-hidden={!isVisible} aria-label={`${meta.label} 推理状态`}>
+      <span className="evaluation-visually-hidden">{meta.shortLabel} 推理中…</span>
       <div className="evaluation-inference-icon" aria-hidden="true"><Brain size={18} /></div>
       <div className="evaluation-inference-copy">
-        <strong>{meta.shortLabel} 推理中…</strong>
-        <span>{activeInference.turnLabel}</span>
+        <span className="evaluation-inference-title">{meta.shortLabel} 推理中…</span>
       </div>
-      <div className="evaluation-inference-time">
-        <Clock3 size={14} aria-hidden="true" />
-        <span aria-hidden="true">已等待 {activeInference.waitedSeconds} 秒</span>
-      </div>
-      <p aria-hidden="true">{activeInference.isLongWait ? "推理时间较长，请耐心等待…" : runningTip}</p>
+      <button className="evaluation-inference-dismiss" type="button" title="关闭推理状态" aria-label="关闭推理状态" onClick={() => setIsDismissed(true)}>
+        <X size={14} aria-hidden="true" />
+      </button>
     </section>
   );
 }

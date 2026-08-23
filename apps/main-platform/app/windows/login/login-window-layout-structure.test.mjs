@@ -109,3 +109,20 @@ test("login SplitText tip wrapper keeps a stable centered text measure", () => {
   assert.match(loadingCharBlock.groups.body, /font:\s*inherit;/);
   assert.match(loadingCharBlock.groups.body, /line-height:\s*inherit;/);
 });
+
+test("Agent preview keeps risk and validation lists content-sized", () => {
+  const previewBlock = loginStyles.match(
+    /\.login-agent-draft-preview\s*\{(?<body>[^}]*)\}/,
+  );
+
+  assert.ok(previewBlock?.groups?.body);
+  assert.match(
+    previewBlock.groups.body,
+    /grid-template-rows:\s*auto auto minmax\(max-content, 1fr\) minmax\(max-content, 1fr\) auto;/,
+  );
+  assert.match(previewBlock.groups.body, /overflow:\s*auto;/);
+  assert.doesNotMatch(
+    previewBlock.groups.body,
+    /grid-template-rows:\s*auto auto minmax\(0, 1fr\) minmax\(0, 1fr\) auto;/,
+  );
+});
