@@ -21,6 +21,10 @@ class RiskPattern(BaseModel):
     label_requirements: dict[str, list[str]] = Field(
         default_factory=dict, description="各节点必须携带的安全标签"
     )
+    role_requirements: dict[str, str] = Field(
+        default_factory=dict,
+        description="各位置要求的节点角色 (key=位置索引字符串, value=角色名). Stage 4 新增.",
+    )
     attack_goal: str = Field(..., min_length=1, description="攻击者目标")
     success_condition: str = Field(..., min_length=1, description="成功判定条件")
     judge_strategy: str = Field(..., description="推荐判定策略: rule|llm|composite")

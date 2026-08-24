@@ -20,11 +20,23 @@ from backend.app.domain.risk_pattern import RiskPattern
 PathMatch = tuple[list[str], list[str]]
 
 
-def _node_matches(node: GraphNode, node_type: str, required_labels: list[str]) -> bool:
-    """Node matches pattern position: same node_type and all labels present."""
+def _node_matches(
+    node: GraphNode,
+    node_type: str,
+    required_labels: list[str],
+    required_role: str | None = None,
+) -> bool:
+    """Node matches pattern position: same node_type, all labels present,
+    and optionally the node's metadata.role matches required_role.
+    """
     if node.node_type != node_type:
         return False
-    return all(label in node.labels for label in required_labels)
+    if not all(label in node.labels for label in required_labels):
+        return False
+    if required_role is not None:
+        if node.metadata.get("role") != required_role:
+            return False
+    return True
 
 
 def find_attack_paths(
@@ -37,14 +49,19 @@ def find_attack_paths(
     """
     node_types = pattern.node_pattern
     label_requirements = pattern.label_requirements
+    role_requirements = pattern.role_requirements
     node_map = {n.node_id: n for n in graph.nodes}
     adjacency: dict[str, list[Edge]] = {}
     for edge in graph.edges:
         adjacency.setdefault(edge.source_node_id, []).append(edge)
 
     def _matches_pos(node: GraphNode, pos: int) -> bool:
+        required_role = role_requirements.get(str(pos))
         return _node_matches(
-            node, node_types[pos], label_requirements.get(node_types[pos], [])
+            node,
+            node_types[pos],
+            label_requirements.get(node_types[pos], []),
+            required_role,
         )
 
     results: list[PathMatch] = []

@@ -22,6 +22,8 @@ class TestRiskType:
             "privacy_leakage",
             "data_exfiltration",
             "persistent_indirect_prompt_injection",
+            "plan_contamination",           # R5: Stage 4
+            "rag_context_poisoning",        # R6: Stage 4
         }
         assert {e.value for e in RiskType} == expected
 
@@ -48,7 +50,7 @@ class TestPermission:
 
 class TestNodeType:
     def test_all_values_present(self):
-        expected = {"SOURCE", "AGENT", "TOOL", "MEMORY", "DATA"}
+        expected = {"SOURCE", "AGENT", "TOOL", "MEMORY", "DATA", "KNOWLEDGE_BASE"}
         assert {e.value for e in NodeType} == expected
 
 

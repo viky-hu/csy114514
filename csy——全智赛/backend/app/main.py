@@ -10,6 +10,7 @@ from backend.app.api.agents import router as agents_router
 from backend.app.api.evaluations import router as evaluations_router
 from backend.app.api.health import router as health_router
 from backend.app.api.redteam import router as redteam_router
+from backend.app.api.topology import router as topology_router
 from backend.app.api.test_cases import router as test_cases_router
 from backend.app.config import settings
 from backend.app.domain.agent_manifest import AgentManifest
@@ -117,3 +118,4 @@ app.include_router(agents_router)
 app.include_router(evaluations_router)
 app.include_router(test_cases_router)
 app.include_router(redteam_router)
+app.include_router(topology_router)
