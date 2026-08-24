@@ -854,7 +854,19 @@ export function EvaluationWorkspaceProvider({
       emailConfirmations: resolveEmailConfirmationQueue(current.emailConfirmations, eventId, decision),
       emailConfirmationDecisions: { ...current.emailConfirmationDecisions, [eventId]: decision },
     }));
-  }, []);
+
+    // D3 闭环: 回传用户决定到后端, 解除执行线程阻塞
+    if (decision !== "dismissed" && state.evaluationId) {
+      fetch(
+        `/api/evaluations/${encodeURIComponent(state.evaluationId)}/confirmations/${encodeURIComponent(eventId)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decision }),
+        },
+      ).catch((err) => console.error("[D3] confirmation callback failed:", err));
+    }
+  }, [state.evaluationId]);
   const setSelectedTestCaseIds = useCallback((ids: string[]) => {
     setState((current) => ({ ...current, selectedTestCaseIds: [...new Set(ids)] }));
   }, []);

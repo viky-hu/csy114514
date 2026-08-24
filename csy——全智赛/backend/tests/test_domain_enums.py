@@ -73,6 +73,7 @@ class TestEventType:
             "FINDING_CREATED", "RUN_FINISHED", "PREFLIGHT_COMPLETED",
             "PREFLIGHT_FAILED", "AGENT_INVOKED", "AGENT_RESPONDED",
             "TOOL_RESULT", "RUN_FAILED", "TEST_COMPLETED",
+            "CONFIRMATION_REQUESTED", "CONFIRMATION_DECIDED",
         }
         assert {e.value for e in EventType} == expected
 

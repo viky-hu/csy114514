@@ -77,6 +77,8 @@ class EventType(str, Enum):
     TOOL_RESULT = "TOOL_RESULT"
     RUN_FAILED = "RUN_FAILED"
     TEST_COMPLETED = "TEST_COMPLETED"   # L5: 批量 SSE — 每条 TestCase 完成事件
+    CONFIRMATION_REQUESTED = "CONFIRMATION_REQUESTED"  # D3: 请求用户确认
+    CONFIRMATION_DECIDED = "CONFIRMATION_DECIDED"      # D3: 用户做出决定
 
 
 class JudgeStrategy(str, Enum):
