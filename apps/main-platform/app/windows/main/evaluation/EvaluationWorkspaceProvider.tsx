@@ -330,6 +330,7 @@ export function EvaluationWorkspaceProvider({
 
   const createComparison = useCallback(async (testCaseIds: string[], requestId = newRequestId()) => {
     if (mockMode) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
       const bareRun = createMockRun(`mock-bare-${Date.now()}`, "llm-agent-v0", testCaseIds);
       const defendedRun = createMockRun(`mock-defended-${Date.now() + 1}`, "defended-llm-v0", testCaseIds);
       const comparison: EvaluationComparison = {
@@ -466,7 +467,7 @@ export function EvaluationWorkspaceProvider({
     } catch (error) {
       setState((current) => ({ ...current, isBootstrapping: false, error: error instanceof Error ? error.message : "测评任务创建失败" }));
     }
-  }, [createEvaluation, state.evaluationAgentId, state.isBootstrapping, state.selectedTestCaseIds]);
+  }, [createEvaluation, state.evaluationAgentId, state.evaluationMode, state.isBootstrapping, state.selectedTestCaseIds]);
 
   const prepareComparison = useCallback(async () => {
     if (state.selectedTestCaseIds.length === 0 || state.isBootstrapping) return;

@@ -352,8 +352,8 @@ function ComparisonRunHeaderActions({
   return (
     <>
       <div className="evaluation-comparison-global-actions">
-        <button type="button" className="evaluation-secondary-button evaluation-comparison-global-button" onClick={() => { resetEvaluationSelection(); onNavigate?.("run"); }}>
-          <ArrowLeft size={16} />返回
+        <button type="button" className="evaluation-icon-command" title="返回选择 TestCase" aria-label="返回选择 TestCase" onClick={() => { resetEvaluationSelection(); onNavigate?.("run"); }}>
+          <ArrowLeft size={16} />
         </button>
         <button
           type="button"
