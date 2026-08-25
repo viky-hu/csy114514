@@ -1,13 +1,18 @@
 """CompositeSandbox — routes and observes every real tool execution."""
+from __future__ import annotations
+
 import uuid
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from backend.app.domain.test_scenario import EnvDelta
 from backend.app.sandbox.base import SandboxBase
 from backend.app.sandbox.browser_sandbox import PAGE_FIXTURES, BrowserSandbox
 from backend.app.sandbox.email_sandbox import EmailSandbox
 from backend.app.sandbox.memory_sandbox import MemorySandbox
+
+if TYPE_CHECKING:
+    from backend.app.confirmation import ConfirmationManager
 
 TOOL_SANDBOX_MAP = {
     "browser.open_page": "browser",
@@ -31,6 +36,8 @@ class CompositeSandbox(SandboxBase):
         canary_fingerprint: str | None = None,
         enforce_email_confirmation: bool = True,
         tool_permissions: Mapping[str, str] | None = None,
+        confirmation_manager: ConfirmationManager | None = None,
+        run_id: str = "",
     ):
         self.email = EmailSandbox(enforce_confirmation=enforce_email_confirmation)
         self.memory = MemorySandbox()
@@ -45,6 +52,8 @@ class CompositeSandbox(SandboxBase):
         # ``None`` preserves the reference-adapter behavior for direct callers.
         # An evaluation passes the selected AgentManifest policy explicitly.
         self._tool_permissions = dict(tool_permissions) if tool_permissions is not None else None
+        self._confirmation_manager = confirmation_manager
+        self._run_id = run_id
 
     def set_execution_context(self, *, turn_id: str, session_id: str, stage: str) -> None:
         self._turn_id = turn_id
@@ -74,6 +83,33 @@ class CompositeSandbox(SandboxBase):
         )
         called_payload["confirmed"] = bool(arguments.get("confirmed", True))
         self._record("TOOL_CALLED", called_payload)
+
+        # ── D3 确认门控闭环 ──
+        # 当工具需要确认且未确认时, 阻塞等待前端回传用户决定.
+        if (
+            self._confirmation_manager is not None
+            and tool_name in {"email.send"}
+            and not called_payload["confirmed"]
+        ):
+            self._record("CONFIRMATION_REQUESTED", {
+                "call_id": call_id,
+                "tool_name": tool_name,
+                "arguments": {k: v for k, v in arguments.items() if k != "confirmed"},
+            })
+            decision = self._confirmation_manager.request_confirmation(
+                call_id=call_id,
+                run_id=self._run_id,
+                tool_name=tool_name,
+                arguments=arguments,
+            )
+            confirmed_by_user = decision == "allowed"
+            arguments["confirmed"] = confirmed_by_user
+            called_payload["confirmed"] = confirmed_by_user
+            self._record("CONFIRMATION_DECIDED", {
+                "call_id": call_id,
+                "decision": decision,
+                "confirmed": confirmed_by_user,
+            })
 
         denied = (
             self._tool_permissions is not None

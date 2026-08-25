@@ -3,7 +3,11 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 set "SCRIPT_DIR=%~dp0"
 set "BACKEND_DIR=%SCRIPT_DIR%backend"
-cd /d "%BACKEND_DIR%" || goto :startup_error
+set "FRONTEND_DIR=%SCRIPT_DIR%..\apps\main-platform"
+
+rem ============================================================
+rem  1. Backend - Python / uvicorn :8000
+rem ============================================================
 
 set "PYTHON_EXE=%BACKEND_DIR%\venv\Scripts\python.exe"
 set "PYTHONPATH=%BACKEND_DIR%;%SCRIPT_DIR%;%BACKEND_DIR%\venv\Lib\site-packages"
@@ -39,9 +43,50 @@ if errorlevel 1 (
     goto :startup_error
 )
 
+rem ============================================================
+rem  2. Frontend - pnpm :3000
+rem ============================================================
+
+set "PNPM_CMD=pnpm"
+where pnpm >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] pnpm not found, trying npx pnpm...
+    set "PNPM_CMD=npx pnpm"
+)
+
+if not exist "%FRONTEND_DIR%\package.json" (
+    echo [WARN] Frontend not found, starting backend only...
+    goto :backend_only
+)
+
+rem ============================================================
+rem  3. Launch both in separate windows
+rem ============================================================
+
 echo ========================================
-echo CorpSec Platform - http://127.0.0.1:8000
-echo Docs - http://127.0.0.1:8000/docs
+echo  CorpSec Platform - Starting...
+echo ========================================
+echo  Backend  : http://127.0.0.1:8000
+echo  API Docs : http://127.0.0.1:8000/docs
+echo  Frontend : http://localhost:3000
+echo ========================================
+
+start "CorpSec Backend :8000" cmd /k "cd /d "%BACKEND_DIR%" && set "PYTHONPATH=%PYTHONPATH%" && set "TRACE_FINGERPRINT_KEY=dev-trace-fingerprint-key" && "%PYTHON_EXE%" -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload"
+
+start "CorpSec Frontend :3000" cmd /k "cd /d "%FRONTEND_DIR%" && %PNPM_CMD% dev"
+
+echo.
+echo Both services launched in separate windows.
+echo Press any key to open browser...
+pause >nul
+
+start http://localhost:3000
+exit /b 0
+
+:backend_only
+echo ========================================
+echo  CorpSec Backend :8000
+echo  API Docs : http://127.0.0.1:8000/docs
 echo ========================================
 "%PYTHON_EXE%" -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
 set "EXIT_CODE=%ERRORLEVEL%"

@@ -655,6 +655,7 @@ export function EvaluationWorkspaceProvider({
       comparisonCursorRef.current = Math.max(comparisonCursorRef.current, streamEvent.seq);
       setState((current) => ({
         ...current,
+        comparisonError: null,
         comparisonEvents: reduceComparisonStreamEvent(
           { cursor: comparisonCursorRef.current, events: current.comparisonEvents },
           streamEvent,
@@ -682,7 +683,12 @@ export function EvaluationWorkspaceProvider({
         }
       }).catch(() => undefined);
     };
-    source.onerror = () => setState((current) => ({ ...current, comparisonError: "比较事件流暂时中断，正在等待后端恢复" }));
+    source.onerror = () => {
+      if (source.readyState === EventSource.CLOSED) {
+        return;
+      }
+      setState((current) => ({ ...current, comparisonError: "比较事件流暂时中断，正在等待后端恢复" }));
+    };
     return () => { controller.abort(); source.close(); if (sourceRef.current === source) sourceRef.current = null; };
   }, [mockMode, state.comparison?.comparison_id]);
 
@@ -855,7 +861,19 @@ export function EvaluationWorkspaceProvider({
       emailConfirmations: resolveEmailConfirmationQueue(current.emailConfirmations, eventId, decision),
       emailConfirmationDecisions: { ...current.emailConfirmationDecisions, [eventId]: decision },
     }));
-  }, []);
+
+    // D3 闭环: 回传用户决定到后端, 解除执行线程阻塞
+    if (decision !== "dismissed" && state.evaluationId) {
+      fetch(
+        `/api/evaluations/${encodeURIComponent(state.evaluationId)}/confirmations/${encodeURIComponent(eventId)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decision }),
+        },
+      ).catch((err) => console.error("[D3] confirmation callback failed:", err));
+    }
+  }, [state.evaluationId]);
   const setSelectedTestCaseIds = useCallback((ids: string[]) => {
     setState((current) => ({ ...current, selectedTestCaseIds: [...new Set(ids)] }));
   }, []);

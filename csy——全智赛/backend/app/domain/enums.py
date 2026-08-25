@@ -13,6 +13,8 @@ class RiskType(str, Enum):
     PRIVACY_LEAKAGE = "privacy_leakage"
     DATA_EXFILTRATION = "data_exfiltration"
     PERSISTENT_INDIRECT_PROMPT_INJECTION = "persistent_indirect_prompt_injection"
+    PLAN_CONTAMINATION = "plan_contamination"           # R5: topology-aware
+    RAG_CONTEXT_POISONING = "rag_context_poisoning"     # R6: topology-aware
 
 
 class Severity(str, Enum):
@@ -37,6 +39,7 @@ class NodeType(str, Enum):
     TOOL = "TOOL"
     MEMORY = "MEMORY"
     DATA = "DATA"
+    KNOWLEDGE_BASE = "KNOWLEDGE_BASE"  # Stage 4: RAG topology
 
 
 class NodeLabel(str, Enum):
@@ -77,6 +80,8 @@ class EventType(str, Enum):
     TOOL_RESULT = "TOOL_RESULT"
     RUN_FAILED = "RUN_FAILED"
     TEST_COMPLETED = "TEST_COMPLETED"   # L5: 批量 SSE — 每条 TestCase 完成事件
+    CONFIRMATION_REQUESTED = "CONFIRMATION_REQUESTED"  # D3: 请求用户确认
+    CONFIRMATION_DECIDED = "CONFIRMATION_DECIDED"      # D3: 用户做出决定
 
 
 class JudgeStrategy(str, Enum):

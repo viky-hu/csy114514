@@ -5,6 +5,7 @@ is now generated from the manifest instead of read from fixture.
 """
 from backend.app.domain.agent_manifest import AgentManifest
 from backend.app.domain.agent_profile import AgentProfile
+from backend.app.domain.agent_topology import AgentTopology
 from backend.app.domain.attack_graph import AttackGraph
 from backend.app.services.graph_builder import build_attack_graph
 
@@ -55,3 +56,17 @@ def get_attack_graph(agent_id: str) -> AttackGraph | None:
     if agent_id not in _profiles:
         return None
     return _graphs.get(agent_id)
+
+
+def rebuild_graph(agent_id: str, topology: AgentTopology | None = None) -> AttackGraph | None:
+    """Rebuild the attack graph for an agent with the given topology.
+
+    Called when topology is set or changed. Returns the new graph,
+    or None if the agent is not registered.
+    """
+    profile = _profiles.get(agent_id)
+    if profile is None:
+        return None
+    graph = build_attack_graph(profile.manifest, topology=topology)
+    _graphs[agent_id] = graph
+    return graph

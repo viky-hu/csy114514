@@ -24,14 +24,14 @@ SECURITY_DIR = Path(__file__).resolve().parents[2] / "shared" / "examples" / "se
 
 
 class TestLoadRiskPatterns:
-    def test_loads_4_patterns(self):
+    def test_loads_6_patterns(self):
         patterns = load_risk_patterns(SECURITY_DIR)
-        assert len(patterns) == 4
+        assert len(patterns) == 6
 
-    def test_ids_are_r1_to_r4(self):
+    def test_ids_are_r1_to_r6(self):
         patterns = load_risk_patterns(SECURITY_DIR)
         ids = {p.id for p in patterns}
-        assert ids == {"R1", "R2", "R3", "R4"}
+        assert ids == {"R1", "R2", "R3", "R4", "R5", "R6"}
 
     def test_all_fields_populated(self):
         patterns = load_risk_patterns(SECURITY_DIR)
@@ -162,6 +162,6 @@ class TestLoadAll:
 
     def test_load_all_counts(self):
         result = load_all(SECURITY_DIR)
-        assert len(result["risk_patterns"]) == 4
+        assert len(result["risk_patterns"]) == 6
         assert len(result["attack_seeds"]) >= 8
         assert len(result["testcases"]) >= 6

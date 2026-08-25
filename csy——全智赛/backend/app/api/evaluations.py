@@ -53,6 +53,10 @@ class EvaluationComparisonReport(BaseModel):
     results: list[dict[str, Any]]
 
 
+class SubmitConfirmationRequest(BaseModel):
+    decision: str = Field(..., pattern="^(allowed|denied)$")
+
+
 class ApiErrorDetail(BaseModel):
     code: str
     message: str
@@ -456,3 +460,39 @@ async def stream_evaluation_events(
             "Connection": "keep-alive",
         },
     )
+
+
+@router.post(
+    "/{evaluation_id}/confirmations/{call_id}",
+    responses={404: {"model": ApiErrorResponse}, 409: {"model": ApiErrorResponse}},
+)
+async def submit_confirmation(
+    evaluation_id: str,
+    call_id: str,
+    req: SubmitConfirmationRequest,
+):
+    """D3 确认闭环: 前端回传用户对 email.send 的授权决定."""
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "EVALUATION_SERVICE_UNAVAILABLE", "Evaluation service is unavailable.")
+    try:
+        coordinator.get(evaluation_id)
+    except evaluation_service.EvaluationNotFoundError:
+        return _not_found(evaluation_id)
+    manager = coordinator.get_confirmation_manager(evaluation_id)
+    if manager is None or not manager.has_pending(call_id):
+        return _error(
+            409,
+            "CONFIRMATION_NOT_PENDING",
+            "No pending confirmation for this call_id.",
+            {"evaluation_id": evaluation_id, "call_id": call_id},
+        )
+    success = manager.submit_decision(call_id, req.decision)
+    if not success:
+        return _error(
+            409,
+            "CONFIRMATION_NOT_PENDING",
+            "Confirmation was already resolved or expired.",
+            {"evaluation_id": evaluation_id, "call_id": call_id},
+        )
+    return {"success": True, "call_id": call_id, "decision": req.decision}

@@ -11,6 +11,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from backend.app.confirmation import ConfirmationManager
 from backend.app.adapter.reference_adapter import ReferenceAgentAdapter
 from backend.app.domain.enums import EventType
 from backend.app.domain.evaluation_comparison import (
@@ -125,6 +126,7 @@ class EvaluationCoordinator:
         self._comparison_futures: dict[str, set[Future[None]]] = {}
         self._comparison_futures_lock = threading.Lock()
         self._prepared_sandboxes: dict[str, CompositeSandbox] = {}
+        self._confirmation_managers: dict[str, ConfirmationManager] = {}
         self._worker: threading.Thread | None = None
         if start_worker:
             self._worker = threading.Thread(
@@ -255,6 +257,10 @@ class EvaluationCoordinator:
         if run is None:
             raise EvaluationNotFoundError(run_id)
         return run
+
+    def get_confirmation_manager(self, run_id: str) -> ConfirmationManager | None:
+        """返回指定运行的 ConfirmationManager, 供 API 层调用."""
+        return self._confirmation_managers.get(run_id)
 
     def start(self, run_id: str) -> tuple[EvaluationRun, int]:
         run = self.get(run_id)
@@ -796,6 +802,8 @@ class EvaluationCoordinator:
                     _event(run.run_id, EventType(event_type), payload)
                 ).event_id
 
+            cm = ConfirmationManager(interactive=True, timeout=60)
+            self._confirmation_managers[run.run_id] = cm
             sandbox = CompositeSandbox(
                 event_sink=sink,
                 fingerprint_value=lambda value_type, value: fingerprint_value(
@@ -805,6 +813,8 @@ class EvaluationCoordinator:
                 canary_fingerprint="",
                 enforce_email_confirmation=tool_permissions.get("email.send") == "CONFIRM",
                 tool_permissions=tool_permissions,
+                confirmation_manager=cm,
+                run_id=run.run_id,
             )
             agent = self._create_agent(run.agent_id, sandbox)
             adapter = ReferenceAgentAdapter(sandbox=sandbox, agent=agent)
@@ -1025,6 +1035,8 @@ class EvaluationCoordinator:
                     )
                 ],
             )
+        finally:
+            self._confirmation_managers.pop(run.run_id, None)
 
     @staticmethod
     def _compute_summary(tc_results: list[dict]) -> ReportSummary:
