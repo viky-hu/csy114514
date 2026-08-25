@@ -91,9 +91,12 @@ export function EvaluationReportWorkspace({ onNavigate }: { onNavigate?: Evaluat
   });
 
   useGSAP(() => {
+    if (!root.current) return;
+    const targets = root.current.querySelectorAll(".evaluation-report-reveal");
+    if (!targets.length) return;
     const matchMedia = gsap.matchMedia();
     matchMedia.add("(prefers-reduced-motion: no-preference)", () => {
-      gsap.fromTo(root.current?.querySelectorAll(".evaluation-report-reveal") ?? [], { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.42, stagger: 0.04, ease: LINE_DRAW_EASE });
+      gsap.fromTo(targets, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.42, stagger: 0.04, ease: LINE_DRAW_EASE });
     });
     return () => matchMedia.revert();
   }, { scope: root, dependencies: [report?.report_id] });

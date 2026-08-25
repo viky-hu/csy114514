@@ -654,6 +654,7 @@ export function EvaluationWorkspaceProvider({
       comparisonCursorRef.current = Math.max(comparisonCursorRef.current, streamEvent.seq);
       setState((current) => ({
         ...current,
+        comparisonError: null,
         comparisonEvents: reduceComparisonStreamEvent(
           { cursor: comparisonCursorRef.current, events: current.comparisonEvents },
           streamEvent,
@@ -681,7 +682,12 @@ export function EvaluationWorkspaceProvider({
         }
       }).catch(() => undefined);
     };
-    source.onerror = () => setState((current) => ({ ...current, comparisonError: "比较事件流暂时中断，正在等待后端恢复" }));
+    source.onerror = () => {
+      if (source.readyState === EventSource.CLOSED) {
+        return;
+      }
+      setState((current) => ({ ...current, comparisonError: "比较事件流暂时中断，正在等待后端恢复" }));
+    };
     return () => { controller.abort(); source.close(); if (sourceRef.current === source) sourceRef.current = null; };
   }, [mockMode, state.comparison?.comparison_id]);
 
