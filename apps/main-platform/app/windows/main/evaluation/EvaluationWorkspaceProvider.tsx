@@ -32,6 +32,11 @@ import {
   reduceComparisonStreamEvent,
   type ComparisonStreamState,
 } from "./comparison-progress";
+import {
+  classifyComparisonStreamFailure,
+  shouldCloseComparisonStream,
+  type ComparisonSnapshotResult,
+} from "./comparison-sse";
 import type {
   ComparisonReport,
   ComparisonSide,
@@ -185,6 +190,11 @@ export function EvaluationWorkspaceProvider({
   const mockComparisonEventsRef = useRef<ComparisonStreamState["events"]>(EMPTY_COMPARISON_EVENTS);
   const comparisonCursorRef = useRef(0);
   const comparisonSeenEventsRef = useRef(new Set<string>());
+  const comparisonLastOpenAtRef = useRef(0);
+  const comparisonStreamKeyRef = useRef<string | null>(null);
+  const comparisonReconnectTimerRef = useRef<number | null>(null);
+  const comparisonIntentionalCloseRef = useRef(false);
+  const [comparisonReconnectNonce, setComparisonReconnectNonce] = useState(0);
 
   const clearMockTimers = useCallback(() => {
     for (const timer of mockTimersRef.current) window.clearTimeout(timer);
@@ -423,7 +433,11 @@ export function EvaluationWorkspaceProvider({
     setState((current) => ({ ...current, isStarting: false, comparison: current.comparison ? { ...current.comparison, status: "running_parallel" } : current.comparison, comparisonError: null }));
     const baseTimestamp = Date.now();
     const sequences = {
-      bare: buildMockEventSequence({ ...runs.bare, status: "queued" }, baseTimestamp),
+      bare: buildMockEventSequence({ ...runs.bare, status: "queued" }, baseTimestamp).map((event) => (
+        event.type === "TEST_COMPLETED" && event.payload?.test_case_id === comparison.test_case_ids[2]
+          ? { ...event, payload: { ...event.payload, verdict: "FAIL" } }
+          : event
+      )),
       defended: buildMockEventSequence({ ...runs.defended, status: "queued" }, baseTimestamp + 120),
     };
     for (const side of ["bare", "defended"] as const) {
@@ -644,11 +658,96 @@ export function EvaluationWorkspaceProvider({
     const controller = new AbortController();
     comparisonCursorRef.current = 0;
     comparisonSeenEventsRef.current.clear();
-    const source = new EventSource(`/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}/events?after=0`);
+    comparisonIntentionalCloseRef.current = false;
+    const streamKey = `${comparisonId}:${state.comparison.bare_run_id}:${state.comparison.defended_run_id ?? ""}`;
+    if (comparisonStreamKeyRef.current !== streamKey) {
+      comparisonStreamKeyRef.current = streamKey;
+      comparisonLastOpenAtRef.current = Date.now();
+    }
+    const comparisonUrl = `/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}`;
+    const source = new EventSource(`${comparisonUrl}/events?after=0`);
     sourceRef.current = source;
+    const closeComparisonStream = () => {
+      comparisonIntentionalCloseRef.current = true;
+      if (comparisonReconnectTimerRef.current !== null) {
+        window.clearTimeout(comparisonReconnectTimerRef.current);
+        comparisonReconnectTimerRef.current = null;
+      }
+      source.close();
+      if (sourceRef.current === source) sourceRef.current = null;
+    };
+    const scheduleUnavailableReconnect = () => {
+      if (comparisonReconnectTimerRef.current !== null || controller.signal.aborted) return;
+      comparisonReconnectTimerRef.current = window.setTimeout(() => {
+        comparisonReconnectTimerRef.current = null;
+        if (!controller.signal.aborted && !comparisonIntentionalCloseRef.current) {
+          setComparisonReconnectNonce((current) => current + 1);
+        }
+      }, 3_000);
+    };
+    const probeComparisonSnapshot = async () => {
+      let snapshotResult: ComparisonSnapshotResult = "unavailable";
+      let nextComparison: EvaluationComparison | null = null;
+      try {
+        const response = await fetch(comparisonUrl, { signal: controller.signal, cache: "no-store" });
+        if (response.status === 404) {
+          snapshotResult = "not_found";
+        } else if (!response.ok) {
+          snapshotResult = "unavailable";
+        } else {
+          nextComparison = await response.json() as EvaluationComparison;
+          snapshotResult = "ok";
+        }
+      } catch (error) {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+      }
+      const outcome = classifyComparisonStreamFailure({
+        readyState: source.readyState,
+        snapshotStatus: nextComparison?.status ?? null,
+        snapshotResult,
+        elapsedSinceLastOpenMs: Date.now() - comparisonLastOpenAtRef.current,
+      });
+      if (nextComparison) {
+        setState((current) => {
+          const previous = current.comparison;
+          const bareChanged = previous?.bare_run_id !== nextComparison.bare_run_id;
+          const defendedChanged = previous?.defended_run_id !== nextComparison.defended_run_id;
+          return {
+            ...current,
+            comparison: nextComparison,
+            comparisonError: outcome === "warning" ? "比较后端暂时不可用，正在等待恢复" : outcome === "fatal" ? "比较事件流已关闭，但任务状态未完成，请检查后端日志" : null,
+            comparisonEvents: {
+              bare: bareChanged ? [] : current.comparisonEvents.bare,
+              defended: defendedChanged ? [] : current.comparisonEvents.defended,
+            },
+          };
+        });
+      } else if (outcome === "warning") {
+        setState((current) => ({ ...current, comparisonError: "比较后端暂时不可用，正在等待恢复" }));
+      } else if (outcome === "fatal") {
+        setState((current) => ({ ...current, comparisonError: snapshotResult === "not_found" ? "比较任务不存在，事件流已停止" : "比较事件流已永久关闭，请检查后端日志" }));
+      }
+      if (outcome === "closed") {
+        closeComparisonStream();
+        setState((current) => ({ ...current, comparisonError: null }));
+      } else if (outcome === "fatal") {
+        closeComparisonStream();
+      } else if (snapshotResult === "unavailable" && source.readyState === EventSource.CLOSED) {
+        scheduleUnavailableReconnect();
+      }
+    };
+    source.onopen = () => {
+      comparisonLastOpenAtRef.current = Date.now();
+      if (comparisonReconnectTimerRef.current !== null) {
+        window.clearTimeout(comparisonReconnectTimerRef.current);
+        comparisonReconnectTimerRef.current = null;
+      }
+      setState((current) => ({ ...current, comparisonError: null }));
+    };
     source.onmessage = (message) => {
       const streamEvent = parseComparisonEvent(message.data, message.lastEventId, comparisonId);
       if (!streamEvent) return;
+      comparisonLastOpenAtRef.current = Date.now();
       const key = `${streamEvent.side}:${streamEvent.event.run_id}:${streamEvent.run_seq}`;
       if (comparisonSeenEventsRef.current.has(key)) return;
       comparisonSeenEventsRef.current.add(key);
@@ -661,36 +760,39 @@ export function EvaluationWorkspaceProvider({
           streamEvent,
         ).events,
       }));
-      void fetch(`/api/evaluations/comparisons/${encodeURIComponent(comparisonId)}`, { signal: controller.signal }).then(async (response) => {
+      void fetch(comparisonUrl, { signal: controller.signal, cache: "no-store" }).then(async (response) => {
         if (response.ok && !controller.signal.aborted) {
           const nextComparison = await response.json() as EvaluationComparison;
           if (!controller.signal.aborted) {
             setState((current) => {
-              const sideRunChanged = {
-                bare: current.comparison?.bare_run_id !== nextComparison.bare_run_id,
-                defended: current.comparison?.defended_run_id !== nextComparison.defended_run_id,
-              };
               return {
                 ...current,
                 comparison: nextComparison,
-                comparisonEvents: {
-                  bare: sideRunChanged.bare ? [] : current.comparisonEvents.bare,
-                  defended: sideRunChanged.defended ? [] : current.comparisonEvents.defended,
-                },
               };
             });
+            if (shouldCloseComparisonStream(nextComparison.status)) {
+              closeComparisonStream();
+              setState((current) => ({ ...current, comparisonError: null }));
+            }
           }
         }
       }).catch(() => undefined);
     };
     source.onerror = () => {
-      if (source.readyState === EventSource.CLOSED) {
-        return;
-      }
-      setState((current) => ({ ...current, comparisonError: "比较事件流暂时中断，正在等待后端恢复" }));
+      if (comparisonIntentionalCloseRef.current) return;
+      void probeComparisonSnapshot();
     };
-    return () => { controller.abort(); source.close(); if (sourceRef.current === source) sourceRef.current = null; };
-  }, [mockMode, state.comparison?.comparison_id]);
+    return () => {
+      comparisonIntentionalCloseRef.current = true;
+      controller.abort();
+      if (comparisonReconnectTimerRef.current !== null) {
+        window.clearTimeout(comparisonReconnectTimerRef.current);
+        comparisonReconnectTimerRef.current = null;
+      }
+      source.close();
+      if (sourceRef.current === source) sourceRef.current = null;
+    };
+  }, [mockMode, comparisonReconnectNonce, state.comparison?.bare_run_id, state.comparison?.comparison_id, state.comparison?.defended_run_id]);
 
   useEffect(() => {
     if (mockMode) return;

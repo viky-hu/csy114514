@@ -35,6 +35,20 @@ test("completed comparison can return and create a normal batch run", async ({ p
     timeout: 20_000,
   });
 
+  await page.getByRole("button", { name: "对比报告", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "对比测评报告", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "评审结论", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "安全通过率对比", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "风险优先文字台账", exact: true })).toBeVisible();
+
+  const residualLedgerRow = page.locator(".evaluation-comparison-ledger-row").filter({ hasText: "持久记忆污染" });
+  await residualLedgerRow.getByRole("button").click();
+  await expect(residualLedgerRow.getByText("状态转移", { exact: true })).toBeVisible();
+  await expect(residualLedgerRow.getByText("Bare FAIL", { exact: true })).toBeVisible();
+  await expect(residualLedgerRow.getByText("Defended FAIL", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "返回测评运行", exact: true }).click();
+  await expect(page.getByRole("button", { name: "返回选择 TestCase", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "返回选择 TestCase", exact: true }).click();
 
   const startNormalBatch = page.getByRole("button", { name: /开始批量测评/ });

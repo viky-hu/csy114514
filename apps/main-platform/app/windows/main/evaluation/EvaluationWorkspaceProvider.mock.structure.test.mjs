@@ -19,6 +19,10 @@ test("mock mode is wired from the page entry to the evaluation provider", async 
   assert.match(provider, /mockMode\??: boolean/);
   assert.match(provider, /mockMode/);
   assert.match(provider, /EventSource/);
+  assert.match(provider, /shouldCloseComparisonStream/);
+  assert.match(provider, /classifyComparisonStreamFailure/);
+  assert.match(provider, /comparison\.bare_run_id/);
+  assert.match(provider, /comparison\.defended_run_id/);
 });
 
 test("mock mode keeps real session storage and event stream out of its branch", async () => {

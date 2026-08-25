@@ -53,7 +53,13 @@ test("comparison run keeps live side modules and moves controls to one global ac
   assert.match(comparisonBadge, /Defended/);
   assert.match(comparisonBadge, /evaluation-comparison-badge/);
   assert.match(source, /对比报告/);
-  assert.match(comparisonReport, /evaluation-comparison-table/);
+  assert.match(comparisonReport, /comparison-report-summary/);
+  assert.match(comparisonReport, /evaluation-comparison-rate-rings/);
+  assert.match(comparisonReport, /evaluation-comparison-transition-grid/);
+  assert.match(comparisonReport, /evaluation-comparison-pattern-grid/);
+  assert.match(comparisonReport, /evaluation-comparison-ledger/);
+  assert.match(comparisonReport, /评审结论/);
+  assert.doesNotMatch(comparisonReport, /evaluation-comparison-table/);
   assert.doesNotMatch(comparisonReport, /开始测评/);
   assert.match(
     styles,
