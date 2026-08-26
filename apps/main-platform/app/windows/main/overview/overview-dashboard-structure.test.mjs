@@ -95,7 +95,15 @@ test("R4 graph uses layered orthogonal SVG structure with x-axis hot zones", () 
   assert.match(layoutSource, /direction: "down"/);
   assert.match(layoutSource, /direction: "up"/);
   assert.match(layoutSource, /R4_LAYER_INFO_BOUNDARY_X/);
-  assert.match(mainStyles, /grid-template-columns:\s*minmax\(700px,\s*1fr\)\s*minmax\(300px,\s*360px\);/);
+  assert.match(
+    mainStyles,
+    /\.overview-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(700px,\s*1fr\)\s*minmax\(300px,\s*360px\);/,
+  );
+  assert.doesNotMatch(mainStyles, /--overview-graph-canvas-width/);
+  assert.match(dashboardSource, /useFrozenGraphInlineSize/);
+  assert.match(dashboardSource, /isGraphFrozen: boolean;/);
+  assert.match(dashboardSource, /isGraphFrozen,/);
+  assert.match(dashboardSource, /data-sidebar-graph-layout/);
   assert.match(layoutSource, /hoverBands/);
   assert.match(dashboardSource, /overview-map-footer/);
   assert.doesNotMatch(mainStyles, /overview-route-morph[\s\S]*stroke: url/);

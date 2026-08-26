@@ -83,8 +83,10 @@ test("anatomy graph keeps a focused workbench header and SVG route choreography"
   assert.match(mainStyles, /\.anatomy-phase-rail/);
   assert.match(mainStyles, /grid-template-rows: auto minmax\(0, 1fr\);/);
   assert.match(mainStyles, /align-content: stretch;/);
-  assert.match(mainStyles, /minmax\(500px, 800px\) minmax\(420px, 1fr\)/);
+  assert.match(mainStyles, /--anatomy-graph-canvas-width:\s*800px;/);
+  assert.match(mainStyles, /grid-template-columns:\s*minmax\(0,\s*var\(--anatomy-graph-canvas-width\)\)\s*minmax\(420px,\s*1fr\);/);
   assert.match(mainStyles, /\.anatomy-graph-column/);
+  assert.match(mainStyles, /\.anatomy-graph-column\s*\{[\s\S]*?width:\s*min\(100%,\s*var\(--anatomy-graph-canvas-width\)\);/);
   assert.match(mainStyles, /aspect-ratio: 1000 \/ 520/);
   assert.match(mainStyles, /container: anatomy-map \/ inline-size/);
   assert.match(mainStyles, /\.anatomy-map-stage \{[\s\S]*inset: 0;[\s\S]*width: 100%;[\s\S]*height: 100%;/);

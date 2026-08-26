@@ -18,12 +18,18 @@ import {
   overviewFixtureViewModel,
 } from "./overview-fixtures";
 import { OverviewR4Graph } from "./OverviewR4Graph";
+import {
+  useFrozenGraphInlineSize,
+  type SidebarContentMetrics,
+} from "../shared/useFrozenGraphInlineSize";
 
 gsap.registerPlugin(useGSAP);
 
 type OverviewDashboardProps = {
   activeAgentId?: string;
+  isGraphFrozen: boolean;
   onNavigate: (key: OverviewNavKey) => void;
+  sidebarContentMetrics: SidebarContentMetrics;
 };
 
 type OverviewNavKey = "anatomy" | "profile" | "report" | "run";
@@ -49,6 +55,21 @@ const DATA_SOURCE_LABELS: Record<string, string> = {
 const MEMORY_TYPE_LABELS: Record<string, string> = {
   persistent: "持久记忆",
 };
+
+const OVERVIEW_COLLAPSED_GRAPH_GAP = 14;
+const OVERVIEW_COMPANION_MIN_INLINE_SIZE = 300;
+const OVERVIEW_STACK_INLINE_SIZE = 980;
+
+function getOverviewFallbackGraphInlineSize(openInlineSize: number) {
+  if (openInlineSize <= OVERVIEW_STACK_INLINE_SIZE) {
+    return openInlineSize;
+  }
+
+  return Math.max(
+    700,
+    openInlineSize - OVERVIEW_COLLAPSED_GRAPH_GAP - 360,
+  );
+}
 
 function formatRiskType(riskType: string) {
   return RISK_TYPE_LABELS[riskType] ?? riskType.replaceAll("_", " ");
@@ -102,10 +123,25 @@ function isOverviewNavKey(key: string): key is OverviewNavKey {
 
 export function OverviewDashboard({
   activeAgentId = DEFAULT_AGENT_ID,
+  isGraphFrozen,
   onNavigate,
+  sidebarContentMetrics,
 }: OverviewDashboardProps) {
   const [viewModel, setViewModel] = useState(overviewFixtureViewModel);
   const rootRef = useRef<HTMLElement>(null);
+  const mapRef = useRef<HTMLElement>(null);
+  const graphFreeze = useFrozenGraphInlineSize({
+    collapsedContentInlineSize: sidebarContentMetrics.collapsedInlineSize,
+    fallbackOpenInlineSize: getOverviewFallbackGraphInlineSize(
+      sidebarContentMetrics.openInlineSize,
+    ),
+    gap: OVERVIEW_COLLAPSED_GRAPH_GAP,
+    graphRef: mapRef,
+    isGraphFrozen,
+    minCompanionInlineSize: OVERVIEW_COMPANION_MIN_INLINE_SIZE,
+    shouldStack:
+      sidebarContentMetrics.openInlineSize <= OVERVIEW_STACK_INLINE_SIZE,
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -195,7 +231,13 @@ export function OverviewDashboard({
   );
 
   return (
-    <section ref={rootRef} className="overview-dashboard" aria-label="总览页">
+    <section
+      ref={rootRef}
+      aria-label="总览页"
+      className="overview-dashboard"
+      data-sidebar-graph-layout={graphFreeze.layout}
+      style={graphFreeze.graphStyle}
+    >
       <header className="overview-brief overview-animate">
         <div className="overview-brief-copy">
           <span className="overview-kicker">CorpMate v0 示例评估</span>
@@ -215,7 +257,11 @@ export function OverviewDashboard({
       </header>
 
       <div className="overview-grid">
-        <section className="overview-map overview-animate" aria-label="R4 攻击链">
+        <section
+          ref={mapRef}
+          className="overview-map overview-animate"
+          aria-label="R4 攻击链"
+        >
           <div className="overview-section-heading">
             <div>
               <span className="overview-kicker">R4 攻击路径</span>

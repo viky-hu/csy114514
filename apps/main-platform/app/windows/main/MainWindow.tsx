@@ -8,6 +8,7 @@ import { DEFAULT_AGENT_ID } from "../shared/agent-config";
 import { AgentInterfaceWorkspace } from "./agent/AgentInterfaceWorkspace";
 import { AttackGraphWorkspace } from "./anatomy/AnatomyGraph";
 import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
+import { MainSidebarToggleButton } from "./MainSidebarToggleButton";
 import { OverviewDashboard } from "./overview/OverviewDashboard";
 import { securityProfileFixtureViewModel } from "./profile/profile-fixtures";
 import { SecurityProfileGraph } from "./profile/SecurityProfileGraph";
@@ -18,6 +19,7 @@ import {
   EvaluationWorkspaceProvider,
 } from "./evaluation";
 import { clearEvaluationWorkspaceSession } from "./evaluation/evaluation-session";
+import type { SidebarContentMetrics } from "./shared/useFrozenGraphInlineSize";
 
 gsap.registerPlugin(useGSAP);
 
@@ -33,6 +35,8 @@ type MainLayout = {
   brandY: number;
   cmX: number;
   cmY: number;
+  contentCollapsedLeft: number;
+  contentCollapsedInlineSize: number;
   fullHeight: number;
   fullWidth: number;
   insetX: number;
@@ -41,11 +45,13 @@ type MainLayout = {
   lineTop: number;
   contentBottom: number;
   contentLeft: number;
+  contentOpenInlineSize: number;
   contentRight: number;
   contentTop: number;
   mainSurface: RectAttrs;
   separator: RectAttrs;
   sidebarLeft: number;
+  sidebarToggleCollapsedLeft: number;
   sidebarTop: number;
   sidebarWidth: number;
   topSurface: RectAttrs;
@@ -60,6 +66,7 @@ const SIDEBAR_WIDTH_UNITS = 5.65;
 const SIDEBAR_WIDTH_MIN = 224;
 const SIDEBAR_WIDTH_MAX = 252;
 const SIDEBAR_TO_CONTENT_GAP_UNITS = 0.3;
+const SIDEBAR_TOGGLE_SIZE = 44;
 type MainNavKey =
   | "agent"
   | "anatomy"
@@ -148,17 +155,32 @@ function getMainLayout(): MainLayout {
   const contentLeft = snap(
     sidebarLeft + sidebarWidth + SIDEBAR_TO_CONTENT_GAP_UNITS * cmX,
   );
+  const sidebarToggleCollapsedLeft = snap(Math.max(16, cmX * 0.52));
+  const contentCollapsedLeft = snap(
+    sidebarToggleCollapsedLeft +
+      SIDEBAR_TOGGLE_SIZE +
+      Math.max(16, cmX * 0.55),
+  );
   const contentTop = snap(lineBottom + 0.72 * cmY);
   const contentRight = snap(1.78 * cmX);
   const contentBottom = snap(1.1 * cmY);
+  const contentOpenInlineSize = snap(
+    Math.max(fullWidth - contentLeft - contentRight, 0),
+  );
+  const contentCollapsedInlineSize = snap(
+    Math.max(fullWidth - contentCollapsedLeft - contentRight, 0),
+  );
 
   return {
     brandX: insetX,
     brandY: snap(lineTop - 0.55 * cmY),
     cmX,
     cmY,
+    contentCollapsedLeft,
+    contentCollapsedInlineSize,
     contentBottom,
     contentLeft,
+    contentOpenInlineSize,
     contentRight,
     contentTop,
     fullHeight,
@@ -168,6 +190,7 @@ function getMainLayout(): MainLayout {
     lineBottom,
     lineTop,
     sidebarLeft,
+    sidebarToggleCollapsedLeft,
     sidebarTop,
     sidebarWidth,
     topSurface: {
@@ -250,23 +273,40 @@ function MainWindowContent({
   activeNavKey,
   activeAgentId,
   accountIdentity,
+  isSidebarGraphFrozen,
   onAgentSaved,
   onLogout,
   onNavigate,
+  sidebarContentMetrics,
 }: {
   activeAgentId: string;
   activeNavKey: MainNavKey;
   accountIdentity?: AccountIdentity | null;
+  isSidebarGraphFrozen: boolean;
   onAgentSaved: (agentId: string) => void;
   onLogout: () => void;
   onNavigate: (key: MainNavKey) => void;
+  sidebarContentMetrics: SidebarContentMetrics;
 }) {
   if (activeNavKey === "dashboard") {
-    return <OverviewDashboard activeAgentId={activeAgentId} onNavigate={onNavigate} />;
+    return (
+      <OverviewDashboard
+        activeAgentId={activeAgentId}
+        isGraphFrozen={isSidebarGraphFrozen}
+        onNavigate={onNavigate}
+        sidebarContentMetrics={sidebarContentMetrics}
+      />
+    );
   }
 
   if (activeNavKey === "profile") {
-    return <SecurityProfileGraph viewModel={securityProfileFixtureViewModel} />;
+    return (
+      <SecurityProfileGraph
+        isGraphFrozen={isSidebarGraphFrozen}
+        sidebarContentMetrics={sidebarContentMetrics}
+        viewModel={securityProfileFixtureViewModel}
+      />
+    );
   }
 
   if (activeNavKey === "anatomy") {
@@ -312,15 +352,74 @@ export function MainWindow({
   const [activeNavKey, setActiveNavKey] = useState<MainNavKey>("dashboard");
   const [renderedNavKey, setRenderedNavKey] = useState<MainNavKey>("dashboard");
   const [restartToken, setRestartToken] = useState(0);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarGraphFrozen, setIsSidebarGraphFrozen] = useState(false);
+  const [sidebarContentMetrics, setSidebarContentMetrics] =
+    useState<SidebarContentMetrics>({
+      collapsedInlineSize: 0,
+      openInlineSize: 0,
+    });
   const rootRef = useRef<HTMLElement>(null);
   const contentPageRef = useRef<HTMLDivElement>(null);
   const contentSwapTimelineRef = useRef<gsap.core.Timeline | null>(null);
+  const sidebarCollapseTimelineRef = useRef<gsap.core.Timeline | null>(null);
+  const isSidebarCollapsedRef = useRef(false);
+  const isSidebarGraphFrozenRef = useRef(false);
   const navigationTargetRef = useRef<MainNavKey | null>(null);
   const topSurfaceRef = useRef<SVGRectElement>(null);
   const mainSurfaceRef = useRef<SVGRectElement>(null);
   const separatorRef = useRef<SVGRectElement>(null);
   const transitionBlueRef = useRef<SVGRectElement>(null);
   const brandRef = useRef<SVGTextElement>(null);
+
+  isSidebarCollapsedRef.current = isSidebarCollapsed;
+  isSidebarGraphFrozenRef.current = isSidebarGraphFrozen;
+
+  const setSidebarGraphFrozen = useCallback((nextIsFrozen: boolean) => {
+    isSidebarGraphFrozenRef.current = nextIsFrozen;
+    rootRef.current?.setAttribute(
+      "data-sidebar-graph-frozen",
+      String(nextIsFrozen),
+    );
+    setIsSidebarGraphFrozen(nextIsFrozen);
+  }, []);
+
+  const handleSidebarToggle = useCallback(() => {
+    const nextIsCollapsed = !isSidebarCollapsedRef.current;
+    isSidebarCollapsedRef.current = nextIsCollapsed;
+    if (nextIsCollapsed) {
+      setSidebarGraphFrozen(true);
+    }
+    rootRef.current?.setAttribute(
+      "data-sidebar-collapsed",
+      String(nextIsCollapsed),
+    );
+    setIsSidebarCollapsed(nextIsCollapsed);
+
+    const collapseTimeline = sidebarCollapseTimelineRef.current;
+
+    if (!collapseTimeline) {
+      if (!nextIsCollapsed) {
+        setSidebarGraphFrozen(false);
+      }
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      collapseTimeline.pause(nextIsCollapsed ? 1 : 0);
+      if (!nextIsCollapsed) {
+        setSidebarGraphFrozen(false);
+      }
+      return;
+    }
+
+    if (nextIsCollapsed) {
+      sidebarCollapseTimelineRef.current?.play();
+      return;
+    }
+
+    sidebarCollapseTimelineRef.current?.reverse();
+  }, [setSidebarGraphFrozen]);
 
   const handleMainNavSelect = useCallback(
     (nextNavKey: MainNavKey) => {
@@ -398,6 +497,12 @@ export function MainWindow({
 
       const sidebar = root.querySelector<HTMLElement>(".main-line-sidebar");
       const contentRegion = root.querySelector<HTMLElement>(".main-content-region");
+      const sidebarToggleButton = root.querySelector<HTMLElement>(
+        ".main-sidebar-toggle-button",
+      );
+      const sidebarToggleIcon = root.querySelector<SVGGElement>(
+        ".main-sidebar-toggle-icon",
+      );
       const sidebarItems = gsap.utils.toArray<HTMLElement>(
         ".main-line-sidebar-item",
         root,
@@ -405,6 +510,10 @@ export function MainWindow({
       const prefersReducedMotion = window.matchMedia(
         "(prefers-reduced-motion: reduce)",
       ).matches;
+      if (!sidebar || !contentRegion || !sidebarToggleButton || !sidebarToggleIcon) {
+        return;
+      }
+
       let introTimeline: gsap.core.Timeline | null = null;
       let hasSettled = false;
 
@@ -419,13 +528,91 @@ export function MainWindow({
         setPxVar(root, "--main-sidebar-left", layout.sidebarLeft);
         setPxVar(root, "--main-sidebar-top", layout.sidebarTop);
         setPxVar(root, "--main-sidebar-width", layout.sidebarWidth);
+        setPxVar(root, "--main-sidebar-toggle-left", layout.sidebarLeft);
         setPxVar(root, "--main-content-bottom", layout.contentBottom);
         setPxVar(root, "--main-content-left", layout.contentLeft);
+        setPxVar(
+          root,
+          "--main-content-open-inline-size",
+          layout.contentOpenInlineSize,
+        );
+        setPxVar(
+          root,
+          "--main-content-collapsed-inline-size",
+          layout.contentCollapsedInlineSize,
+        );
         setPxVar(root, "--main-content-right", layout.contentRight);
         setPxVar(root, "--main-content-top", layout.contentTop);
+        setSidebarContentMetrics({
+          collapsedInlineSize: layout.contentCollapsedInlineSize,
+          openInlineSize: layout.contentOpenInlineSize,
+        });
+      };
+
+      const createSidebarCollapseTimeline = (layout: MainLayout) => {
+        const timeline = gsap.timeline({
+          onReverseComplete: () => {
+            if (!isSidebarCollapsedRef.current) {
+              setSidebarGraphFrozen(false);
+            }
+          },
+          paused: true,
+          defaults: {
+            duration: 0.6,
+            ease: "power3.inOut",
+          },
+        });
+
+        timeline
+          .addLabel("collapse", 0)
+          .to(
+            sidebar,
+            {
+              autoAlpha: 0,
+              duration: 0.48,
+              x: -layout.sidebarWidth - Math.max(18, layout.cmX * 0.36),
+            },
+            "collapse",
+          )
+          .to(
+            sidebarItems,
+            {
+              autoAlpha: 0,
+              duration: 0.3,
+              stagger: 0.025,
+              x: -10,
+              y: 4,
+            },
+            "collapse",
+          )
+          .to(
+            root,
+            {
+              "--main-content-left": `${layout.contentCollapsedLeft}px`,
+            },
+            "collapse",
+          )
+          .to(
+            sidebarToggleButton,
+            {
+              x: layout.sidebarToggleCollapsedLeft - layout.sidebarLeft,
+            },
+            "collapse",
+          )
+          .to(
+            sidebarToggleIcon,
+            {
+              rotation: 180,
+              svgOrigin: "22 22",
+            },
+            "collapse",
+          );
+
+        return timeline;
       };
 
       const renderSettledLayout = (layout = getMainLayout()) => {
+        sidebarCollapseTimelineRef.current?.kill();
         renderSurfaceLayout(layout);
         setRectAttrs(separator, layout.separator);
         setRectAttrs(transitionBlue, layout.transitionFinal);
@@ -434,11 +621,22 @@ export function MainWindow({
         gsap.set(brand, { autoAlpha: 1, y: 0 });
         gsap.set(sidebar, { autoAlpha: 1, x: 0 });
         gsap.set(sidebarItems, { autoAlpha: 1, x: 0, y: 0 });
+        gsap.set(sidebarToggleButton, { autoAlpha: 1, x: 0 });
+        gsap.set(sidebarToggleIcon, {
+          rotation: 0,
+          svgOrigin: "22 22",
+        });
         gsap.set(contentRegion, { autoAlpha: 1, y: 0 });
+        sidebarCollapseTimelineRef.current = createSidebarCollapseTimeline(layout);
+        sidebarCollapseTimelineRef.current.pause(
+          isSidebarCollapsedRef.current ? 1 : 0,
+        );
         root.setAttribute("data-main-window-stage", "settled");
       };
 
       const renderInitialLayout = (layout = getMainLayout()) => {
+        sidebarCollapseTimelineRef.current?.kill();
+        sidebarCollapseTimelineRef.current = null;
         renderSurfaceLayout(layout);
         setRectAttrs(separator, layout.separator);
         setRectAttrs(transitionBlue, layout.transitionFull);
@@ -447,6 +645,11 @@ export function MainWindow({
         gsap.set(brand, { autoAlpha: 0, y: 6 });
         gsap.set(sidebar, { autoAlpha: 0, x: -18 });
         gsap.set(sidebarItems, { autoAlpha: 0, x: -12, y: 4 });
+        gsap.set(sidebarToggleButton, { autoAlpha: 0, x: 0 });
+        gsap.set(sidebarToggleIcon, {
+          rotation: 0,
+          svgOrigin: "22 22",
+        });
         gsap.set(contentRegion, { autoAlpha: 0, y: 16 });
         root.setAttribute("data-main-window-stage", "intro");
       };
@@ -510,24 +713,11 @@ export function MainWindow({
           .set(separator, { autoAlpha: 1 }, 1.4)
           .set(transitionBlue, { autoAlpha: 0 }, 1.4)
           .to(
-            sidebar,
+            sidebarToggleButton,
             {
               autoAlpha: 1,
-              duration: 0.45,
-              ease: LINE_DRAW_EASE,
-              x: 0,
-            },
-            1.18,
-          )
-          .to(
-            sidebarItems,
-            {
-              autoAlpha: 1,
-              duration: 0.42,
-              ease: "power3.out",
-              stagger: 0.045,
-              x: 0,
-              y: 0,
+              duration: 0.36,
+              ease: "power2.out",
             },
             1.2,
           )
@@ -541,11 +731,40 @@ export function MainWindow({
             },
             1.34,
           );
+
+        if (!isSidebarCollapsedRef.current) {
+          introTimeline
+            .to(
+              sidebar,
+              {
+                autoAlpha: 1,
+                duration: 0.45,
+                ease: LINE_DRAW_EASE,
+                x: 0,
+              },
+              1.18,
+            )
+            .to(
+              sidebarItems,
+              {
+                autoAlpha: 1,
+                duration: 0.42,
+                ease: "power3.out",
+                stagger: 0.045,
+                x: 0,
+                y: 0,
+              },
+              1.2,
+            );
+        }
       };
 
       const handleResize = () => {
         if (hasSettled || prefersReducedMotion) {
           renderSettledLayout();
+          if (!isSidebarCollapsedRef.current) {
+            setSidebarGraphFrozen(false);
+          }
           return;
         }
 
@@ -558,6 +777,8 @@ export function MainWindow({
       return () => {
         window.removeEventListener("resize", handleResize);
         introTimeline?.kill();
+        sidebarCollapseTimelineRef.current?.kill();
+        sidebarCollapseTimelineRef.current = null;
         contentSwapTimelineRef.current?.kill();
         gsap.killTweensOf([
           transitionBlue,
@@ -566,12 +787,14 @@ export function MainWindow({
           topSurface,
           mainSurface,
           sidebar,
+          sidebarToggleButton,
+          sidebarToggleIcon,
           contentRegion,
           ...sidebarItems,
         ]);
       };
     },
-    { dependencies: [restartToken], scope: rootRef },
+    { dependencies: [restartToken, setSidebarGraphFrozen], scope: rootRef },
   );
 
   useGSAP(
@@ -633,6 +856,8 @@ export function MainWindow({
       ref={rootRef}
       className="main-window"
       data-main-window-stage="intro"
+      data-sidebar-collapsed={isSidebarCollapsed}
+      data-sidebar-graph-frozen={isSidebarGraphFrozen}
       aria-label="AgentProof Agent 安全评估平台"
     >
       <svg className="main-window-svg" aria-hidden="true" focusable="false">
@@ -662,8 +887,15 @@ export function MainWindow({
       </svg>
       <MainLineSidebar
         activeKey={activeNavKey}
+        id="main-line-sidebar"
+        isCollapsed={isSidebarCollapsed}
         items={MAIN_NAV_ITEMS}
         onSelect={(item) => handleMainNavSelect(item.key as MainNavKey)}
+      />
+      <MainSidebarToggleButton
+        controlsId="main-line-sidebar"
+        isCollapsed={isSidebarCollapsed}
+        onToggle={handleSidebarToggle}
       />
       <EvaluationWorkspaceProvider
         key={activeAgentId}
@@ -681,9 +913,11 @@ export function MainWindow({
               activeAgentId={activeAgentId}
               activeNavKey={renderedNavKey}
               accountIdentity={accountIdentity}
+              isSidebarGraphFrozen={isSidebarGraphFrozen}
               onAgentSaved={handleAgentSaved}
               onLogout={onLogout}
               onNavigate={handleMainNavSelect}
+              sidebarContentMetrics={sidebarContentMetrics}
             />
           </div>
         </section>

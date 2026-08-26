@@ -29,6 +29,17 @@
 - Extensibility: use `verify:default` for normal feature work and `verify:full` when changing tests, CI, lint/type tooling, or intentionally clearing historical type debt.
 - Validation: `pnpm -C apps/main-platform run type-check`, `pnpm -C apps/main-platform run lint`, and `pnpm -C apps/main-platform build` must start from stable scripts; sandbox/ACL failures get one meaningful retry before reporting the concrete blocker.
 
+## 2026-08-26 Main Sidebar Collapse Controller
+
+- [ ] `MainWindow.tsx` remains the only owner of `isSidebarCollapsed`, `isSidebarGraphFrozen`, and the single paused reversible GSAP timeline; `isSidebarCollapsed` changes navigation semantics immediately, while graph freezing begins before collapse motion and ends only after reverse playback reaches the open endpoint. `MainLineSidebar.tsx` and `MainSidebarToggleButton.tsx` must not start competing layout timelines.
+- [ ] The SVG control remains a sibling of `MainLineSidebar`, not a child of the navigation component or part of document flow. It keeps its 44px single-ring/single-fold-glyph blue treatment, native button keyboard behavior, visible focus indication, `aria-expanded`, and `aria-controls`.
+- [ ] A collapsed sidebar is both visually hidden and semantically inactive (`aria-hidden` plus `inert`); reopening restores the same current progress in reverse without queueing a second timeline.
+- [ ] The content region expands by animating `--main-content-left`, while the control moves with a transform and the glyph rotates 180 degrees around its fixed SVG origin. Do not substitute a sidebar-only transform that leaves the main content at its expanded width.
+- [ ] Container queries and `minmax()` reflow dashboard, profile, anatomy, evaluation, agent, and settings content. During overview/profile sidebar motion, the graph baseline and the responsive `split`/`stacked` mode remain frozen for the whole timeline; `ResizeObserver` may measure only a stable expanded graph. Extra width goes to supporting panels and never magnifies SVG text, nodes, or hit targets.
+- [ ] At `max-width: 720px`, keep the existing compact main-window layout and hide this desktop-only controller rather than adding a separate drawer mode.
+- [ ] Reduced-motion users receive direct collapsed/expanded end states; navigation changes retain the current collapse state for the `MainWindow` lifecycle and no browser persistence is introduced.
+- [ ] Validation covers structure tests, default-expanded desktop layout, collapse/expand geometry, rapid reverse click, Enter/Space activation, reduced-motion end state, navigation-state retention, dashboard/profile/anatomy/evaluation/agent/settings reflow, and `pnpm -C apps/main-platform run verify:default`.
+
 ## 2026-08-19 Chinese Loading Tips Integration
 
 - Ownership: `app/windows/shared/loading-tips.ts` owns the Chinese loading-tip catalog, phase mapping, live/timeline selection, and seen-tip de-duplication. Login, Agent interface, and Evaluation modules only consume tips through this shared helper.
@@ -237,6 +248,12 @@
 - Ownership: `MainWindow.tsx` owns the main content page swap. The requested `MainNavKey` remains attached to the active GSAP timeline until completion or interruption, so comparison run/report navigation uses one shared fade-out, keyed replacement, and fade-in lifecycle in both directions.
 - Boundary: this is presentation-only coordination. It does not change evaluation state, report data, event reduction, persistence, or BFF contracts.
 - Validation: keep the main-window structure test asserting the target reference and run `node --test apps/main-platform/app/windows/main/main-window-layout-structure.test.mjs`, `node --test apps/main-platform/app/windows/main/evaluation/EvaluationRunWorkspace.layout.test.ts`, and `pnpm -C apps/main-platform run type-check:app`.
+
+## 2026-08-26 Main Sidebar Graph Baseline Preservation
+
+- Ownership: `MainWindow.tsx` supplies the current open/collapsed content-inline metrics; `useFrozenGraphInlineSize.ts` records the open graph width and exposes the collapse-time CSS baseline; `OverviewDashboard` and `SecurityProfileGraph` choose only their local split/stacked supporting layout. The sidebar SVG control remains a sibling of `MainLineSidebar`, with its position and glyph rotation controlled only by the existing main-window timeline.
+- Boundary: opening the sidebar continues to use each page's original grid tracks. Collapsing it must not introduce an `800px`/`760px` static graph cap, grow the R4/profile SVG, alter SVG text, nodes, hit areas, or the fixed `viewBox`/`preserveAspectRatio` contract. The extra main-content width belongs to summaries, inspectors, evidence, and other non-graph content; the Anatomy workbench is outside this correction.
+- Validation: run the overview/profile/frozen-width structure tests, `pnpm -C apps/main-platform run type-check:app`, and the sidebar Playwright suite. At desktop width, compare pre-collapse and post-collapse SVG edge scale in screen pixels with a maximum `0.5px` viewBox-edge deviation, then verify the companion panel grows and a page first entered while collapsed uses its original open-grid baseline.
 
 ## 2026-08-23 Bare vs Defended Comparison Run Lifecycle
 

@@ -11,7 +11,9 @@ export type MainLineSidebarItem = {
 
 type MainLineSidebarProps = {
   activeKey: string;
+  id?: string;
   itemGap?: number;
+  isCollapsed?: boolean;
   items: MainLineSidebarItem[];
   markerLength?: number;
   maxShift?: number;
@@ -47,7 +49,9 @@ function formatIndex(index: number) {
 
 export function MainLineSidebar({
   activeKey,
+  id,
   itemGap = 42,
+  isCollapsed = false,
   items,
   markerLength = 72,
   maxShift = 18,
@@ -219,8 +223,11 @@ export function MainLineSidebar({
 
   return (
     <nav
+      aria-hidden={isCollapsed || undefined}
       aria-label="主页面导航"
       className="main-line-sidebar"
+      id={id}
+      inert={isCollapsed ? true : undefined}
       style={sidebarStyle}
     >
       <ul

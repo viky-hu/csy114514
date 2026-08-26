@@ -19,6 +19,10 @@ import type { LucideIcon } from "lucide-react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
 import { createClockwiseRoundedRectPath } from "../shared/graph-svg-primitives.ts";
 import {
+  useFrozenGraphInlineSize,
+  type SidebarContentMetrics,
+} from "../shared/useFrozenGraphInlineSize";
+import {
   PROFILE_COLUMNS,
   PROFILE_COLUMN_INFO_Y,
   PROFILE_GRAPH_BOUNDARY,
@@ -37,6 +41,8 @@ import type {
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
 type SecurityProfileGraphProps = {
+  isGraphFrozen: boolean;
+  sidebarContentMetrics: SidebarContentMetrics;
   viewModel: SecurityProfileViewModel;
 };
 
@@ -61,6 +67,9 @@ const PROFILE_HOVER_NODE_DURATION = 0.26;
 const PROFILE_HOVER_NODE_SCALE_X = 1;
 const PROFILE_HOVER_NODE_SCALE_Y = 1.035;
 const PROFILE_HOVER_NODE_Y = -5;
+const PROFILE_COLLAPSED_GRAPH_GAP = 16;
+const PROFILE_COMPANION_MIN_INLINE_SIZE = 270;
+const PROFILE_STACK_INLINE_SIZE = 920;
 
 const PERMISSION_LABELS: Record<string, string> = {
   ALLOW: "允许",
@@ -83,6 +92,23 @@ const NODE_ICONS: Record<SecurityProfileNode["kind"], LucideIcon> = {
   source: Globe2,
   tool: MailCheck,
 };
+
+function getProfileFallbackGraphInlineSize(openInlineSize: number) {
+  if (openInlineSize <= PROFILE_STACK_INLINE_SIZE) {
+    return openInlineSize;
+  }
+
+  const availableInlineSize = Math.max(
+    openInlineSize - PROFILE_COLLAPSED_GRAPH_GAP,
+    0,
+  );
+  const inspectorInlineSize = Math.max(
+    PROFILE_COMPANION_MIN_INLINE_SIZE,
+    (availableInlineSize * 0.36) / 1.36,
+  );
+
+  return Math.max(availableInlineSize - inspectorInlineSize, 0);
+}
 
 function getNodeClassName(
   node: SecurityProfileNode,
@@ -190,14 +216,31 @@ function SecurityProfileInspector({ node }: { node: SecurityProfileNode }) {
   );
 }
 
-export function SecurityProfileGraph({ viewModel }: SecurityProfileGraphProps) {
+export function SecurityProfileGraph({
+  isGraphFrozen,
+  sidebarContentMetrics,
+  viewModel,
+}: SecurityProfileGraphProps) {
   const rootRef = useRef<HTMLElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<HTMLDivElement>(null);
   const activeColumnRef = useRef<SecurityProfileColumnId | null>(null);
   const animatedColumnRef = useRef<SecurityProfileColumnId | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState(viewModel.agent.id);
   const [hoverColumnId, setHoverColumnId] =
     useState<SecurityProfileColumnId | null>(null);
+  const graphFreeze = useFrozenGraphInlineSize({
+    collapsedContentInlineSize: sidebarContentMetrics.collapsedInlineSize,
+    fallbackOpenInlineSize: getProfileFallbackGraphInlineSize(
+      sidebarContentMetrics.openInlineSize,
+    ),
+    gap: PROFILE_COLLAPSED_GRAPH_GAP,
+    graphRef: mapRef,
+    isGraphFrozen,
+    minCompanionInlineSize: PROFILE_COMPANION_MIN_INLINE_SIZE,
+    shouldStack:
+      sidebarContentMetrics.openInlineSize <= PROFILE_STACK_INLINE_SIZE,
+  });
 
   const nodesById = useMemo(
     () => new Map(viewModel.nodes.map((node) => [node.id, node])),
@@ -531,6 +574,8 @@ export function SecurityProfileGraph({ viewModel }: SecurityProfileGraphProps) {
       ref={rootRef}
       className="security-profile-page"
       aria-label="安全画像"
+      data-sidebar-graph-layout={graphFreeze.layout}
+      style={graphFreeze.graphStyle}
     >
       <header className="security-profile-header security-profile-reveal">
         <div>
@@ -551,7 +596,10 @@ export function SecurityProfileGraph({ viewModel }: SecurityProfileGraphProps) {
       </header>
 
       <div className="security-profile-workspace">
-        <div className="security-profile-map security-profile-reveal">
+        <div
+          ref={mapRef}
+          className="security-profile-map security-profile-reveal"
+        >
           <div
             ref={graphRef}
             className="security-profile-map-stage"

@@ -8,6 +8,11 @@ const mainWindowSource = readFileSync(
   "utf8",
 );
 
+const mainSidebarSource = readFileSync(
+  new URL("./MainLineSidebar.tsx", import.meta.url),
+  "utf8",
+);
+
 const mainStyles = readFileSync(
   new URL("../../styles/window-3-main.css", import.meta.url),
   "utf8",
@@ -165,4 +170,77 @@ test("main Agent interface keeps its narrow-container preview rows content-sized
     mainStyles,
     /@container main-content \(max-width:\s*980px\)[\s\S]*?\.agent-interface-page \.login-agent-draft-preview\s*\{[^}]*minmax\(0, 1fr\)/s,
   );
+});
+
+test("main workspace owns a standalone reversible sidebar collapse controller", () => {
+  assert.match(
+    mainWindowSource,
+    /import \{ MainSidebarToggleButton \} from "\.\/MainSidebarToggleButton";/,
+  );
+  assert.match(
+    mainWindowSource,
+    /const \[isSidebarCollapsed, setIsSidebarCollapsed\] = useState\(false\);/,
+  );
+  assert.match(
+    mainWindowSource,
+    /const sidebarCollapseTimelineRef = useRef<gsap\.core\.Timeline \| null>\(null\);/,
+  );
+  assert.match(mainWindowSource, /contentCollapsedLeft:/);
+  assert.match(mainWindowSource, /sidebarToggleCollapsedLeft:/);
+  assert.match(mainWindowSource, /--main-content-left/);
+  assert.match(mainWindowSource, /sidebarCollapseTimelineRef\.current\?\.play\(\)/);
+  assert.match(mainWindowSource, /sidebarCollapseTimelineRef\.current\?\.reverse\(\)/);
+  assert.match(mainWindowSource, /duration: 0\.6/);
+  assert.match(mainWindowSource, /ease: "power3\.inOut"/);
+  assert.match(mainWindowSource, /svgOrigin: "22 22"/);
+  assert.doesNotMatch(mainWindowSource, /transformOrigin: "50% 50%"/);
+  assert.match(mainWindowSource, /id="main-line-sidebar"/);
+  assert.match(mainWindowSource, /isCollapsed=\{isSidebarCollapsed\}/);
+  assert.match(mainWindowSource, /<MainSidebarToggleButton[\s\S]*?controlsId="main-line-sidebar"/);
+  assert.match(mainWindowSource, /data-sidebar-collapsed=\{isSidebarCollapsed\}/);
+  assert.match(mainSidebarSource, /isCollapsed\?: boolean;/);
+  assert.match(mainSidebarSource, /id\?: string;/);
+  assert.match(mainSidebarSource, /inert=\{isCollapsed \? true : undefined\}/);
+});
+
+test("main workspace keeps graph layout frozen for the full reversible sidebar timeline", () => {
+  assert.match(
+    mainWindowSource,
+    /const \[isSidebarGraphFrozen, setIsSidebarGraphFrozen\] = useState\(false\);/,
+  );
+  assert.match(mainWindowSource, /data-sidebar-graph-frozen/);
+  assert.match(mainWindowSource, /if \(nextIsCollapsed\) \{\s*setSidebarGraphFrozen\(true\);/);
+  assert.match(
+    mainWindowSource,
+    /onReverseComplete:\s*\(\) => \{\s*if \(!isSidebarCollapsedRef\.current\) \{\s*setSidebarGraphFrozen\(false\);/,
+  );
+  assert.match(
+    mainWindowSource,
+    /<OverviewDashboard[\s\S]*?isGraphFrozen=\{isSidebarGraphFrozen\}/,
+  );
+  assert.match(
+    mainWindowSource,
+    /<SecurityProfileGraph[\s\S]*?isGraphFrozen=\{isSidebarGraphFrozen\}/,
+  );
+  assert.match(mainStyles, /data-sidebar-graph-frozen="true"/);
+  assert.doesNotMatch(
+    mainStyles,
+    /data-sidebar-collapsed="true"\] \.overview-dashboard/,
+  );
+});
+
+test("main workspace collapse controller is an overlay and reflows dashboard by container size", () => {
+  assert.match(
+    mainStyles,
+    /\.main-sidebar-toggle-button\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*4;[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*will-change:\s*transform, opacity;/s,
+  );
+  assert.match(mainStyles, /\.main-sidebar-toggle-icon/);
+  assert.doesNotMatch(mainStyles, /\.main-sidebar-toggle-coil/);
+  assert.doesNotMatch(
+    mainStyles,
+    /\.main-sidebar-toggle-icon\s*\{[^}]*transform-box:\s*fill-box;/s,
+  );
+  assert.match(mainStyles, /@media \(max-width:\s*720px\)[\s\S]*?\.main-sidebar-toggle-button\s*\{\s*display:\s*none;/s);
+  assert.match(mainStyles, /@container overview-dashboard \(max-width:\s*980px\)/);
+  assert.doesNotMatch(mainStyles, /@media \(max-width:\s*1180px\)/);
 });

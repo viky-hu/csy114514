@@ -42,6 +42,15 @@ test("security profile graph uses column hover and foreground SVG column text", 
   assert.match(mainStyles, /left: var\(--profile-hot-left\)/);
   assert.match(mainStyles, /width: var\(--profile-hot-width\)/);
   assert.match(mainStyles, /\.security-profile-column-info \{/);
+  assert.match(
+    mainStyles,
+    /\.security-profile-workspace\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(270px,\s*0\.36fr\);/,
+  );
+  assert.doesNotMatch(mainStyles, /--security-profile-graph-canvas-width/);
+  assert.match(graphSource, /useFrozenGraphInlineSize/);
+  assert.match(graphSource, /isGraphFrozen: boolean;/);
+  assert.match(graphSource, /isGraphFrozen,/);
+  assert.match(graphSource, /data-sidebar-graph-layout/);
 });
 
 test("security profile hover motion keeps node x coordinates stable", () => {
