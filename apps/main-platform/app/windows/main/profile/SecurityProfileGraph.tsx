@@ -13,6 +13,7 @@ import {
   KeyRound,
   Mail,
   MailCheck,
+  MousePointerClick,
   ShieldAlert,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -37,6 +38,7 @@ import type {
   SecurityProfileNode,
   SecurityProfileViewModel,
 } from "./security-profile-data";
+import { DefenseVisualizationStage } from "./DefenseVisualizationStage";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
@@ -229,6 +231,10 @@ export function SecurityProfileGraph({
   const [selectedNodeId, setSelectedNodeId] = useState(viewModel.agent.id);
   const [hoverColumnId, setHoverColumnId] =
     useState<SecurityProfileColumnId | null>(null);
+  const [screen, setScreen] = useState<"profile" | "defense">("profile");
+  const [isDefenseRevealed, setIsDefenseRevealed] = useState(false);
+  const hasInitializedScreenRef = useRef(false);
+  const requestedScreenRef = useRef<"profile" | "defense">("profile");
   const graphFreeze = useFrozenGraphInlineSize({
     collapsedContentInlineSize: sidebarContentMetrics.collapsedInlineSize,
     fallbackOpenInlineSize: getProfileFallbackGraphInlineSize(
@@ -569,6 +575,63 @@ export function SecurityProfileGraph({
     { dependencies: [activeColumnId], revertOnUpdate: false, scope: rootRef },
   );
 
+  const requestScreen = useCallback((nextScreen: "profile" | "defense") => {
+    if (requestedScreenRef.current === nextScreen) {
+      return;
+    }
+
+    requestedScreenRef.current = nextScreen;
+    setScreen(nextScreen);
+  }, []);
+
+  useGSAP(
+    () => {
+      const root = rootRef.current;
+      const track = root?.querySelector<HTMLElement>(
+        ".security-profile-page-track",
+      );
+
+      if (!track) {
+        return;
+      }
+
+      if (!hasInitializedScreenRef.current) {
+        gsap.set(track, { yPercent: 0 });
+        hasInitializedScreenRef.current = true;
+        return;
+      }
+
+      const reducedMotion = isReducedMotion();
+      setIsDefenseRevealed(false);
+
+      if (reducedMotion) {
+        gsap.set(track, { yPercent: screen === "defense" ? -50 : 0 });
+        setIsDefenseRevealed(screen === "defense");
+        return;
+      }
+
+      const timeline = gsap.timeline({
+        defaults: { ease: "power3.inOut" },
+        onComplete: () => {
+          setIsDefenseRevealed(screen === "defense");
+        },
+      });
+
+      if (screen === "defense") {
+        timeline
+          .to(track, { duration: 1.12, yPercent: -50 })
+          .call(() => setIsDefenseRevealed(true), [], 0.9);
+      } else {
+        timeline.to(track, { duration: 0.96, yPercent: 0 }, 0.14);
+      }
+
+      return () => {
+        timeline.kill();
+      };
+    },
+    { dependencies: [screen], revertOnUpdate: false, scope: rootRef },
+  );
+
   return (
     <section
       ref={rootRef}
@@ -577,7 +640,9 @@ export function SecurityProfileGraph({
       data-sidebar-graph-layout={graphFreeze.layout}
       style={graphFreeze.graphStyle}
     >
-      <header className="security-profile-header security-profile-reveal">
+      <div className="security-profile-page-track">
+        <section className="security-profile-page-screen" aria-label="安全画像第一页">
+          <header className="security-profile-header security-profile-reveal">
         <div>
           <span className="overview-kicker">Agent 边界图</span>
           <h1>{viewModel.agent.label} 的能力边界</h1>
@@ -593,9 +658,9 @@ export function SecurityProfileGraph({
             </span>
           ))}
         </div>
-      </header>
+          </header>
 
-      <div className="security-profile-workspace">
+          <div className="security-profile-workspace">
         <div
           ref={mapRef}
           className="security-profile-map security-profile-reveal"
@@ -846,15 +911,31 @@ export function SecurityProfileGraph({
         <div className="security-profile-reveal">
           <SecurityProfileInspector node={selectedNode} />
         </div>
-      </div>
+          </div>
 
-      <footer className="security-profile-footer security-profile-reveal">
-        <span>
-          <Fingerprint size={15} aria-hidden="true" />
-          数据来自当前 Agent fixture 与攻击图谱 fixture
-        </span>
-        <span>当前页面只做画像确认，不判定攻击链成立</span>
-      </footer>
+          <footer className="security-profile-footer security-profile-reveal">
+            <span>
+              <Fingerprint size={15} aria-hidden="true" />
+              数据来自当前 Agent fixture 与攻击图谱 fixture
+            </span>
+            <span>当前页面只做画像确认，不判定攻击链成立</span>
+            <button
+              className="security-profile-defense-enter"
+              type="button"
+              aria-label="进入防御机制可视化"
+              title="进入防御机制可视化"
+              onClick={() => requestScreen("defense")}
+            >
+              <MousePointerClick size={18} aria-hidden="true" />
+            </button>
+          </footer>
+        </section>
+
+        <DefenseVisualizationStage
+          isVisible={isDefenseRevealed}
+          onReturn={() => requestScreen("profile")}
+        />
+      </div>
     </section>
   );
 }

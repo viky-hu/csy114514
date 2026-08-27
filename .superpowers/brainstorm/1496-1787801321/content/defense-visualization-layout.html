@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>安全画像 / 防御机制可视化草图</title>
+  <style>
+    :root { --ink:#111622; --muted:rgba(17,22,34,.56); --line:rgba(49,82,244,.28); --grey:rgba(17,22,34,.18); --blue:#3152f4; --blue-soft:rgba(49,82,244,.09); --surface:#f7f7f4; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; overflow:hidden; background:#e9e9e4; color:var(--ink); font-family:"Noto Sans SC",system-ui,sans-serif; }
+    .frame { width:min(1260px,calc(100vw - 48px)); height:min(760px,calc(100vh - 48px)); margin:24px auto; overflow:hidden; border:1px solid rgba(17,22,34,.24); background:var(--surface); box-shadow:0 18px 50px rgba(17,22,34,.13); }
+    .scene { position:relative; height:200%; transform:translateY(0); transition:transform 1.25s cubic-bezier(.76,0,.24,1); }
+    .frame.is-page-two .scene { transform:translateY(-50%); }
+    .page { position:relative; height:50%; padding:32px 40px; }
+    .page-one { display:grid; grid-template-rows:auto 1fr auto; }
+    .topline { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:16px; }
+    .eyebrow { color:var(--blue); font:11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:0; }
+    h1 { margin:7px 0 0; font-size:30px; font-weight:500; line-height:1.15; }
+    .summary { display:grid; grid-template-columns:repeat(3,74px); border:1px solid var(--line); }
+    .summary span { display:grid; place-items:center; gap:2px; min-height:54px; border-left:1px solid var(--line); color:var(--muted); font-size:10px; }
+    .summary span:first-child { border-left:0; }
+    .summary strong { color:var(--blue); font-size:20px; font-weight:500; }
+    .graph { display:grid; grid-template-columns:1fr 1.12fr 1fr; gap:22px; align-items:center; padding:25px 0; }
+    .pane { min-height:285px; border:1px solid var(--grey); padding:18px; }
+    .pane-label { color:var(--muted); font-size:11px; }
+    .agent { display:grid; min-height:100%; place-items:center; border:1px solid var(--line); background:var(--blue-soft); }
+    .agent b { display:grid; width:90px; height:90px; place-items:center; border:1px solid var(--blue); border-radius:50%; color:var(--blue); font-size:19px; font-weight:500; }
+    .route { position:relative; min-height:285px; border:1px solid var(--grey); overflow:hidden; }
+    .route svg { width:100%; height:100%; }
+    .route rect { fill:none; stroke:var(--line); }
+    .route path { fill:none; stroke:var(--blue); stroke-width:1.4; stroke-dasharray:6 5; }
+    .route circle { fill:#f7f7f4; stroke:var(--blue); stroke-width:1.6; }
+    .route text { fill:var(--muted); font-size:9px; }
+    .assets { display:grid; gap:9px; margin-top:25px; }
+    .asset { border-bottom:1px solid var(--grey); padding:8px 0; color:var(--muted); font-size:12px; }
+    .page-turn { display:grid; justify-items:center; gap:7px; border:0; padding:7px 16px 2px; background:none; color:var(--muted); cursor:pointer; font:inherit; }
+    .page-turn:focus-visible { outline:2px solid var(--blue); outline-offset:4px; }
+    .mark { display:grid; width:29px; height:29px; place-items:center; border:1px solid var(--blue); color:var(--blue); font:600 13px ui-monospace,monospace; transition:transform .2s ease,background .2s ease,color .2s ease; }
+    .page-turn:hover .mark { transform:translateY(3px); background:var(--blue); color:#fff; }
+    .page-turn small { font-size:10px; }
+    .page-two { padding-top:24px; }
+    .defense-region { display:grid; grid-template-rows:86px minmax(0,1fr); height:100%; border:1px solid var(--grey); padding:22px 26px 26px; }
+    .defense-head { position:relative; opacity:0; transform:translateY(16px); transition:opacity .42s ease .74s,transform .42s ease .74s; }
+    .frame.is-page-two .defense-head { opacity:1; transform:none; }
+    .flow { width:100%; height:65px; }
+    .flow .track { stroke:rgba(49,82,244,.44); stroke-width:1.4; stroke-linecap:round; stroke-dasharray:1 8; }
+    .flow .node { fill:var(--surface); stroke:rgba(49,82,244,.65); stroke-width:1.4; transition:fill .35s ease,stroke .35s ease,r .35s ease; }
+    .flow .node.active { fill:var(--blue); stroke:var(--blue); }
+    .flow .label { fill:var(--muted); font:10px ui-monospace,SFMono-Regular,Menlo,monospace; transition:fill .35s ease,font-size .35s ease; }
+    .flow .label.active { fill:var(--blue); font-size:11px; }
+    .defense-content { display:grid; grid-template-columns:174px minmax(0,1fr); gap:30px; min-height:0; opacity:0; transform:translateY(18px); transition:opacity .44s ease .88s,transform .44s ease .88s; }
+    .frame.is-page-two .defense-content { opacity:1; transform:none; }
+    .wheel { position:relative; min-height:0; overflow:hidden; border-right:1px solid var(--grey); padding-right:22px; }
+    .wheel::after { position:absolute; top:50%; right:22px; left:0; height:38px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--blue-soft); content:""; pointer-events:none; }
+    .wheel-list { position:absolute; top:50%; right:22px; left:0; transform:translateY(-50%); transition:transform .56s cubic-bezier(.2,.8,.2,1); }
+    .wheel button { position:relative; z-index:1; display:block; width:100%; height:38px; border:0; padding:0 0 0 8px; background:transparent; color:rgba(17,22,34,.35); cursor:pointer; font:13px/38px "Noto Sans SC",system-ui,sans-serif; text-align:left; transition:color .26s ease,transform .26s ease,filter .26s ease; }
+    .wheel button.is-active { color:var(--blue); font-weight:600; transform:translateX(8px); }
+    .wheel button:not(.is-active):hover { color:var(--ink); }
+    .wheel-note { position:absolute; right:24px; bottom:8px; color:var(--muted); font:9px ui-monospace,monospace; }
+    .detail { position:relative; display:grid; place-items:center; overflow:hidden; border:1px solid var(--grey); }
+    .detail::before,.detail::after { position:absolute; width:16px; height:16px; border-color:var(--blue); content:""; opacity:.7; }
+    .detail::before { top:-1px; left:-1px; border-top:1px solid; border-left:1px solid; }
+    .detail::after { right:-1px; bottom:-1px; border-right:1px solid; border-bottom:1px solid; }
+    .placeholder { display:grid; justify-items:center; gap:9px; color:var(--muted); text-align:center; }
+    .placeholder b { color:var(--blue); font:500 30px/1 ui-monospace,monospace; }
+    .placeholder span { font-size:12px; }
+    .hint { position:absolute; right:17px; bottom:14px; color:rgba(17,22,34,.38); font-size:10px; }
+    @media (max-width:780px) { .frame { width:calc(100vw - 24px); height:calc(100vh - 24px); margin:12px auto; } .page { padding:22px; } .summary { display:none; } .graph { grid-template-columns:1fr; } .graph .route { display:none; } .pane { min-height:120px; } .defense-region { padding:16px; } .defense-content { grid-template-columns:132px minmax(0,1fr); gap:14px; } }
+  </style>
+</head>
+<body>
+  <main class="frame" id="frame">
+    <div class="scene">
+      <section class="page page-one" aria-label="安全画像第一页">
+        <header class="topline"><div><span class="eyebrow">AGENT BOUNDARY MAP</span><h1>安全画像 / 能力边界</h1></div><div class="summary"><span><strong>4</strong>来源</span><span><strong>2</strong>确认</span><span><strong>1</strong>禁止</span></div></header>
+        <div class="graph"><div class="pane"><span class="pane-label">画像主体</span><div class="agent"><b>Agent</b></div></div><div class="route"><svg viewBox="0 0 380 285" aria-hidden="true"><rect x="24" y="20" width="332" height="245"/><path d="M50 73H160V135H250M50 210H160V135M250 135H330"/><circle cx="50" cy="73" r="11"/><circle cx="50" cy="210" r="11"/><circle cx="160" cy="135" r="14"/><circle cx="250" cy="135" r="11"/><circle cx="330" cy="135" r="11"/><text x="34" y="105">来源</text><text x="30" y="242">记忆</text><text x="143" y="169">Agent</text><text x="231" y="167">数据</text><text x="312" y="167">工具</text></svg></div><div class="pane"><span class="pane-label">安全资产</span><div class="assets"><div class="asset">浏览器来源 · 不可信</div><div class="asset">长期记忆 · 受审计</div><div class="asset">邮件工具 · 需确认</div><div class="asset">敏感数据 · 受控</div></div></div></div>
+        <button class="page-turn" id="page-turn" type="button" aria-label="进入防御机制可视化"><span class="mark">D</span><small>DEFENSE LAYERS</small></button>
+      </section>
+      <section class="page page-two" aria-label="防御机制可视化第二页">
+        <div class="defense-region">
+          <header class="defense-head"><svg class="flow" viewBox="0 0 900 65" preserveAspectRatio="none" aria-label="D1 到 D8 防御流程"><line class="track" x1="48" y1="20" x2="852" y2="20"/> <g id="flow-nodes"></g></svg></header>
+          <div class="defense-content"><nav class="wheel" aria-label="防御层选择"><div class="wheel-list" id="wheel-list"></div><span class="wheel-note">DRAG / WHEEL</span></nav><section class="detail" aria-live="polite"><div class="placeholder"><b id="detail-id">D1</b><span id="detail-name">输入过滤</span></div><span class="hint">阶段 1: 详情页将在此呈现</span></section></div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const layers=[['D1','输入过滤'],['D2','输出过滤'],['D3','确认门控'],['D4','指令隔离'],['D5','链检测'],['D6','意图分类'],['D7','记忆审计'],['D8','会话监控']];
+    const wheel=document.getElementById('wheel-list'); const flow=document.getElementById('flow-nodes'); const frame=document.getElementById('frame'); let selected=0;
+    layers.forEach(([id,name],index)=>{ const x=48+index*(804/7); flow.insertAdjacentHTML('beforeend',`<circle class="node${index===0?' active':''}" data-node="${index}" cx="${x}" cy="20" r="${index===0?6:4}"></circle><text class="label${index===0?' active':''}" data-label="${index}" x="${x}" y="51" text-anchor="middle">${id}</text>`); wheel.insertAdjacentHTML('beforeend',`<button type="button" data-index="${index}" class="${index===0?'is-active':''}">${name}</button>`); });
+    function select(index){ selected=Math.max(0,Math.min(layers.length-1,index)); wheel.style.transform=`translateY(calc(-50% - ${selected*38}px))`; wheel.querySelectorAll('button').forEach((button,i)=>button.classList.toggle('is-active',i===selected)); flow.querySelectorAll('.node').forEach((node,i)=>{node.classList.toggle('active',i===selected);node.setAttribute('r',i===selected?'6':'4')}); flow.querySelectorAll('.label').forEach((label,i)=>label.classList.toggle('active',i===selected)); document.getElementById('detail-id').textContent=layers[selected][0]; document.getElementById('detail-name').textContent=layers[selected][1]; }
+    wheel.addEventListener('click',event=>{const b=event.target.closest('button');if(b)select(Number(b.dataset.index));}); wheel.addEventListener('wheel',event=>{event.preventDefault();select(selected+(event.deltaY>0?1:-1));},{passive:false});
+    document.getElementById('page-turn').addEventListener('click',()=>frame.classList.add('is-page-two')); select(0);
+  </script>
+</body>
+</html>
