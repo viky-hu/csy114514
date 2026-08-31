@@ -28,6 +28,29 @@ export function resolveDefenseWheelSelection(value: number, itemCount: number) {
   return resolveDefenseWheelTarget(Math.round(value), itemCount);
 }
 
+export function resolveDefenseWheelLoopTarget(
+  currentPosition: number,
+  nextIndex: number,
+  itemCount: number,
+) {
+  if (itemCount === 0) {
+    return 0;
+  }
+
+  const normalizedCurrent =
+    ((currentPosition % itemCount) + itemCount) % itemCount;
+  let delta = nextIndex - normalizedCurrent;
+  if (itemCount > 1) {
+    if (delta > itemCount / 2) {
+      delta -= itemCount;
+    } else if (delta < -itemCount / 2) {
+      delta += itemCount;
+    }
+  }
+
+  return currentPosition + delta;
+}
+
 export function getDefenseWheelItemFrame({
   curve,
   distance: providedDistance,

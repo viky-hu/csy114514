@@ -17,6 +17,7 @@ test("defense visualization keeps the supplied wheel interaction surface", () =>
   assert.match(source, /onPointerDown/);
   assert.match(source, /ArrowUp|ArrowDown/);
   assert.match(source, /resolveDefenseWheelTarget/);
+  assert.match(source, /resolveDefenseWheelLoopTarget/);
   assert.match(source, /commitPosition/);
 
   const pointerMove = source.slice(
@@ -51,6 +52,15 @@ test("wheel release commits the nearest center option and preserves the smooth r
   assert.doesNotMatch(controlledSync, /renderPosition\(nextIndex\)/);
 });
 
+test("controlled loop updates do not reset a wrapped position to its business index", () => {
+  const source = read("DefenseOptionWheel.tsx");
+
+  assert.doesNotMatch(
+    source,
+    /requestPosition\(selectedIndexRef\.current, false\)/,
+  );
+});
+
 test("defense flow is an independent eight-node SVG", () => {
   const source = read("DefenseFlow.tsx");
 
@@ -78,11 +88,25 @@ test("the visualizer reserves one independent placeholder for every layer", () =
   assert.match(source, /DEFENSE_LAYERS\.map/);
   assert.match(source, /security-defense-placeholder/);
   assert.match(source, /onReturn/);
+  assert.match(source, /loop\s*\n/);
   assert.ok(
     source.indexOf('<div className="security-defense-region">') <
       source.indexOf('className="security-defense-return"'),
     "return control should be positioned inside the outer defense region",
   );
+});
+
+test("keeps wheel display order separate from canonical flow state", () => {
+  const source = read("DefenseVisualizationStage.tsx");
+
+  assert.match(source, /DEFENSE_WHEEL_LAYERS/);
+  assert.match(source, /getDefenseWheelIndex/);
+  assert.match(source, /getDefenseCanonicalIndexFromWheelIndex/);
+  assert.match(source, /items=\{DEFENSE_WHEEL_LAYERS\}/);
+  assert.match(source, /selectedIndex=\{selectedWheelIndex\}/);
+  assert.match(source, /onChange=\{\(wheelIndex\)/);
+  assert.match(source, /<DefenseFlow selectedIndex=\{selectedIndex\}/);
+  assert.match(source, /DEFENSE_LAYERS\.map/);
 });
 
 test("the defense workspace uses open whitespace inside the outer region", () => {

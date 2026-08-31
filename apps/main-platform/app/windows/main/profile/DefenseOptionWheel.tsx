@@ -9,6 +9,7 @@ import type {
 import type { DefenseLayer } from "./defense-visualization-data";
 import {
   getDefenseWheelItemFrame,
+  resolveDefenseWheelLoopTarget,
   resolveDefenseWheelSelection,
   resolveDefenseWheelTarget,
 } from "./defense-option-wheel-model";
@@ -114,10 +115,13 @@ export function DefenseOptionWheel({
     (nextIndex: number) => {
       const index = getSelectionIndex(nextIndex);
       selectedIndexRef.current = index;
+      if (selectedIndexProp !== undefined) {
+        controlledIndexRef.current = index;
+      }
       setInternalSelectedIndex((current) => (current === index ? current : index));
       onChange?.(index, items[index]!);
     },
-    [getSelectionIndex, items, onChange],
+    [getSelectionIndex, items, onChange, selectedIndexProp],
   );
 
   const playTick = useCallback(() => {
@@ -292,10 +296,6 @@ export function DefenseOptionWheel({
   }, [fontSize, renderPosition, spacing]);
 
   useEffect(() => {
-    requestPosition(selectedIndexRef.current, false);
-  }, [requestPosition]);
-
-  useEffect(() => {
     if (selectedIndexProp === undefined || itemCount === 0) {
       return;
     }
@@ -306,8 +306,15 @@ export function DefenseOptionWheel({
 
     controlledIndexRef.current = nextIndex;
     selectedIndexRef.current = nextIndex;
-    requestPosition(nextIndex, false, true);
-  }, [itemCount, requestPosition, selectedIndexProp]);
+    const nextPosition = loop
+      ? resolveDefenseWheelLoopTarget(
+          targetPositionRef.current,
+          nextIndex,
+          itemCount,
+        )
+      : nextIndex;
+    requestPosition(nextPosition, false, true);
+  }, [itemCount, loop, requestPosition, selectedIndexProp]);
 
   const handleWheel = useCallback(
     (event: WheelEvent) => {
@@ -409,12 +416,12 @@ export function DefenseOptionWheel({
         return;
       }
 
-      const current = selectedIndexRef.current;
-      let delta = index - current;
-      if (itemCount > 1) {
-        delta = ((delta + itemCount / 2) % itemCount) - itemCount / 2;
-      }
-      requestPosition(targetPositionRef.current + delta, true, true);
+      const nextPosition = resolveDefenseWheelLoopTarget(
+        targetPositionRef.current,
+        index,
+        itemCount,
+      );
+      requestPosition(nextPosition, true, true);
     },
     [itemCount, loop, requestPosition],
   );

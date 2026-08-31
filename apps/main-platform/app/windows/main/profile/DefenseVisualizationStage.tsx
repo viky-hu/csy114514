@@ -4,7 +4,14 @@ import { useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
-import { DEFENSE_LAYERS, getDefenseLayer } from "./defense-visualization-data";
+import {
+  DEFAULT_DEFENSE_LAYER_INDEX,
+  DEFENSE_LAYERS,
+  DEFENSE_WHEEL_LAYERS,
+  getDefenseCanonicalIndexFromWheelIndex,
+  getDefenseLayer,
+  getDefenseWheelIndex,
+} from "./defense-visualization-data";
 import { DefenseFlow } from "./DefenseFlow";
 import { DefenseOptionWheel } from "./DefenseOptionWheel";
 
@@ -19,7 +26,9 @@ export function DefenseVisualizationStage({
 }: DefenseVisualizationStageProps) {
   const stageRef = useRef<HTMLElement>(null);
   const placeholderRef = useRef<HTMLDivElement>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(
+    DEFAULT_DEFENSE_LAYER_INDEX,
+  );
 
   useGSAP(
     () => {
@@ -64,6 +73,7 @@ export function DefenseVisualizationStage({
   );
 
   const activeLayer = getDefenseLayer(selectedIndex);
+  const selectedWheelIndex = getDefenseWheelIndex(selectedIndex);
 
   return (
     <section
@@ -91,13 +101,18 @@ export function DefenseVisualizationStage({
               fade={0.22}
               fontSize={1.98}
               inset={8}
-              items={DEFENSE_LAYERS}
-              defaultSelected={0}
+              items={DEFENSE_WHEEL_LAYERS}
+              defaultSelected={getDefenseWheelIndex(DEFAULT_DEFENSE_LAYER_INDEX)}
               minOpacity={0.06}
-              selectedIndex={selectedIndex}
+              selectedIndex={selectedWheelIndex}
               reducedMotion={false}
               spacing={2.2}
-              onChange={setSelectedIndex}
+              loop
+              onChange={(wheelIndex) =>
+                setSelectedIndex(
+                  getDefenseCanonicalIndexFromWheelIndex(wheelIndex),
+                )
+              }
             />
           </aside>
           <section
