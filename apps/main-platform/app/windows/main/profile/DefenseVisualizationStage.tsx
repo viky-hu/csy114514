@@ -14,6 +14,7 @@ import {
 } from "./defense-visualization-data";
 import { DefenseFlow } from "./DefenseFlow";
 import { DefenseOptionWheel } from "./DefenseOptionWheel";
+import { D1InputFilterPanel } from "./D1InputFilterPanel";
 
 type DefenseVisualizationStageProps = {
   isVisible: boolean;
@@ -78,7 +79,9 @@ export function DefenseVisualizationStage({
   return (
     <section
       ref={stageRef}
-      className={`security-defense-screen${isVisible ? " is-revealed" : ""}`}
+      className={`security-profile-defense-screen security-defense-screen${
+        isVisible ? " is-revealed" : ""
+      }`}
       aria-label="防御机制可视化"
       aria-hidden={!isVisible}
     >
@@ -123,17 +126,21 @@ export function DefenseVisualizationStage({
             {DEFENSE_LAYERS.map((layer, index) => (
               <div
                 key={layer.id}
-                className="security-defense-placeholder"
+                className={`security-defense-placeholder${layer.id === "D1" ? " is-d1" : ""}`}
                 data-defense-layer={layer.id}
                 aria-hidden={selectedIndex !== index}
               >
-                <span className="security-defense-placeholder-code">
-                  {layer.id}
-                </span>
-                <strong>{layer.label}</strong>
-                <span className="security-defense-placeholder-note">
-                  防御层详情占位
-                </span>
+                {layer.id === "D1" ? (
+                  <D1InputFilterPanel
+                    isVisible={isVisible && selectedIndex === index}
+                  />
+                ) : (
+                  <>
+                    <span className="security-defense-placeholder-code">{layer.id}</span>
+                    <strong>{layer.label}</strong>
+                    <span className="security-defense-placeholder-note">防御层详情占位</span>
+                  </>
+                )}
               </div>
             ))}
           </section>

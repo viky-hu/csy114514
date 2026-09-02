@@ -85,6 +85,25 @@ test("security profile page reveal matches the overview page section choreograph
   );
 });
 
+test("security profile navigation uses one viewport and resets to the profile page", () => {
+  const screenEffect = graphSource.slice(
+    graphSource.indexOf("const profileScreen = root?.querySelector<HTMLElement>("),
+    graphSource.indexOf(
+      "return (",
+      graphSource.indexOf("const profileScreen = root?.querySelector<HTMLElement>("),
+    ),
+  );
+
+  assert.match(screenEffect, /gsap\.killTweensOf\(\[profileScreen, defenseScreen\]\)/);
+  assert.match(screenEffect, /autoAlpha/);
+  assert.match(screenEffect, /setIsDefenseRevealed\(false\)/);
+  assert.doesNotMatch(screenEffect, /yPercent/);
+  assert.doesNotMatch(graphSource, /clearProps: "transform"/);
+  assert.match(graphSource, /aria-hidden=\{screen !== "profile"\}/);
+  assert.match(mainStyles, /\.security-profile-page-track\s*\{[\s\S]*height: 100%;/);
+  assert.match(mainStyles, /\.security-profile-page-screen\s*\{[\s\S]*position: absolute;/);
+});
+
 test("security profile paints column info inside the graph boundary before routes and nodes", () => {
   const boundaryIndex = graphSource.indexOf("security-profile-map-boundary");
   const bandIndex = graphSource.indexOf("security-profile-column-band");

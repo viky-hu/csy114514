@@ -266,10 +266,25 @@
 ## 2026-08-27 Security Profile Defense Visualization Review Checklist
 
 - [ ] Security Profile remains one navigation page with the original boundary graph as screen one and the defense visualizer as screen two; no backend, red-team, BFF, or generated contract changes are introduced.
-- [ ] The first screen has a clickable `MousePointerClick` entry at the bottom; entry/return use one GSAP page-track lifecycle, gate repeated requests, and reveal screen-two content only near the end of the forward transition.
-- [ ] The second screen region has one thin gray rectangular boundary and no inner panel boundary/background. Its return control sits inside the region's top-left safe area. Its independent SVG contains exactly eight points, seven dotted connecting segments, and only D1-D8 labels below the points; the flow is proportionally scaled and centered with breathing room.
+- [ ] The first screen has a clickable `MousePointerClick` entry at the bottom; entry/return use one GSAP crossfade lifecycle over two absolutely positioned screens in one viewport, gate repeated requests, and reveal screen-two content only during the forward transition.
+- [ ] Every fresh menu mount establishes the first screen as visible and the defense screen as hidden. An interrupted transition kills its tweens and a later re-entry cannot inherit a translated track or a hidden settled page.
+- [ ] The second screen region uses one thin closed gray rectangular boundary with no inner panel boundary/background. Its return control sits inside the region's top-left safe area. Its independent SVG contains exactly eight points, seven dotted connecting segments, and only D1-D8 labels below the points; the flow is proportionally scaled and centered with breathing room.
 - [ ] The React Option Wheel preserves the supplied algorithm paths: exponential rAF smoothing, cyclic modulo distance, wheel, pointer drag, click, ArrowUp/ArrowDown/ArrowLeft/ArrowRight keyboard input, blur/fade, and optional sound hooks. Its visual treatment is enlarged inside a fixed `154px` desktop column without expanding that column or adding a divider; D1 shows D8/D7/D6 above it and D8 shows D1/D2/D3 below it at the same spacing.
 - [ ] Pointer drag and wheel input move only the Wheel's continuous private position while the gesture is active. Selection, SVG highlighting, and right-side placeholder changes are committed once on pointer release or after the wheel idle timeout.
 - [ ] The stable default is D1 `输入过滤`. Canonical ID order remains D1 `输入过滤`, D2 `输出过滤`, D3 `确认门控`, D4 `指令隔离`, D5 `链检测`, D6 `意图分类`, D7 `记忆审计`, D8 `会话监控`; the Wheel display order follows the section 4.1 visual flow `D1,D4,D5,D6,D7,D8,D2,D3`, then maps its selection back to canonical state before updating the SVG and placeholder. Wheel selection and SVG active-node state remain synchronized without flash or stale overlays.
 - [ ] All eight right-side placeholders are independent keyed states, with only the active state visible and interactive; the region remains a direct replacement boundary for future secondary pages.
 - [ ] Reduced-motion mode skips inertial/transition motion and lands directly on the requested screen and selected D layer. Desktop browser checks confirm the flow remains complete, the open right content stays usable, and wheel input does not scroll unrelated page regions.
+
+## 2026-09-01 Security Profile D1 Input Filter Detail
+
+- [ ] D1 removes the centered introduction and presents raw input plus sanitized output directly in a taller top comparison row with an inline SVG transfer arrow centered between the two panes.
+- [ ] D1 uses a narrower, left-aligned light `pre`/`code` reader with no pure-black terminal styling; only the code surface may scroll.
+- [ ] D1 maps the five visible rule entries from static data as taller manual one-row modules with no separate rule-heading bar and no bold rule labels: zero-width removal, Unicode NFKC normalization, Base64 detection, hidden HTML cleanup, and injection-pattern matching.
+- [ ] The D1 panel, defense region, and page remain fixed to one viewport without page-level or rule-list scrolling; D2-D8, Option Wheel interaction, transitions, and backend boundaries remain unchanged.
+- [ ] Validation covers D1 data/structure tests, type-check, lint, build, and the defense-transition Playwright regression at desktop and narrow widths.
+
+## 2026-09-01 Overview Navigation Overflow Regression
+
+- [ ] The overview dashboard uses `overflow: hidden` in every layout state and does not keep scrollbar-specific right padding or scrollbar styling.
+- [ ] Returning from another main-menu page to `总览` keeps the dashboard within the fixed main content region throughout the keyed fade transition.
+- [ ] The overview structure test and focused Playwright regression verify no vertical scrolling, no scrollbar width, and no content-width shift at the desktop short viewport used by the regression.

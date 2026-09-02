@@ -233,8 +233,8 @@ export function SecurityProfileGraph({
     useState<SecurityProfileColumnId | null>(null);
   const [screen, setScreen] = useState<"profile" | "defense">("profile");
   const [isDefenseRevealed, setIsDefenseRevealed] = useState(false);
-  const hasInitializedScreenRef = useRef(false);
   const requestedScreenRef = useRef<"profile" | "defense">("profile");
+  const hasScreenRequestRef = useRef(false);
   const graphFreeze = useFrozenGraphInlineSize({
     collapsedContentInlineSize: sidebarContentMetrics.collapsedInlineSize,
     fallbackOpenInlineSize: getProfileFallbackGraphInlineSize(
@@ -581,52 +581,70 @@ export function SecurityProfileGraph({
     }
 
     requestedScreenRef.current = nextScreen;
+    hasScreenRequestRef.current = true;
+    if (nextScreen === "profile") {
+      setIsDefenseRevealed(false);
+    }
     setScreen(nextScreen);
   }, []);
 
   useGSAP(
     () => {
       const root = rootRef.current;
-      const track = root?.querySelector<HTMLElement>(
-        ".security-profile-page-track",
+      const profileScreen = root?.querySelector<HTMLElement>(
+        ".security-profile-profile-screen",
+      );
+      const defenseScreen = root?.querySelector<HTMLElement>(
+        ".security-profile-defense-screen",
       );
 
-      if (!track) {
+      if (!profileScreen || !defenseScreen) {
         return;
       }
 
-      if (!hasInitializedScreenRef.current) {
-        gsap.set(track, { yPercent: 0 });
-        hasInitializedScreenRef.current = true;
+      gsap.killTweensOf([profileScreen, defenseScreen]);
+
+      if (!hasScreenRequestRef.current) {
+        // Every menu entry mounts a fresh screen stack at the profile baseline.
+        gsap.set(profileScreen, { autoAlpha: 1 });
+        gsap.set(defenseScreen, { autoAlpha: 0 });
+        setIsDefenseRevealed(false);
         return;
       }
 
+      hasScreenRequestRef.current = false;
       const reducedMotion = isReducedMotion();
       setIsDefenseRevealed(false);
 
       if (reducedMotion) {
-        gsap.set(track, { yPercent: screen === "defense" ? -50 : 0 });
+        gsap.set(profileScreen, { autoAlpha: screen === "profile" ? 1 : 0 });
+        gsap.set(defenseScreen, { autoAlpha: screen === "defense" ? 1 : 0 });
         setIsDefenseRevealed(screen === "defense");
         return;
       }
 
       const timeline = gsap.timeline({
         defaults: { ease: "power3.inOut" },
-        onComplete: () => {
-          setIsDefenseRevealed(screen === "defense");
-        },
       });
 
       if (screen === "defense") {
+        gsap.set(profileScreen, { autoAlpha: 1 });
+        gsap.set(defenseScreen, { autoAlpha: 0 });
         timeline
-          .to(track, { duration: 1.12, yPercent: -50 })
-          .call(() => setIsDefenseRevealed(true), [], 0.9);
+          .to(profileScreen, { autoAlpha: 0, duration: 0.34 })
+          .call(() => setIsDefenseRevealed(true), [], 0.22)
+          .to(defenseScreen, { autoAlpha: 1, duration: 0.38 }, 0.22);
       } else {
-        timeline.to(track, { duration: 0.96, yPercent: 0 }, 0.14);
+        gsap.set(profileScreen, { autoAlpha: 0 });
+        gsap.set(defenseScreen, { autoAlpha: 1 });
+        timeline
+          .to(defenseScreen, { autoAlpha: 0, duration: 0.28 })
+          .to(profileScreen, { autoAlpha: 1, duration: 0.38 }, "<0.06");
       }
 
       return () => {
         timeline.kill();
+        gsap.killTweensOf([profileScreen, defenseScreen]);
       };
     },
     { dependencies: [screen], revertOnUpdate: false, scope: rootRef },
@@ -641,7 +659,11 @@ export function SecurityProfileGraph({
       style={graphFreeze.graphStyle}
     >
       <div className="security-profile-page-track">
-        <section className="security-profile-page-screen" aria-label="安全画像第一页">
+        <section
+          className="security-profile-page-screen security-profile-profile-screen"
+          aria-label="安全画像第一页"
+          aria-hidden={screen !== "profile"}
+        >
           <header className="security-profile-header security-profile-reveal">
         <div>
           <span className="overview-kicker">Agent 边界图</span>

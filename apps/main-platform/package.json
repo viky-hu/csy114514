@@ -26,6 +26,7 @@
     "react": "latest",
     "react-dom": "latest",
     "react-easy-crop": "5.5.4",
+    "shiki": "^4.4.3",
     "three": "0.183.2",
     "ui-components": "workspace:*",
     "zod": "^4.3.6"

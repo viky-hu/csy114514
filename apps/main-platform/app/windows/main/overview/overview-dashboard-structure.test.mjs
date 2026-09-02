@@ -119,7 +119,8 @@ test("R4 graph uses layered orthogonal SVG structure with x-axis hot zones", () 
     graphSource,
     /\(\(clientX - bounds\.left\) \/ bounds\.width\) \* R4_GRAPH_VIEWBOX\.width/,
   );
-  assert.match(mainStyles, /\.overview-dashboard \{[\s\S]*overflow: auto;/);
+  assert.match(mainStyles, /\.overview-dashboard \{[\s\S]*overflow: hidden;/);
+  assert.match(mainStyles, /\.overview-dashboard \{[\s\S]*padding-right: 0;/);
   assert.match(mainStyles, /height: clamp\(320px,\s*46vh,\s*520px\);/);
   assert.match(mainStyles, /height: clamp\(280px,\s*42vh,\s*400px\);/);
   assert.match(mainStyles, /height: clamp\(300px,\s*58vh,\s*460px\);/);
