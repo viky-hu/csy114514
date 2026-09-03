@@ -65,7 +65,7 @@ test("security profile enters on page one and resets after interrupted navigatio
   await page.getByRole("button", { name: "进入防御机制可视化" }).click();
   await expect(defenseScreen).toHaveAttribute("aria-hidden", "false");
   await expect(
-    page.locator('[data-defense-layer="D1"][aria-hidden="false"]'),
+    page.locator('[data-defense-layer="D1"]'),
   ).toBeVisible();
 
   const d1Panel = page.locator(".d1-input-filter-panel");
@@ -212,7 +212,7 @@ test("D1 keeps its fixed viewport layout at a narrow width", async ({ page }) =>
   await page.getByRole("button", { name: /安全画像/ }).click();
   await page.getByRole("button", { name: "进入防御机制可视化" }).click();
   await expect(
-    page.locator('[data-defense-layer="D1"][aria-hidden="false"]'),
+    page.locator('[data-defense-layer="D1"]'),
   ).toBeVisible();
 
   const metrics = await page.evaluate(() => {

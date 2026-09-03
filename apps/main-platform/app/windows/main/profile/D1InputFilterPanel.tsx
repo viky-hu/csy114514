@@ -73,25 +73,29 @@ function D1FilterTransferArrow() {
   return (
     <svg
       className="d1-filter-arrow"
-      viewBox="0 0 96 72"
+      viewBox="0 0 120 24"
       aria-hidden="true"
       focusable="false"
+      role="presentation"
     >
       <defs>
-        <linearGradient id="d1-filter-arrow-flow" x1="10" y1="0" x2="86" y2="0">
-          <stop offset="0" stopColor="#b42318" stopOpacity="0.48" />
-          <stop offset="0.5" stopColor="#3152f4" stopOpacity="0.78" />
-          <stop offset="1" stopColor="#218c63" stopOpacity="0.62" />
-        </linearGradient>
+        <marker
+          id="d1-filter-arrow-head"
+          markerWidth="6"
+          markerHeight="6"
+          refX="5"
+          refY="3"
+          orient="auto"
+          markerUnits="strokeWidth"
+        >
+          <path d="M0 0L6 3L0 6Z" fill="currentColor" />
+        </marker>
       </defs>
-      <path className="d1-filter-arrow-shadow" d="M14 36h26" />
-      <path className="d1-filter-arrow-shadow" d="M56 36h24" />
-      <circle className="d1-filter-arrow-input" cx="15" cy="36" r="4.5" />
-      <path className="d1-filter-arrow-line" d="M18 36h22" />
-      <path className="d1-filter-arrow-gate" d="M42 22h14l8 14-8 14H42l-8-14z" />
-      <path className="d1-filter-arrow-line" d="M56 36h22" />
-      <path className="d1-filter-arrow-head" d="M76 27l12 9-12 9" />
-      <circle className="d1-filter-arrow-output" cx="84" cy="36" r="3.5" />
+      <path
+        className="d1-filter-arrow-line"
+        d="M10 12H110"
+        markerEnd="url(#d1-filter-arrow-head)"
+      />
     </svg>
   );
 }

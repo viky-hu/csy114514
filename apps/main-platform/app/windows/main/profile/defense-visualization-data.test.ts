@@ -3,11 +3,11 @@ import test from "node:test";
 
 import {
   DEFAULT_DEFENSE_LAYER_INDEX,
+  DEFENSE_DISPLAY_LAYERS,
   DEFENSE_LAYERS,
-  DEFENSE_WHEEL_LAYERS,
-  getDefenseCanonicalIndexFromWheelIndex,
+  getDefenseCanonicalIndexFromDisplayIndex,
+  getDefenseDisplayIndexFromCanonicalIndex,
   getDefenseLayer,
-  getDefenseWheelIndex,
 } from "./defense-visualization-data.ts";
 
 test("defines the eight defense layers in canonical ID order", () => {
@@ -34,26 +34,26 @@ test("starts the visualizer on D1 and resolves its placeholder state", () => {
   });
 });
 
-test("keeps backend IDs canonical while presenting the 4.1 wheel order", () => {
+test("keeps backend IDs canonical while presenting the fixed display order", () => {
   assert.deepEqual(
-    DEFENSE_WHEEL_LAYERS.map((layer) => [layer.id, layer.label]),
+    DEFENSE_DISPLAY_LAYERS.map((layer) => [layer.displayId, layer.label, layer.canonicalId]),
     [
-      ["D1", "输入过滤"],
-      ["D4", "指令隔离"],
-      ["D5", "链检测"],
-      ["D6", "意图分类"],
-      ["D7", "记忆审计"],
-      ["D8", "会话监控"],
-      ["D2", "输出过滤"],
-      ["D3", "确认门控"],
+      ["D1", "输入过滤", "D1"],
+      ["D2", "指令隔离", "D4"],
+      ["D3", "因果链监测", "D5"],
+      ["D4", "意图分类", "D6"],
+      ["D5", "记忆审计", "D7"],
+      ["D6", "会话监控", "D8"],
+      ["D7", "输出过滤", "D2"],
+      ["D8", "确认门控", "D3"],
     ],
   );
 });
 
-test("maps every wheel item back to its canonical defense layer", () => {
-  for (const [wheelIndex, layer] of DEFENSE_WHEEL_LAYERS.entries()) {
-    const canonicalIndex = getDefenseCanonicalIndexFromWheelIndex(wheelIndex);
-    assert.equal(getDefenseLayer(canonicalIndex).id, layer.id);
-    assert.equal(getDefenseWheelIndex(canonicalIndex), wheelIndex);
+test("maps every display item back to its canonical defense layer", () => {
+  for (const [displayIndex, layer] of DEFENSE_DISPLAY_LAYERS.entries()) {
+    const canonicalIndex = getDefenseCanonicalIndexFromDisplayIndex(displayIndex);
+    assert.equal(getDefenseLayer(canonicalIndex).id, layer.canonicalId);
+    assert.equal(getDefenseDisplayIndexFromCanonicalIndex(canonicalIndex), displayIndex);
   }
 });

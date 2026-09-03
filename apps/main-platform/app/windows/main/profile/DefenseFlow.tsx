@@ -3,14 +3,17 @@
 import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
-import { DEFENSE_LAYERS } from "./defense-visualization-data";
+import { DEFENSE_DISPLAY_LAYERS } from "./defense-visualization-data";
 
 type DefenseFlowProps = {
-  selectedIndex: number;
+  selectedDisplayIndex: number;
   isVisible: boolean;
 };
 
-export function DefenseFlow({ selectedIndex, isVisible }: DefenseFlowProps) {
+export function DefenseFlow({
+  selectedDisplayIndex,
+  isVisible,
+}: DefenseFlowProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
   useGSAP(
@@ -31,7 +34,7 @@ export function DefenseFlow({ selectedIndex, isVisible }: DefenseFlowProps) {
         ".security-defense-flow-segment",
         svg,
       );
-      const activeNode = nodes[selectedIndex];
+      const activeNode = nodes[selectedDisplayIndex];
 
       gsap.killTweensOf([...nodes, ...segments]);
       gsap.set(nodes, { transformOrigin: "center center" });
@@ -61,16 +64,20 @@ export function DefenseFlow({ selectedIndex, isVisible }: DefenseFlowProps) {
         },
       );
     },
-    { dependencies: [selectedIndex, isVisible], scope: svgRef, revertOnUpdate: false },
+    {
+      dependencies: [selectedDisplayIndex, isVisible],
+      scope: svgRef,
+      revertOnUpdate: false,
+    },
   );
 
-  const points = DEFENSE_LAYERS.map((_, index) => 40 + index * 217.15);
+  const points = DEFENSE_DISPLAY_LAYERS.map((_, index) => 92 + index * 202.28);
 
   return (
     <svg
       ref={svgRef}
       className="security-defense-flow"
-      viewBox="0 0 1600 50"
+      viewBox="0 0 1600 82"
       role="img"
       aria-label="D1 至 D8 防御层流程"
       preserveAspectRatio="xMidYMid meet"
@@ -79,7 +86,7 @@ export function DefenseFlow({ selectedIndex, isVisible }: DefenseFlowProps) {
         <line
           key={`segment-${index}`}
           className={`security-defense-flow-segment${
-            selectedIndex === index || selectedIndex === index + 1
+            selectedDisplayIndex === index || selectedDisplayIndex === index + 1
               ? " is-active"
               : ""
           }`}
@@ -91,18 +98,31 @@ export function DefenseFlow({ selectedIndex, isVisible }: DefenseFlowProps) {
         />
       ))}
       {points.map((point, index) => (
-        <g key={DEFENSE_LAYERS[index]!.id}>
+        <g key={DEFENSE_DISPLAY_LAYERS[index]!.displayId}>
           <circle
             className={`security-defense-flow-node${
-              selectedIndex === index ? " is-active" : ""
+              selectedDisplayIndex === index ? " is-active" : ""
             }`}
             cx={point}
             cy="17"
             r="6.2"
             data-defense-flow-node={index}
           />
-          <text x={point} y="40" textAnchor="middle">
-            {DEFENSE_LAYERS[index]!.id}
+          <text
+            className="security-defense-flow-label"
+            x={point}
+            y="42"
+            textAnchor="middle"
+          >
+            {DEFENSE_DISPLAY_LAYERS[index]!.label}
+          </text>
+          <text
+            className="security-defense-flow-id"
+            x={point}
+            y="68"
+            textAnchor="middle"
+          >
+            {DEFENSE_DISPLAY_LAYERS[index]!.displayId}
           </text>
         </g>
       ))}

@@ -3,6 +3,12 @@ export type DefenseLayer = {
   label: string;
 };
 
+export type DefenseDisplayLayer = {
+  displayId: `D${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`;
+  label: string;
+  canonicalId: DefenseLayerId;
+};
+
 export type DefenseLayerId =
   | "D1"
   | "D2"
@@ -26,35 +32,40 @@ export const DEFENSE_LAYERS: readonly DefenseLayer[] = [
 
 export const DEFAULT_DEFENSE_LAYER_INDEX = 0;
 
-// The flow and backend-facing state stay in canonical ID order. The wheel
-// follows the conceptual visual flow from brief section 4.1.
-export const DEFENSE_WHEEL_LAYERS: readonly DefenseLayer[] = [
-  DEFENSE_LAYERS[0]!,
-  DEFENSE_LAYERS[3]!,
-  DEFENSE_LAYERS[4]!,
-  DEFENSE_LAYERS[5]!,
-  DEFENSE_LAYERS[6]!,
-  DEFENSE_LAYERS[7]!,
-  DEFENSE_LAYERS[1]!,
-  DEFENSE_LAYERS[2]!,
+// The display sequence follows the conceptual data flow while canonical
+// IDs remain stable for backend reports and internal state.
+export const DEFENSE_DISPLAY_LAYERS: readonly DefenseDisplayLayer[] = [
+  { displayId: "D1", label: "输入过滤", canonicalId: "D1" },
+  { displayId: "D2", label: "指令隔离", canonicalId: "D4" },
+  { displayId: "D3", label: "因果链监测", canonicalId: "D5" },
+  { displayId: "D4", label: "意图分类", canonicalId: "D6" },
+  { displayId: "D5", label: "记忆审计", canonicalId: "D7" },
+  { displayId: "D6", label: "会话监控", canonicalId: "D8" },
+  { displayId: "D7", label: "输出过滤", canonicalId: "D2" },
+  { displayId: "D8", label: "确认门控", canonicalId: "D3" },
 ];
 
 export function getDefenseLayer(index: number): DefenseLayer {
   return DEFENSE_LAYERS[index] ?? DEFENSE_LAYERS[DEFAULT_DEFENSE_LAYER_INDEX]!;
 }
 
-export function getDefenseWheelIndex(canonicalIndex: number): number {
+export function getDefenseDisplayIndexFromCanonicalIndex(
+  canonicalIndex: number,
+): number {
   const canonicalLayer = getDefenseLayer(canonicalIndex);
-  const wheelIndex = DEFENSE_WHEEL_LAYERS.findIndex(
-    (layer) => layer.id === canonicalLayer.id,
+  const displayIndex = DEFENSE_DISPLAY_LAYERS.findIndex(
+    (layer) => layer.canonicalId === canonicalLayer.id,
   );
-  return wheelIndex >= 0 ? wheelIndex : 0;
+  return displayIndex >= 0 ? displayIndex : 0;
 }
 
-export function getDefenseCanonicalIndexFromWheelIndex(wheelIndex: number): number {
-  const wheelLayer = DEFENSE_WHEEL_LAYERS[wheelIndex] ?? DEFENSE_WHEEL_LAYERS[0]!;
+export function getDefenseCanonicalIndexFromDisplayIndex(
+  displayIndex: number,
+): number {
+  const displayLayer =
+    DEFENSE_DISPLAY_LAYERS[displayIndex] ?? DEFENSE_DISPLAY_LAYERS[0]!;
   const canonicalIndex = DEFENSE_LAYERS.findIndex(
-    (layer) => layer.id === wheelLayer.id,
+    (layer) => layer.id === displayLayer.canonicalId,
   );
   return canonicalIndex >= 0 ? canonicalIndex : DEFAULT_DEFENSE_LAYER_INDEX;
 }
