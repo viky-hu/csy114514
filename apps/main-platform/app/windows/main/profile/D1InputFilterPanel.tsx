@@ -8,6 +8,7 @@ import {
   D1_STAGES,
   D1_UNTRUSTED_CONTENT,
 } from "./d1-input-filter-visualization-data";
+import { D1FilterTransferArrow } from "./D1FilterTransferArrow";
 import { D1SanitizationMicroscope } from "./D1SanitizationMicroscope";
 import { D1SourceViewer } from "./D1SourceViewer";
 
@@ -43,7 +44,7 @@ export function D1InputFilterPanel({
             </header>
             <code className="d1-comparison-code">{D1_UNTRUSTED_CONTENT}</code>
           </article>
-          <D1FilterTransferArrow />
+          <D1FilterTransferArrow isVisible={isVisible} />
           <article className="d1-comparison-pane is-sanitized">
             <header>
               <div className="d1-comparison-copy">
@@ -66,36 +67,5 @@ export function D1InputFilterPanel({
         />
       </div>
     </div>
-  );
-}
-
-function D1FilterTransferArrow() {
-  return (
-    <svg
-      className="d1-filter-arrow"
-      viewBox="0 0 120 24"
-      aria-hidden="true"
-      focusable="false"
-      role="presentation"
-    >
-      <defs>
-        <marker
-          id="d1-filter-arrow-head"
-          markerWidth="6"
-          markerHeight="6"
-          refX="5"
-          refY="3"
-          orient="auto"
-          markerUnits="strokeWidth"
-        >
-          <path d="M0 0L6 3L0 6Z" fill="currentColor" />
-        </marker>
-      </defs>
-      <path
-        className="d1-filter-arrow-line"
-        d="M10 12H110"
-        markerEnd="url(#d1-filter-arrow-head)"
-      />
-    </svg>
   );
 }

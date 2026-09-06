@@ -172,30 +172,30 @@ DefendedLLMAgent.chat() 中的防御执行顺序:
 用户输入
   │
   ▼
-[D4] 系统提示注入指令隔离 (build_system_prompt(defended=True))
+[D2] 系统提示注入指令隔离 (build_system_prompt(defended=True))
   │
   ▼
 LLM 推理 → 返回 tool calls
   │
   ▼ 对每个 tool call:
   │
-  ├──[D5] 因果链检测 → blocked? ──yes──→ 阻断, 记录 label
+  ├──[D3] 因果链检测 → blocked? ──yes──→ 阻断, 记录 label
   │                                       │
-  ├──[D6] 意图分类   → blocked? ──yes──→ 阻断, 记录 label
+  ├──[D4] 意图分类   → blocked? ──yes──→ 阻断, 记录 label
   │                                       │
-  ├──[D7] 记忆审计   → blocked? ──yes──→ 阻断, 记录 label
+  ├──[D5] 记忆审计   → blocked? ──yes──→ 阻断, 记录 label
   │   (仅 memory.write)                    │
   │                                       │
-  ├──[D8] 会话监控   → blocked? ──yes──→ 阻断, 记录 label
+  ├──[D6] 会话监控   → blocked? ──yes──→ 阻断, 记录 label
   │   (仅 email.send)                      │
   │                                       │
-  └──[D2] 输出过滤   → blocked? ──yes──→ 阻断, 记录 label
+  └──[D7] 输出过滤   → blocked? ──yes──→ 阻断, 记录 label
       (最后防线)                            │
                                            ▼ no
                                 ┌──────────────────────┐
                                 │ Sandbox 执行 tool call │
                                 │                       │
-                                │ [D3] email.send 需确认 │
+                                │ [D8] email.send 需确认 │
                                 │ [D1] 返回内容需清洗     │
                                 │     (仅 browser 内容)  │
                                 └──────────────────────┘

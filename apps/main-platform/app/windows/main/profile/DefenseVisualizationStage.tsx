@@ -5,14 +5,15 @@ import { ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import {
-  DEFAULT_DEFENSE_LAYER_INDEX,
-  DEFENSE_DISPLAY_LAYERS,
-  getDefenseCanonicalIndexFromDisplayIndex,
-  getDefenseDisplayIndexFromCanonicalIndex,
+  DEFAULT_DEFENSE_DISPLAY_INDEX,
+  DEFENSE_DISPLAY_ITEMS,
+  getDefenseCanonicalIndexFromDisplayItemIndex,
   getDefenseLayer,
 } from "./defense-visualization-data";
 import { DefenseFlow } from "./DefenseFlow";
 import { D1InputFilterPanel } from "./D1InputFilterPanel";
+import { D2InstructionIsolationPanel } from "./D2InstructionIsolationPanel";
+import { LLMToolCallBridgePanel } from "./LLMToolCallBridgePanel";
 
 type DefenseVisualizationStageProps = {
   isVisible: boolean;
@@ -26,8 +27,8 @@ export function DefenseVisualizationStage({
   const stageRef = useRef<HTMLElement>(null);
   const placeholderRef = useRef<HTMLElement>(null);
   const navigationDirectionRef = useRef<1 | -1>(1);
-  const [selectedIndex, setSelectedIndex] = useState(
-    DEFAULT_DEFENSE_LAYER_INDEX,
+  const [selectedDisplayIndex, setSelectedDisplayIndex] = useState(
+    DEFAULT_DEFENSE_DISPLAY_INDEX,
   );
 
   useGSAP(
@@ -65,27 +66,36 @@ export function DefenseVisualizationStage({
       });
     },
     {
-      dependencies: [isVisible, selectedIndex],
+      dependencies: [isVisible, selectedDisplayIndex],
       scope: stageRef,
       revertOnUpdate: false,
     },
   );
 
-  const activeLayer = getDefenseLayer(selectedIndex);
-  const selectedDisplayIndex =
-    getDefenseDisplayIndexFromCanonicalIndex(selectedIndex);
-  const selectedDisplayLayer = DEFENSE_DISPLAY_LAYERS[selectedDisplayIndex]!;
+  const selectedDisplayItem = DEFENSE_DISPLAY_ITEMS[selectedDisplayIndex]!;
+  const activeCanonicalIndex = getDefenseCanonicalIndexFromDisplayItemIndex(
+    selectedDisplayIndex,
+  );
+  const activeLayer =
+    activeCanonicalIndex === null ? null : getDefenseLayer(activeCanonicalIndex);
   const canGoPrevious = selectedDisplayIndex > 0;
-  const canGoNext = selectedDisplayIndex < DEFENSE_DISPLAY_LAYERS.length - 1;
+  const canGoNext = selectedDisplayIndex < DEFENSE_DISPLAY_ITEMS.length - 1;
+  const getDisplayItemAriaLabel = (displayIndex: number) => {
+    const item = DEFENSE_DISPLAY_ITEMS[displayIndex];
+    if (!item) return "无";
+    return item.kind === "bridge"
+      ? `BRIDGE ${item.label}`
+      : `${item.displayId} ${item.label}`;
+  };
   const moveToDisplayIndex = (displayIndex: number) => {
     const boundedIndex = Math.min(
       Math.max(displayIndex, 0),
-      DEFENSE_DISPLAY_LAYERS.length - 1,
+      DEFENSE_DISPLAY_ITEMS.length - 1,
     );
     if (boundedIndex === selectedDisplayIndex) return;
     navigationDirectionRef.current =
       boundedIndex > selectedDisplayIndex ? 1 : -1;
-    setSelectedIndex(getDefenseCanonicalIndexFromDisplayIndex(boundedIndex));
+    setSelectedDisplayIndex(boundedIndex);
   };
 
   return (
@@ -117,7 +127,7 @@ export function DefenseVisualizationStage({
             type="button"
             aria-label={`上一层：${
               selectedDisplayIndex > 0
-                ? `${DEFENSE_DISPLAY_LAYERS[selectedDisplayIndex - 1]!.displayId} ${DEFENSE_DISPLAY_LAYERS[selectedDisplayIndex - 1]!.label}`
+                ? getDisplayItemAriaLabel(selectedDisplayIndex - 1)
                 : "无"
             }`}
             disabled={!canGoPrevious}
@@ -129,7 +139,7 @@ export function DefenseVisualizationStage({
             ref={placeholderRef}
             className="security-defense-content"
             tabIndex={0}
-            aria-label={`${selectedDisplayLayer.displayId} ${selectedDisplayLayer.label}详情`}
+            aria-label={`${getDisplayItemAriaLabel(selectedDisplayIndex)}详情`}
             onKeyDown={(event) => {
               if (event.target !== event.currentTarget) return;
               if (event.key === "ArrowLeft" && canGoPrevious) {
@@ -143,20 +153,29 @@ export function DefenseVisualizationStage({
             }}
           >
             <div
-              key={activeLayer.id}
-              className={`security-defense-placeholder${activeLayer.id === "D1" ? " is-d1" : ""}`}
-              data-defense-layer={activeLayer.id}
+              key={selectedDisplayIndex}
+              className={`security-defense-placeholder${activeLayer?.id === "D1" ? " is-d1" : ""}${activeLayer?.id === "D4" ? " is-d2" : ""}${selectedDisplayItem.kind === "bridge" ? " is-bridge" : ""}`}
+              data-defense-layer={activeLayer?.id}
+              data-defense-display-index={selectedDisplayIndex}
+              data-defense-bridge={selectedDisplayItem.kind === "bridge" ? selectedDisplayItem.id : undefined}
             >
-              {activeLayer.id === "D1" ? (
-                <D1InputFilterPanel
-                  isVisible={isVisible && activeLayer.id === "D1"}
+              {selectedDisplayItem.kind === "bridge" ? (
+                <LLMToolCallBridgePanel
+                  isVisible={isVisible}
+                  onSelectDisplayIndex={moveToDisplayIndex}
                 />
+              ) : activeLayer?.id === "D1" ? (
+                <D1InputFilterPanel
+                  isVisible={isVisible}
+                />
+              ) : activeLayer?.id === "D4" ? (
+                <D2InstructionIsolationPanel isVisible={isVisible} />
               ) : (
                 <>
                   <span className="security-defense-placeholder-code">
-                    {selectedDisplayLayer.displayId}
+                    {selectedDisplayItem.displayId}
                   </span>
-                  <strong>{selectedDisplayLayer.label}</strong>
+                  <strong>{selectedDisplayItem.label}</strong>
                   <span className="security-defense-placeholder-note">防御层详情占位</span>
                 </>
               )}
@@ -166,8 +185,8 @@ export function DefenseVisualizationStage({
             className="security-defense-step-button security-defense-step-button-next"
             type="button"
             aria-label={`下一层：${
-              selectedDisplayIndex < DEFENSE_DISPLAY_LAYERS.length - 1
-                ? `${DEFENSE_DISPLAY_LAYERS[selectedDisplayIndex + 1]!.displayId} ${DEFENSE_DISPLAY_LAYERS[selectedDisplayIndex + 1]!.label}`
+              selectedDisplayIndex < DEFENSE_DISPLAY_ITEMS.length - 1
+                ? getDisplayItemAriaLabel(selectedDisplayIndex + 1)
                 : "无"
             }`}
             disabled={!canGoNext}

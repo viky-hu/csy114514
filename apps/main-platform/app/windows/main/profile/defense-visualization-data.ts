@@ -9,6 +9,14 @@ export type DefenseDisplayLayer = {
   canonicalId: DefenseLayerId;
 };
 
+export type DefenseDisplayItem =
+  | DefenseDisplayLayer & { kind: "layer" }
+  | {
+      kind: "bridge";
+      id: "llm-tool-call-bridge";
+      label: "LLM 推理 → 返回 tool calls";
+    };
+
 export type DefenseLayerId =
   | "D1"
   | "D2"
@@ -31,6 +39,7 @@ export const DEFENSE_LAYERS: readonly DefenseLayer[] = [
 ];
 
 export const DEFAULT_DEFENSE_LAYER_INDEX = 0;
+export const DEFAULT_DEFENSE_DISPLAY_INDEX = 0;
 
 // The display sequence follows the conceptual data flow while canonical
 // IDs remain stable for backend reports and internal state.
@@ -43,6 +52,22 @@ export const DEFENSE_DISPLAY_LAYERS: readonly DefenseDisplayLayer[] = [
   { displayId: "D6", label: "会话监控", canonicalId: "D8" },
   { displayId: "D7", label: "输出过滤", canonicalId: "D2" },
   { displayId: "D8", label: "确认门控", canonicalId: "D3" },
+];
+
+export const DEFENSE_DISPLAY_ITEMS: readonly DefenseDisplayItem[] = [
+  { kind: "layer", displayId: "D1", label: "输入过滤", canonicalId: "D1" },
+  { kind: "layer", displayId: "D2", label: "指令隔离", canonicalId: "D4" },
+  {
+    kind: "bridge",
+    id: "llm-tool-call-bridge",
+    label: "LLM 推理 → 返回 tool calls",
+  },
+  { kind: "layer", displayId: "D3", label: "因果链监测", canonicalId: "D5" },
+  { kind: "layer", displayId: "D4", label: "意图分类", canonicalId: "D6" },
+  { kind: "layer", displayId: "D5", label: "记忆审计", canonicalId: "D7" },
+  { kind: "layer", displayId: "D6", label: "会话监控", canonicalId: "D8" },
+  { kind: "layer", displayId: "D7", label: "输出过滤", canonicalId: "D2" },
+  { kind: "layer", displayId: "D8", label: "确认门控", canonicalId: "D3" },
 ];
 
 export function getDefenseLayer(index: number): DefenseLayer {
@@ -68,4 +93,21 @@ export function getDefenseCanonicalIndexFromDisplayIndex(
     (layer) => layer.id === displayLayer.canonicalId,
   );
   return canonicalIndex >= 0 ? canonicalIndex : DEFAULT_DEFENSE_LAYER_INDEX;
+}
+
+export function getDefenseCanonicalIndexFromDisplayItemIndex(
+  displayIndex: number,
+): number | null {
+  const item = DEFENSE_DISPLAY_ITEMS[displayIndex];
+  if (!item || item.kind === "bridge") return null;
+  const canonicalIndex = DEFENSE_LAYERS.findIndex(
+    (layer) => layer.id === item.canonicalId,
+  );
+  return canonicalIndex >= 0 ? canonicalIndex : null;
+}
+
+export function getDefenseCanonicalIdFromDisplayItem(
+  item: DefenseDisplayItem,
+): DefenseLayerId | null {
+  return item.kind === "bridge" ? null : item.canonicalId;
 }
