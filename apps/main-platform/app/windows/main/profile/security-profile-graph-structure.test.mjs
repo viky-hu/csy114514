@@ -104,6 +104,28 @@ test("security profile navigation uses one viewport and resets to the profile pa
   assert.match(mainStyles, /\.security-profile-page-screen\s*\{[\s\S]*position: absolute;/);
 });
 
+test("security profile footer uses the full-width defense visualization CTA", () => {
+  assert.match(graphSource, /security-profile-defense-cta/);
+  assert.match(graphSource, /查看防御机制/);
+  assert.match(graphSource, /security-profile-defense-cta-bracket/);
+  assert.match(graphSource, /security-profile-defense-cta-mouse/);
+  assert.match(graphSource, /security-profile-defense-cta-left-click/);
+  assert.match(graphSource, /security-profile-defense-cta-content/);
+  assert.match(graphSource, /textAnchor="middle"/);
+  assert.match(graphSource, /preserveAspectRatio="xMidYMid meet"/);
+  assert.doesNotMatch(graphSource, /security-profile-defense-cta-copy/);
+  assert.doesNotMatch(graphSource, /沿能力边界继续检查输入过滤、指令隔离与工具调用防护/);
+  assert.match(graphSource, /onClick=\{\(\) => requestScreen\("defense"\)\}/);
+  assert.doesNotMatch(graphSource, /数据来自当前 Agent fixture 与攻击图谱 fixture/);
+  assert.doesNotMatch(graphSource, /当前页面只做画像确认，不判定攻击链成立/);
+  assert.doesNotMatch(graphSource, /MousePointerClick/);
+  assert.match(mainStyles, /\.security-profile-defense-cta\s*\{/);
+  assert.match(mainStyles, /\.security-profile-defense-cta:hover[\s\S]*security-profile-defense-cta-bracket/);
+  assert.match(mainStyles, /\.security-profile-defense-cta-left-click[\s\S]*animation/);
+  assert.match(mainStyles, /security-profile-defense-cta-drift/);
+  assert.match(mainStyles, /prefers-reduced-motion: reduce/);
+});
+
 test("security profile paints column info inside the graph boundary before routes and nodes", () => {
   const boundaryIndex = graphSource.indexOf("security-profile-map-boundary");
   const bandIndex = graphSource.indexOf("security-profile-column-band");

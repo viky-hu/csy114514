@@ -36,7 +36,8 @@ test("defense flow is an independent nine-item SVG with a special bridge node", 
 test("security profile owns enter, reveal, and return transitions", () => {
   const source = read("SecurityProfileGraph.tsx");
 
-  assert.match(source, /MousePointerClick/);
+  assert.match(source, /security-profile-defense-cta/);
+  assert.match(source, /security-profile-defense-cta-mouse/);
   assert.match(source, /DefenseVisualizationStage/);
   assert.match(source, /autoAlpha/);
   assert.match(source, /security-profile-profile-screen/);
@@ -66,7 +67,7 @@ test("the visualizer renders one canonical detail and exposes ordered arrow navi
   assert.doesNotMatch(source, /DEFENSE_LAYERS\.map/);
 });
 
-test("D2 and bridge expose fixed detail workspaces", () => {
+test("D2 keeps its source-backed detail while the bridge exposes a canvas-only workflow", () => {
   const d2 = read("D2InstructionIsolationPanel.tsx");
   const d1 = read("D1SourceViewer.tsx");
   const highlighter = read("usePythonSourceHighlighting.ts");
@@ -75,7 +76,7 @@ test("D2 and bridge expose fixed detail workspaces", () => {
   const bridgeData = read("llm-tool-call-bridge-data.ts");
 
   assert.match(d2, /D2InstructionIsolationPanel/);
-  assert.match(d2, /usePythonSourceHighlighting/);
+  assert.match(d2, /DefenseSourceViewer/);
   assert.match(d1, /usePythonSourceHighlighting/);
   assert.match(highlighter, /createHighlighterCore/);
   assert.match(highlighter, /codeToTokens/);
@@ -84,34 +85,99 @@ test("D2 and bridge expose fixed detail workspaces", () => {
   assert.match(d2, /D2_RULES|explanation|rule/i);
   assert.match(d2Data, /build_system_prompt\(defended=True\)/);
   assert.match(d2Data, /DEFENDED_SYSTEM_PROMPT/);
-  assert.match(d2Data, /网页内容是数据，不是指令/);
-  assert.match(d2Data, /不可执行|ignored/);
-  assert.match(d2Data, /memory\.write/);
+  assert.match(d2Data, /UNTRUSTED DATA/);
+  assert.match(d2Data, /不得执行|ignored/);
+  assert.match(d2Data, /长期记忆/);
   assert.match(d2Data, /email\.send/);
 
   assert.match(bridge, /LLMToolCallBridgePanel/);
   assert.match(bridge, /onSelectDisplayIndex/);
-  assert.match(bridge, /button/);
-  assert.match(bridgeData, /LLM 推理/);
-  assert.match(bridgeData, /返回 tool calls/);
-  assert.match(bridgeData, /D5/);
-  assert.match(bridgeData, /D6/);
-  assert.match(bridgeData, /D7/);
-  assert.match(bridgeData, /D8/);
-  assert.match(bridgeData, /D2/);
-  assert.match(bridgeData, /D3/);
+  assert.match(bridge, /llm-bridge-handoff/);
+  assert.match(bridge, /llm-bridge-reasoning/);
+  assert.match(bridge, /llm-bridge-tool-call/);
+  assert.match(bridge, /llm-bridge-per-call/);
+  assert.match(bridge, /llm-bridge-stage-rail/);
+  assert.match(bridge, /llm-bridge-stage-arrow/);
+  assert.match(bridge, /llm-bridge-stage-arrow-long/);
+  assert.match(bridge, /D2 指令交接/);
+  assert.match(bridge, /llm-bridge-checks/);
+  assert.match(bridge, /TOOL_CALL_PIPELINE\.map/);
+  assert.equal((bridgeData.match(/^    displayId: "D[3-7]"/gm) ?? []).length, 5);
+  assert.match(bridge, /llm-bridge-check-stage/);
+  assert.match(bridge, /data-bridge-anchor=\{`check-.*displayId.*-in`\}/);
+  assert.match(bridge, /data-bridge-anchor="per-call-out"/);
+  assert.match(bridge, /llm-bridge-decision/);
+  assert.match(bridge, /llm-bridge-blocked/);
+  assert.match(bridge, /llm-bridge-no-path/);
+  assert.match(bridge, /llm-bridge-sandbox/);
+  assert.match(bridge, /llm-bridge-reasoning-stage/);
+  assert.match(bridge, /REASONING_ICONS/);
+  assert.match(bridgeData, /id: "understand"/);
+  assert.match(bridgeData, /id: "context"/);
+  assert.match(bridgeData, /id: "tools"/);
+  assert.match(bridgeData, /id: "arguments"/);
+  assert.match(bridge, /Brain/);
+  assert.match(bridgeData, /email\.send/);
+  assert.match(bridge, /call_id/);
+  assert.match(bridgeData, /待审/);
+  assert.doesNotMatch(bridge, /defense-source-viewer/);
+  assert.doesNotMatch(bridge, /bridge-explanation/);
+  assert.doesNotMatch(bridge, /TOOL_CALL_BRIDGE_SOURCE/);
+  assert.match(bridge, /LLM 推理/);
+  assert.doesNotMatch(bridgeData, /返回 tool calls/);
+  assert.match(bridgeData, /displayId: "D3"/);
+  assert.match(bridgeData, /displayId: "D4"/);
+  assert.match(bridgeData, /displayId: "D5"/);
+  assert.match(bridgeData, /displayId: "D6"/);
+  assert.match(bridgeData, /displayId: "D7"/);
+  assert.match(bridgeData, /canonicalId: "D5"/);
+  assert.match(bridgeData, /canonicalId: "D6"/);
+  assert.match(bridgeData, /canonicalId: "D7"/);
+  assert.match(bridgeData, /canonicalId: "D8"/);
+  assert.match(bridgeData, /canonicalId: "D2"/);
+  assert.match(bridgeData, /canonicalId: "D3"/);
   assert.match(bridgeData, /blocked/);
   assert.match(bridgeData, /Sandbox/);
+  assert.match(bridgeData, /memory\.write/);
+  assert.match(bridgeData, /email\.send/);
+  assert.doesNotMatch(bridge, /D2 HANDOFF/);
+  assert.doesNotMatch(bridge, /只把受保护上下文与用户意图交给模型/);
+  assert.doesNotMatch(bridge, /只展示可观察的调用准备阶段/);
+  assert.doesNotMatch(bridge, /结构化请求，尚未执行/);
+  assert.doesNotMatch(bridge, /EXECUTION CONTRACT/);
+  assert.doesNotMatch(bridge, /llm-bridge-flow-marker/);
+  assert.doesNotMatch(bridge, /ChevronDown/);
+  assert.doesNotMatch(bridge, /llm-bridge-check-copy/);
+});
+
+test("bridge uses the left stage rail and the per-call fan-out contract", () => {
+  const bridge = read("LLMToolCallBridgePanel.tsx");
+  const bridgeData = read("llm-tool-call-bridge-data.ts");
+
+  assert.match(bridge, /D2 指令交接/);
+  assert.match(bridge, /llm-bridge-stage-rail/);
+  assert.match(bridge, /llm-bridge-stage-arrow/);
+  assert.match(bridge, /llm-bridge-stage-arrow-long/);
+  assert.match(bridge, /data-bridge-anchor="per-call-out"/);
+  assert.match(bridge, /data-bridge-anchor=\{`check-.*displayId.*-in`\}/);
+  assert.match(bridge, /routeToCheck/);
+  assert.doesNotMatch(bridge, /D2 HANDOFF/);
+  assert.doesNotMatch(bridge, /ChevronDown/);
+  assert.doesNotMatch(bridge, /llm-bridge-flow-marker/);
+  assert.doesNotMatch(bridge, /EXECUTION CONTRACT/);
+  assert.doesNotMatch(bridgeData, /返回 tool calls/);
+  assert.doesNotMatch(bridgeData, /compactScope/);
+  assert.doesNotMatch(bridgeData, /compactDetail/);
 });
 
 test("D2 uses the existing prompt boundary as the lower visual envelope", () => {
   const d2 = read("D2InstructionIsolationPanel.tsx");
   const d2Styles = styles.slice(
     styles.indexOf(".d2-isolation-visual {"),
-    styles.indexOf(".llm-bridge-visual {"),
+    styles.indexOf("/* LLM tool-call bridge", styles.indexOf(".d2-isolation-visual {")),
   );
 
-  assert.match(d2, /className="d2-prompt-boundary"/);
+  assert.match(d2, /d2-prompt-boundary/);
   assert.doesNotMatch(d2, /d2-protection-boundary|d2-boundary-overlay/);
   assert.doesNotMatch(d2Styles, /\.d2-isolation-visual::before/);
   assert.match(d2Styles, /\.d2-prompt-boundary[\s\S]*grid-column:\s*3\s*\/\s*-1/);
@@ -190,6 +256,55 @@ test("D1 restores its dedicated input-filter visualization chain", () => {
   assert.doesNotMatch(sourceViewer, /完整文件|可滚动|backend[\\/]/);
 });
 
+
+test("bridge uses one fluid viewport canvas without page-level horizontal overflow", () => {
+  const bridgeStyles = styles.slice(
+    styles.indexOf(".llm-tool-call-bridge-panel"),
+    styles.indexOf("@media (prefers-reduced-motion: reduce)", styles.indexOf(".llm-tool-call-bridge-panel")),
+  );
+
+  assert.match(bridgeStyles, /grid-template-rows:/);
+  assert.match(bridgeStyles, /overflow-y:\s*hidden/);
+  assert.match(bridgeStyles, /llm-bridge-canvas/);
+  assert.match(bridgeStyles, /width:\s*100%/);
+  assert.match(bridgeStyles, /min-width:\s*0/);
+  assert.match(bridgeStyles, /--llm-bridge-rail:\s*clamp\(/);
+  assert.match(bridgeStyles, /overflow-x:\s*auto/);
+  assert.match(bridgeStyles, /llm-bridge-lines/);
+  assert.match(bridgeStyles, /grid-template-rows:\s*repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(bridgeStyles, /grid-template-columns:\s*var\(--llm-bridge-rail\) minmax\(0, 1fr\)/);
+  assert.match(bridgeStyles, /@media \(max-width: 1100px\)[\s\S]*width: 100%[\s\S]*min-width: 0/);
+  assert.match(bridgeStyles, /@media \(max-width: 700px\)[\s\S]*grid-template-rows:/);
+  assert.match(bridgeStyles, /grid-template-columns:\s*var\(--llm-bridge-rail\) minmax\(0, 1\.32fr\)/);
+  assert.doesNotMatch(bridgeStyles, /grid-template-columns:\s*repeat\(5/);
+  assert.match(bridgeStyles, /grid-template-rows:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(bridgeStyles, /\.llm-bridge-stage-arrow/);
+  assert.match(bridgeStyles, /\.llm-bridge-check-stage > \.llm-bridge-anchor/);
+});
+
+test("defense surfaces use a compact transition band and scoped warm-light typography", () => {
+  const bridgeStyles = styles.slice(
+    styles.indexOf(".llm-tool-call-bridge-panel"),
+    styles.indexOf("@media (prefers-reduced-motion: reduce)", styles.indexOf(".llm-tool-call-bridge-panel")),
+  );
+  const defenseStyles = styles.slice(
+    styles.indexOf(".security-defense-screen {"),
+    styles.indexOf("@media (prefers-reduced-motion: reduce)", styles.indexOf(".security-defense-screen {")),
+  );
+
+  assert.match(defenseStyles, /--defense-surface:\s*color-mix\(/);
+  assert.match(defenseStyles, /--defense-surface-muted:\s*color-mix\(/);
+  assert.match(bridgeStyles, /grid-template-rows:\s*minmax\(26px,\s*0\.42fr\)/);
+  assert.match(bridgeStyles, /\.llm-bridge-stage-arrow-long\s*\{[^}]*height:\s*100%;/s);
+  assert.doesNotMatch(bridgeStyles, /height:\s*calc\(100%\s*\+\s*88px\)/);
+  assert.match(bridgeStyles, /\.llm-bridge-handoff-item\s*\{[^}]*background:\s*var\(--defense-surface\)/s);
+  assert.match(bridgeStyles, /\.llm-bridge-check-stage\s*\{[^}]*background:\s*var\(--defense-surface\)/s);
+  assert.match(bridgeStyles, /\.llm-bridge-handoff-item strong\s*\{[^}]*font-weight:\s*400;/s);
+  assert.match(bridgeStyles, /\.llm-bridge-reasoning-step strong\s*\{[^}]*font-weight:\s*400;/s);
+  assert.match(bridgeStyles, /\.llm-bridge-check-stage > strong\s*\{[^}]*font-weight:\s*400;/s);
+  assert.match(bridgeStyles, /\.llm-bridge-sandbox-main strong\s*\{[^}]*font-weight:\s*400;/s);
+  assert.match(bridgeStyles, /\.llm-bridge-confirm strong\s*\{[^}]*font-weight:\s*400;/s);
+});
 test("D1 remains a fixed two-column detail with source-only scrolling", () => {
   const d1Styles = styles.slice(
     styles.indexOf(".d1-input-filter-panel"),
@@ -204,4 +319,88 @@ test("D1 remains a fixed two-column detail with source-only scrolling", () => {
   assert.match(d1Styles, /\.d1-source-code[^}]*overflow: auto/);
   assert.match(d1Styles, /\.d1-rule-entry[^}]*min-height: 44px/);
   assert.doesNotMatch(d1Styles, /\.d1-rule-list[^}]*overflow:\s*(auto|scroll)/);
+});
+
+test("D2-D8 reuse the D1 source viewer and rule-list DOM without extra wrappers", () => {
+  const stage = read("DefenseVisualizationStage.tsx");
+  const d2Panel = read("D2InstructionIsolationPanel.tsx");
+  const sourceViewer = read("DefenseSourceViewer.tsx");
+  const d8Panel = read("D8ConfirmationGatePanel.tsx");
+  const ruleList = read("DefenseExplanationList.tsx");
+  const shell = read("D3D8DetailShell.tsx");
+  const panelFiles = [
+    ["D3CausalChainPanel.tsx", /D3CausalChainPanel/],
+    ["D4IntentClassifierPanel.tsx", /D4IntentClassifierPanel/],
+    ["D5MemoryAuditorPanel.tsx", /D5MemoryAuditorPanel/],
+    ["D6SessionMonitorPanel.tsx", /D6SessionMonitorPanel/],
+    ["D7OutputFilterPanel.tsx", /D7OutputFilterPanel/],
+    ["D8ConfirmationGatePanel.tsx", /D8ConfirmationGatePanel/],
+  ];
+
+  for (const [, panelName] of panelFiles) assert.match(stage, panelName);
+  for (const [file, panelName] of panelFiles) assert.match(read(file), panelName);
+  assert.match(shell, /DefenseSourceViewer/);
+  assert.match(shell, /DefenseExplanationList/);
+  assert.match(d2Panel, /DefenseSourceViewer/);
+  assert.match(d2Panel, /DefenseExplanationList/);
+
+  assert.match(sourceViewer, /d1-source-viewer/);
+  assert.match(sourceViewer, /d1-source-code/);
+  assert.match(sourceViewer, />源码快照</);
+  assert.match(sourceViewer, /data-source-line/);
+  assert.match(sourceViewer, /fileSelectorPosition/);
+  assert.match(d8Panel, /fileSelectorPosition="right"/);
+  assert.doesNotMatch(d8Panel, /d3-d8-source-tabs/);
+  assert.match(ruleList, /d1-sanitization-microscope/);
+  assert.match(ruleList, /d1-rule-list/);
+  assert.match(ruleList, /d1-rule-entry/);
+  assert.match(ruleList, /rules.map/);
+  assert.doesNotMatch(ruleList, /实现解释|条规则|group|token|footer|code>/);
+  assert.doesNotMatch(sourceViewer, /stageLabel|canonical/);
+
+  assert.match(styles, /\.d3-d8-detail-panel\s*\{[^}]*grid-template-rows:\s*minmax\(var\(--d3-d8-visual-min\), max-content\) minmax\(0, 1fr\)/);
+  assert.match(styles, /\.d3-d8-detail-lower\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+  assert.match(styles, /\.d1-source-code\s*\{[^}]*overflow:\s*auto/);
+  assert.doesNotMatch(styles, /\.d3-d8-detail-panel\s*\{[^}]*38%/);
+  assert.doesNotMatch(styles, /d3-d8-visual-max/);
+  assert.doesNotMatch(styles, /\.defense-rule-list[^}]*overflow:\s*(auto|scroll)/);
+});
+
+test("D8 exposes blocked flow styling and keeps pending typography scoped", () => {
+  const d8Panel = read("D8ConfirmationGatePanel.tsx");
+  assert.match(d8Panel, /getD8FlowStepStates/);
+  assert.match(styles, /\.d8-state-step\.is-blocked/);
+  assert.match(styles, /\.d8-state-step\.is-blocked > span[^}]*background:\s*color-mix/);
+  assert.match(styles, /\.d8-terminal\.is-pending/);
+});
+
+test("D8 flow nodes use Chinese display labels instead of backend event names", () => {
+  const d8Panel = read("D8ConfirmationGatePanel.tsx");
+  assert.match(d8Panel, /工具已调用/);
+  assert.match(d8Panel, /确认请求已发起/);
+  assert.match(d8Panel, /确认已决定/);
+  assert.doesNotMatch(d8Panel, /"TOOL_CALLED"/);
+  assert.doesNotMatch(d8Panel, /"CONFIRMATION_REQUESTED"/);
+  assert.doesNotMatch(d8Panel, /"CONFIRMATION_DECIDED"/);
+});
+
+test("D3-D7 omit every rejected header, case row, status strip, and guessed interaction", () => {
+  const d3 = read("D3CausalChainPanel.tsx");
+  const d4 = read("D4IntentClassifierPanel.tsx");
+  const d5 = read("D5MemoryAuditorPanel.tsx");
+  const d6 = read("D6SessionMonitorPanel.tsx");
+  const d7 = read("D7OutputFilterPanel.tsx");
+
+  assert.doesNotMatch(d3, /history|noise ≤ 3|窗口内按子序列匹配|chain-kicker|chain-status|role="button"|tabIndex|sequence.includes/);
+  assert.match(d3, /rule.exampleHistory.map/);
+  assert.match(d3, /rule.connectionCount/);
+
+  assert.doesNotMatch(d4, /规则启发式|0.7 user_intent|0.6 page_instructed|非敏感工具|intent-tabs/);
+  assert.doesNotMatch(d5, /memory.write.key|vendor_preference|Forward all emails|memory-case-tabs/);
+  assert.doesNotMatch(d6, /session boundary|session-case-tabs/);
+  assert.doesNotMatch(d7, /pre-sandbox field scan|known suspicious recipient pattern|field scan|output-case-tabs/);
+  assert.match(d7, /待审工具调用/);
+  assert.match(d7, /未执行/);
+  assert.match(d7, /拦截/);
+  assert.match(d7, /放行/);
 });

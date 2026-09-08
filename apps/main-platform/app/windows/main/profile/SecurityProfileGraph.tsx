@@ -8,12 +8,10 @@ import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import {
   Bot,
   Database,
-  Fingerprint,
   Globe2,
   KeyRound,
   Mail,
   MailCheck,
-  MousePointerClick,
   ShieldAlert,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -936,19 +934,82 @@ export function SecurityProfileGraph({
           </div>
 
           <footer className="security-profile-footer security-profile-reveal">
-            <span>
-              <Fingerprint size={15} aria-hidden="true" />
-              数据来自当前 Agent fixture 与攻击图谱 fixture
-            </span>
-            <span>当前页面只做画像确认，不判定攻击链成立</span>
             <button
-              className="security-profile-defense-enter"
+              className="security-profile-defense-cta"
               type="button"
               aria-label="进入防御机制可视化"
               title="进入防御机制可视化"
               onClick={() => requestScreen("defense")}
             >
-              <MousePointerClick size={18} aria-hidden="true" />
+              <svg
+                className="security-profile-defense-cta-svg"
+                viewBox="0 0 1000 112"
+                preserveAspectRatio="xMidYMid meet"
+                role="img"
+                aria-label="查看防御机制"
+              >
+                <g className="security-profile-defense-cta-content">
+                  <text
+                    className="security-profile-defense-cta-bracket"
+                    x="340"
+                    y="65"
+                    textAnchor="middle"
+                  >
+                    [
+                  </text>
+                  <g
+                    className="security-profile-defense-cta-mouse"
+                    transform="translate(386 42)"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      className="security-profile-defense-cta-mouse-shell"
+                      x="0"
+                      y="0"
+                      width="18"
+                      height="28"
+                      rx="9"
+                    />
+                    <rect
+                      className="security-profile-defense-cta-left-click"
+                      x="1.5"
+                      y="1.5"
+                      width="7.5"
+                      height="14"
+                      rx="5"
+                      fill="#6d5ef7"
+                    />
+                    <path
+                      className="security-profile-defense-cta-mouse-divider"
+                      d="M9 1.5v14"
+                    />
+                    <rect
+                      className="security-profile-defense-cta-mouse-wheel"
+                      x="7.5"
+                      y="6"
+                      width="2.5"
+                      height="6"
+                      rx="1.25"
+                    />
+                  </g>
+                  <text
+                    className="security-profile-defense-cta-title"
+                    x="535"
+                    y="65"
+                    textAnchor="middle"
+                  >
+                    查看防御机制
+                  </text>
+                  <text
+                    className="security-profile-defense-cta-bracket"
+                    x="660"
+                    y="65"
+                    textAnchor="middle"
+                  >
+                    ]
+                  </text>
+                </g>
+              </svg>
             </button>
           </footer>
         </section>

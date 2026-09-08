@@ -13,6 +13,12 @@ import {
 import { DefenseFlow } from "./DefenseFlow";
 import { D1InputFilterPanel } from "./D1InputFilterPanel";
 import { D2InstructionIsolationPanel } from "./D2InstructionIsolationPanel";
+import { D3CausalChainPanel } from "./D3CausalChainPanel";
+import { D4IntentClassifierPanel } from "./D4IntentClassifierPanel";
+import { D5MemoryAuditorPanel } from "./D5MemoryAuditorPanel";
+import { D6SessionMonitorPanel } from "./D6SessionMonitorPanel";
+import { D7OutputFilterPanel } from "./D7OutputFilterPanel";
+import { D8ConfirmationGatePanel } from "./D8ConfirmationGatePanel";
 import { LLMToolCallBridgePanel } from "./LLMToolCallBridgePanel";
 
 type DefenseVisualizationStageProps = {
@@ -154,7 +160,7 @@ export function DefenseVisualizationStage({
           >
             <div
               key={selectedDisplayIndex}
-              className={`security-defense-placeholder${activeLayer?.id === "D1" ? " is-d1" : ""}${activeLayer?.id === "D4" ? " is-d2" : ""}${selectedDisplayItem.kind === "bridge" ? " is-bridge" : ""}`}
+              className={`security-defense-placeholder${activeLayer?.id === "D1" ? " is-d1" : ""}${selectedDisplayItem.kind === "layer" && selectedDisplayItem.displayId === "D2" ? " is-d2" : ""}${selectedDisplayItem.kind === "layer" && selectedDisplayItem.displayId !== "D1" ? " is-detail" : ""}${selectedDisplayItem.kind === "bridge" ? " is-bridge" : ""}`}
               data-defense-layer={activeLayer?.id}
               data-defense-display-index={selectedDisplayIndex}
               data-defense-bridge={selectedDisplayItem.kind === "bridge" ? selectedDisplayItem.id : undefined}
@@ -168,16 +174,20 @@ export function DefenseVisualizationStage({
                 <D1InputFilterPanel
                   isVisible={isVisible}
                 />
-              ) : activeLayer?.id === "D4" ? (
+              ) : selectedDisplayItem.displayId === "D2" ? (
                 <D2InstructionIsolationPanel isVisible={isVisible} />
+              ) : selectedDisplayItem.displayId === "D3" ? (
+                <D3CausalChainPanel isVisible={isVisible} />
+              ) : selectedDisplayItem.displayId === "D4" ? (
+                <D4IntentClassifierPanel isVisible={isVisible} />
+              ) : selectedDisplayItem.displayId === "D5" ? (
+                <D5MemoryAuditorPanel isVisible={isVisible} />
+              ) : selectedDisplayItem.displayId === "D6" ? (
+                <D6SessionMonitorPanel isVisible={isVisible} />
+              ) : selectedDisplayItem.displayId === "D7" ? (
+                <D7OutputFilterPanel isVisible={isVisible} />
               ) : (
-                <>
-                  <span className="security-defense-placeholder-code">
-                    {selectedDisplayItem.displayId}
-                  </span>
-                  <strong>{selectedDisplayItem.label}</strong>
-                  <span className="security-defense-placeholder-note">防御层详情占位</span>
-                </>
+                <D8ConfirmationGatePanel isVisible={isVisible} />
               )}
             </div>
           </section>
