@@ -4720,22 +4720,50 @@
   font: 400 24px/0.8 var(--main-display-font);
 }
 
+.llm-bridge-reasoning .llm-bridge-stage-arrow {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  width: 2px;
+  height: calc(100% - 20px);
+  color: transparent;
+  background: rgba(49, 82, 244, 0.72);
+  transform: translateX(-50%);
+}
+
+.llm-bridge-reasoning .llm-bridge-stage-arrow::after {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid rgba(49, 82, 244, 0.82);
+  border-bottom: 2px solid rgba(49, 82, 244, 0.82);
+  content: "";
+  transform: translate(-50%, -2px) rotate(45deg);
+}
+
 .llm-bridge-connector-row {
   align-items: stretch;
 }
 
 .llm-bridge-connector-row .llm-bridge-stage-rail {
+  display: block;
+  overflow: visible;
   padding-top: 0;
   padding-bottom: 0;
 }
 
 .llm-bridge-stage-arrow-long {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 50%;
   display: block;
   width: 2px;
-  height: 100%;
-  margin: 0 auto;
+  height: clamp(108px, 17vh, 154px);
+  margin: 0;
   background: rgba(49, 82, 244, 0.72);
+  transform: translateX(-50%);
 }
 
 .llm-bridge-stage-arrow-long::after {
@@ -5004,6 +5032,7 @@
   .llm-bridge-check-row { grid-template-columns: var(--llm-bridge-rail) minmax(0, 1fr) 64px minmax(106px, 0.76fr) 30px; gap: 6px; }
   .llm-bridge-tool-call-body { grid-template-columns: minmax(146px, 0.72fr) minmax(0, 1.28fr); gap: 8px; padding: 6px 9px; }
   .llm-bridge-tool-call-fields { gap: 5px; }
+  .llm-bridge-stage-arrow-long { height: clamp(96px, 14vh, 110px); }
 }
 
 @media (max-width: 700px) {
@@ -5016,6 +5045,7 @@
 .llm-bridge-bottom { grid-template-columns: var(--llm-bridge-rail) minmax(0, 1fr); gap: 6px; }
   .llm-bridge-stage-rail { padding-right: 6px; padding-left: 6px; }
   .llm-bridge-stage-title { font-size: 11px; letter-spacing: 0.02em; }
+  .llm-bridge-stage-arrow-long { height: 92px; }
   .llm-bridge-handoff-grid { gap: 5px; }
   .llm-bridge-handoff-item { gap: 5px; padding: 5px 6px; }
   .llm-bridge-handoff-item > svg { width: 16px; height: 16px; }
@@ -5261,6 +5291,53 @@
 .d8-branch-grid .is-fallback svg { color: #a06b23; }
 .d8-terminal.is-pending strong,
 .d8-terminal.is-pending code { font-size: 9px; }
+
+/* Defense-only surface and type refinement. Keep semantic state fills intact. */
+.security-defense-screen .defense-source-viewer,
+.security-defense-screen .d2-rule-viewer,
+.security-defense-screen .bridge-explanation,
+.security-defense-screen .d1-rule-entry,
+.security-defense-screen .d2-flow-card:not(.is-untrusted):not(.is-trusted),
+.security-defense-screen .d2-outcome:not(.is-blocked):not(.is-allowed),
+.security-defense-screen .d4-evidence,
+.security-defense-screen .d5-audit-stage,
+.security-defense-screen .d5-audit-result:not(.is-blocked):not(.is-allowed),
+.security-defense-screen .d6-lane,
+.security-defense-screen .d6-boundary,
+.security-defense-screen .d6-lane-result:not(.is-blocked):not(.is-allowed),
+.security-defense-screen .d7-call-payload,
+.security-defense-screen .d7-audit-step:not(.is-blocked),
+.security-defense-screen .d7-flow-terminal:not(.is-blocked):not(.is-allowed),
+.security-defense-screen .d8-branch-grid button:not(.is-active) {
+  background: var(--defense-surface);
+}
+
+.security-defense-screen .d1-stage-toggle,
+.security-defense-screen .d1-stage-label,
+.security-defense-screen .d2-flow-card strong,
+.security-defense-screen .d2-outcome strong,
+.security-defense-screen .d2-prompt-boundary strong,
+.security-defense-screen .d2-rule-viewer strong,
+.security-defense-screen .bridge-explanation strong,
+.security-defense-screen .d5-audit-stage strong,
+.security-defense-screen .d5-audit-result strong,
+.security-defense-screen .d6-lane > strong,
+.security-defense-screen .d6-boundary > strong,
+.security-defense-screen .d6-lane-result > strong,
+.security-defense-screen .d7-call-payload strong,
+.security-defense-screen .d7-audit-step strong,
+.security-defense-screen .d8-branch-grid span {
+  font-weight: 400;
+}
+
+.security-defense-screen .d4-evidence strong,
+.security-defense-screen .d4-balance-center > strong,
+.security-defense-screen .d4-threshold-scale b,
+.security-defense-screen .d7-flow-terminal strong,
+.security-defense-screen .d2-boundary-badge,
+.security-defense-screen .d2-redacted-mark {
+  font-weight: 500;
+}
 
 @media (max-width: 900px) {
   .d3-d8-detail-panel { --d3-d8-visual-min: 112px; gap: 10px; padding-inline: 10px; }

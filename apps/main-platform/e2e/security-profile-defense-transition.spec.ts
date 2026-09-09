@@ -586,6 +586,8 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
         queryRect(".llm-bridge-checks"),
         queryRect(".llm-bridge-bottom"),
       ];
+      const transitionBand = queryRect(".llm-bridge-connector-row");
+      const longArrow = queryRect(".llm-bridge-stage-arrow-long");
       const stageRects = Array.from(node.querySelectorAll(".llm-bridge-check-stage"), toRect);
       const decisionRects = Array.from(node.querySelectorAll(".llm-bridge-decision"), toRect);
       const blockedRects = Array.from(node.querySelectorAll(".llm-bridge-blocked"), toRect);
@@ -636,6 +638,8 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
       return {
         rowRects,
         majorRects,
+        transitionBand,
+        longArrow,
         stageRects,
         decisionRects,
         blockedRects,
@@ -670,6 +674,13 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
     for (let index = 1; index < metrics.majorRects.length; index += 1) {
       expect(metrics.majorRects[index - 1]!.bottom).toBeLessThanOrEqual(metrics.majorRects[index]!.top + 0.5);
     }
+    const transitionBandLimit = viewport.width <= 700 ? 30 : viewport.width <= 1100 ? 40 : 48;
+    expect(metrics.transitionBand.bottom - metrics.transitionBand.top).toBeLessThanOrEqual(transitionBandLimit);
+    expect(metrics.transitionBand.top - metrics.majorRects[2]!.bottom).toBeLessThanOrEqual(6);
+    expect(metrics.majorRects[3]!.top - metrics.transitionBand.bottom).toBeLessThanOrEqual(6);
+    expect(metrics.longArrow.top).toBeCloseTo(metrics.transitionBand.top, 0);
+    expect(metrics.longArrow.bottom).toBeGreaterThanOrEqual(metrics.perCallRect.top - 6);
+    expect(metrics.longArrow.bottom).toBeLessThanOrEqual(metrics.perCallRect.top + 8);
     for (let index = 0; index < 5; index += 1) {
       expect(metrics.stageRects[index]!.right).toBeLessThanOrEqual(metrics.decisionRects[index]!.left + 0.5);
       expect(metrics.decisionRects[index]!.right).toBeLessThanOrEqual(metrics.blockedRects[index]!.left + 0.5);

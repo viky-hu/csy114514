@@ -294,8 +294,9 @@ test("defense surfaces use a compact transition band and scoped warm-light typog
 
   assert.match(defenseStyles, /--defense-surface:\s*color-mix\(/);
   assert.match(defenseStyles, /--defense-surface-muted:\s*color-mix\(/);
-  assert.match(bridgeStyles, /grid-template-rows:\s*minmax\(26px,\s*0\.42fr\)/);
-  assert.match(bridgeStyles, /\.llm-bridge-stage-arrow-long\s*\{[^}]*height:\s*100%;/s);
+  assert.match(bridgeStyles, /minmax\(26px,\s*0\.42fr\)/);
+  assert.match(bridgeStyles, /\.llm-bridge-reasoning \.llm-bridge-stage-arrow\s*\{[^}]*height:\s*calc\(100%\s*-\s*20px\);/s);
+  assert.match(bridgeStyles, /\.llm-bridge-stage-arrow-long\s*\{[^}]*height:\s*clamp\(108px,\s*17vh,\s*154px\);/s);
   assert.doesNotMatch(bridgeStyles, /height:\s*calc\(100%\s*\+\s*88px\)/);
   assert.match(bridgeStyles, /\.llm-bridge-handoff-item\s*\{[^}]*background:\s*var\(--defense-surface\)/s);
   assert.match(bridgeStyles, /\.llm-bridge-check-stage\s*\{[^}]*background:\s*var\(--defense-surface\)/s);
