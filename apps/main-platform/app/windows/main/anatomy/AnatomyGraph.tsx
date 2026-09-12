@@ -43,6 +43,8 @@ import {
   type AnatomyRepository,
   type AnatomyRepositoryResult,
 } from "./anatomy-repository";
+import { TopologyFlow } from "../topology/TopologyFlow";
+import type { AgentTopology } from "../topology/topology-types";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
@@ -50,6 +52,7 @@ type AttackGraphWorkspaceProps = {
   agentId?: string;
   onNavigate: (key: "run") => void;
   repository?: AnatomyRepository;
+  topology?: AgentTopology;
 };
 
 type DrawSVGTweenVars = gsap.TweenVars & {
@@ -398,10 +401,75 @@ function AnatomyInspector({
   );
 }
 
+function TopologyAnatomyInspector({ topology }: { topology: AgentTopology }) {
+  const isPlannerExecutor = topology.topology_type === "planner_executor";
+  const title = isPlannerExecutor ? "R5 计划污染" : "R6 检索上下文投毒";
+  const description = isPlannerExecutor
+    ? "不可信内容进入规划器后，被包装成任务计划并影响执行器；需要重点检查计划通道和执行器的工具调用边界。"
+    : "外部知识库内容经检索器进入智能体上下文；需要重点检查知识库来源、检索结果净化和下游工具权限。";
+  const untrustedEdges = topology.edges.filter(
+    (edge) => edge.carries_untrusted_content,
+  );
+
+  return (
+    <aside className="anatomy-inspector anatomy-topology-inspector" aria-label="拓扑风险解释">
+      <div className="anatomy-inspector-heading">
+        <span>拓扑风险</span>
+        <h2>{title}</h2>
+      </div>
+      <p>{description}</p>
+      <dl className="anatomy-topology-metrics">
+        <div>
+          <dt>节点</dt>
+          <dd>{topology.nodes.length}</dd>
+        </div>
+        <div>
+          <dt>通道</dt>
+          <dd>{topology.edges.length}</dd>
+        </div>
+        <div>
+          <dt>不可信通道</dt>
+          <dd>{untrustedEdges.length}</dd>
+        </div>
+      </dl>
+      <section className="anatomy-detail-block">
+        <span>审查重点</span>
+        <ul className="anatomy-evidence-list">
+          {untrustedEdges.map((edge) => (
+            <li key={`${edge.from_node}-${edge.to_node}-${edge.channel}`}>
+              <strong>{edge.channel}</strong>
+              <p>{edge.from_node} → {edge.to_node}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </aside>
+  );
+}
+function TopologyRiskCard({ topology }: { topology: AgentTopology }) {
+  const isPlannerExecutor = topology.topology_type === "planner_executor";
+  const riskId = isPlannerExecutor ? "R5" : "R6";
+  const riskName = isPlannerExecutor ? "计划污染" : "检索上下文投毒";
+  const story = isPlannerExecutor
+    ? "恶意内容进入 Planner 生成的 task plan，再影响 Executor 的危险工具调用。"
+    : "外部文档进入知识库后被 Retriever 取回，污染 Agent 上下文并影响工具调用。";
+
+  return (
+    <article className="anatomy-topology-risk-card">
+      <span>{riskId}</span>
+      <div>
+        <strong>{riskName}</strong>
+        <p>{story}</p>
+      </div>
+      <em>待验证 · 拓扑风险</em>
+    </article>
+  );
+}
 export function AttackGraphWorkspace({
   agentId = DEFAULT_ANATOMY_AGENT_ID,
   onNavigate,
   repository = defaultAnatomyRepository,
+  topology,
 }: AttackGraphWorkspaceProps) {
   const rootRef = useRef<HTMLElement>(null);
   const [selectedPathId, setSelectedPathId] = useState("R4");
@@ -415,6 +483,7 @@ export function AttackGraphWorkspace({
     () => selectAnatomyPath(repositoryResult.viewModel, selectedPathId),
     [repositoryResult.viewModel, selectedPathId],
   );
+  const isTopologyMode = topology?.topology_type !== "single";
   const dataSourceLabel =
     repositoryResult.source === "api"
       ? "API 图谱"
@@ -653,17 +722,45 @@ export function AttackGraphWorkspace({
             <span className="anatomy-inline-badge">
               {isLoadingGraph ? "读取图谱" : dataSourceLabel}
             </span>
-          </div>
-          <h1>{viewModel.agent.name} 风险路径工作台</h1>
+          </div>          <h1>
+            {viewModel.agent.name} {isTopologyMode ? "拓扑风险工作台" : "风险路径工作台"}
+          </h1>
           <p>
-            从入口到外发动作观察风险如何传播；默认聚焦 R4 持久间接提示注入，
-            并只把 report finding 作为已验证依据。
+            {isTopologyMode
+              ? topology?.topology_type === "planner_executor"
+                ? "沿规划器到执行器的任务计划通道观察 R5 计划污染如何影响工具调用。"
+                : "沿检索器到智能体的知识通道观察 R6 上下文投毒如何进入执行链。"
+              : "从入口到外发动作观察风险如何传播；默认聚焦 R4 持久间接提示注入，并只把 report finding 作为已验证依据。"}
           </p>
         </div>
       </header>
 
       <div className="anatomy-body">
         <div className="anatomy-graph-column anatomy-reveal">
+          {isTopologyMode && topology ? (
+            <section className="anatomy-topology-map" aria-label="当前 Agent 多节点拓扑">
+              <div className="anatomy-topology-heading">
+                <div>
+                  <span className="overview-kicker">拓扑架构</span>
+                  <h2>{topology.topology_type}</h2>
+                </div>
+                <span>{topology.nodes.length} 节点 · {topology.edges.length} 通道</span>
+              </div>
+              <TopologyFlow
+                ariaLabel={`${topology.topology_type} 攻击面拓扑图`}
+                topology={topology}
+              />
+              <p className="anatomy-topology-caption">
+                {topology.topology_type === "planner_executor"
+                  ? "R5 计划污染：不可信内容进入规划器后，沿任务计划通道影响执行器。"
+                  : "R6 检索上下文投毒：不可信知识库内容沿检索通道进入智能体。"}
+              </p>
+              <div className="anatomy-topology-risk-list" aria-label="拓扑风险路径">
+                <TopologyRiskCard topology={topology} />
+              </div>
+            </section>
+          ) : (
+            <>
           <div className="anatomy-map">
             <div className="anatomy-map-stage">
             <svg
@@ -811,18 +908,22 @@ export function AttackGraphWorkspace({
               </button>
             ))}
           </div>
-
+            </>
+          )}
         </div>
 
-        <div className="anatomy-side anatomy-reveal">
-          <AnatomyInspector
-            dataSourceLabel={dataSourceLabel}
-            errorMessage={repositoryResult.errorMessage ?? null}
-            mode={viewModel.mode}
-            onVerify={verifySelectedPath}
-            path={viewModel.selectedPath}
-            selectedNode={selectedNode}
-          />
+        <div className="anatomy-side anatomy-reveal">          {isTopologyMode && topology ? (
+            <TopologyAnatomyInspector topology={topology} />
+          ) : (
+            <AnatomyInspector
+              dataSourceLabel={dataSourceLabel}
+              errorMessage={repositoryResult.errorMessage ?? null}
+              mode={viewModel.mode}
+              onVerify={verifySelectedPath}
+              path={viewModel.selectedPath}
+              selectedNode={selectedNode}
+            />
+          )}
         </div>
       </div>
     </section>

@@ -3,7 +3,7 @@
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronRight, FileWarning, LoaderCircle, ShieldCheck, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
 import {
   resolveEvaluationLoadingTipPhase,
@@ -14,6 +14,8 @@ import { EvaluationAgentBadge } from "./EvaluationAgentBadge";
 import type { RiskFinding, SequencedEvent } from "./evaluation-types";
 import { ReportSummaryPanel } from "./ReportSummaryPanel";
 import { EvaluationComparisonWorkspace } from "./EvaluationComparisonWorkspace";
+import { defaultTopologyRepository } from "../topology/topology-repository";
+import type { AgentTopology } from "../topology/topology-types";
 
 gsap.registerPlugin(useGSAP);
 
@@ -47,6 +49,20 @@ function verifiedPathNodes(finding: RiskFinding, traceEvents: SequencedEvent[]) 
   ]);
 }
 
+function riskPatternLabel(riskPatternId: string) {
+  return ({
+    R5: "R5 · 计划污染",
+    R6: "R6 · RAG 上下文投毒",
+  } as Record<string, string>)[riskPatternId] ?? riskPatternId;
+}
+
+function topologyLabel(topology: AgentTopology) {
+  return ({
+    single: "Single Agent",
+    planner_executor: "Planner-Executor",
+    rag_agent: "RAG Agent",
+  } as Record<string, string>)[topology.topology_type] ?? topology.topology_type;
+}
 function severityClass(severity: string) {
   return severity.toLowerCase().replace(/[^a-z]/g, "");
 }
@@ -64,21 +80,40 @@ function ScorePanel({ report }: { report: NonNullable<ReturnType<typeof useEvalu
 }
 
 function FindingList({ findings, selectedId, onSelect }: { findings: RiskFinding[]; selectedId?: string; onSelect: (finding: RiskFinding) => void }) {
-  return <aside className="evaluation-findings-list" aria-label="风险发现列表"><div className="evaluation-section-label"><span>FINDINGS</span><b>{findings.length.toString().padStart(2, "0")}</b></div>{findings.map((finding) => <button type="button" key={finding.finding_id} className={`evaluation-finding-item ${finding.finding_id === selectedId ? "is-selected" : ""}`} onClick={() => onSelect(finding)}><span className={`evaluation-severity-mark is-${severityClass(finding.severity)}`}><AlertTriangle size={15} /></span><span><strong>{finding.risk_type}</strong><small>{SEVERITY_LABEL[finding.severity] ?? finding.severity} · {finding.rule_types?.join(" / ") || finding.risk_pattern_id}</small></span><ChevronRight size={15} /></button>)}</aside>;
+  return <aside className="evaluation-findings-list" aria-label="风险发现列表"><div className="evaluation-section-label"><span>FINDINGS</span><b>{findings.length.toString().padStart(2, "0")}</b></div>{findings.map((finding) => <button type="button" key={finding.finding_id} className={`evaluation-finding-item ${finding.finding_id === selectedId ? "is-selected" : ""}`} onClick={() => onSelect(finding)}><span className={`evaluation-severity-mark is-${severityClass(finding.severity)}`}><AlertTriangle size={15} /></span><span><strong>{riskPatternLabel(finding.risk_pattern_id)}</strong><small>{SEVERITY_LABEL[finding.severity] ?? finding.severity} · {finding.rule_types?.join(" / ") || finding.risk_type}</small></span><ChevronRight size={15} /></button>)}</aside>;
 }
 
 function EvidenceDetail({ finding, traceEvents, onClose }: { finding: RiskFinding; traceEvents: SequencedEvent[]; onClose: () => void }) {
   const evidenceEvents = eventForFinding(finding, traceEvents);
   const verifiedNodes = verifiedPathNodes(finding, traceEvents);
-  return <article className="evaluation-evidence-detail"><button className="evaluation-drawer-close" type="button" aria-label="关闭证据详情" title="关闭证据详情" onClick={onClose}><X size={16} /></button><header className="evaluation-evidence-heading"><div><span className={`evaluation-severity-badge is-${severityClass(finding.severity)}`}>{finding.severity}</span><h2>{finding.description}</h2><p>{finding.risk_pattern_id} · {finding.attack_path_id ?? "R4 MVP"}</p></div><FileWarning size={22} /></header><div className="evaluation-path" aria-label="五节点因果路径">{PATH_NODES.map((node, index) => <div className="evaluation-path-node-wrap" key={node.id}><div className={`evaluation-path-node ${verifiedNodes.has(node.id) ? "is-verified" : ""}`}><span>0{index + 1}</span><strong>{node.label}</strong><small>{node.detail}</small></div>{index < PATH_NODES.length - 1 && <ArrowRight className="evaluation-path-arrow" size={16} />}</div>)}</div><section className="evaluation-evidence-block"><div className="evaluation-section-label"><span>因果证据</span><b>{evidenceEvents.length.toString().padStart(2, "0")}</b></div>{evidenceEvents.length === 0 ? <p className="evaluation-empty-copy">暂无可关联事件。</p> : <div className="evaluation-evidence-events">{evidenceEvents.map((event) => <div className="evaluation-evidence-event" key={event.event_id}><div><span>{event.type}</span><time>{new Date(event.timestamp).toLocaleTimeString("zh-CN")}</time></div><p>{formatPayload(event) || "事件已持久化，payload 已脱敏。"}</p></div>)}</div>}</section><section className="evaluation-rule-block"><div><span className="evaluation-eyebrow">VIOLATION RULES</span><h3>{finding.rule_types?.join(" · ") || finding.risk_pattern_id}</h3></div><div className="evaluation-remediation"><ShieldCheck size={17} /><p>{finding.remediation ?? "建议限制不可信网页内容进入持久记忆，并要求外发工具在执行前获得明确确认。"}</p></div></section></article>;
+  return <article className="evaluation-evidence-detail"><button className="evaluation-drawer-close" type="button" aria-label="关闭证据详情" title="关闭证据详情" onClick={onClose}><X size={16} /></button><header className="evaluation-evidence-heading"><div><span className={`evaluation-severity-badge is-${severityClass(finding.severity)}`}>{finding.severity}</span><h2>{finding.description}</h2><p>{finding.risk_pattern_id} · {finding.attack_path_id ?? "R4 MVP"}</p></div><FileWarning size={22} /></header><div className="evaluation-path" aria-label={`${finding.risk_pattern_id} 风险路径`}>{PATH_NODES.map((node, index) => <div className="evaluation-path-node-wrap" key={node.id}><div className={`evaluation-path-node ${verifiedNodes.has(node.id) ? "is-verified" : ""}`}><span>0{index + 1}</span><strong>{node.label}</strong><small>{node.detail}</small></div>{index < PATH_NODES.length - 1 && <ArrowRight className="evaluation-path-arrow" size={16} />}</div>)}</div><section className="evaluation-evidence-block"><div className="evaluation-section-label"><span>因果证据</span><b>{evidenceEvents.length.toString().padStart(2, "0")}</b></div>{evidenceEvents.length === 0 ? <p className="evaluation-empty-copy">暂无可关联事件。</p> : <div className="evaluation-evidence-events">{evidenceEvents.map((event) => <div className="evaluation-evidence-event" key={event.event_id}><div><span>{event.type}</span><time>{new Date(event.timestamp).toLocaleTimeString("zh-CN")}</time></div><p>{formatPayload(event) || "事件已持久化，payload 已脱敏。"}</p></div>)}</div>}</section><section className="evaluation-rule-block"><div><span className="evaluation-eyebrow">VIOLATION RULES</span><h3>{finding.rule_types?.join(" · ") || finding.risk_pattern_id}</h3></div><div className="evaluation-remediation"><ShieldCheck size={17} /><p>{finding.remediation ?? "建议限制不可信网页内容进入持久记忆，并要求外发工具在执行前获得明确确认。"}</p></div></section></article>;
 }
 
 export function EvaluationReportWorkspace({ onNavigate }: { onNavigate?: EvaluationWorkspaceNavigate }) {
   const { run, report, trace, comparison, evaluationMode, isLoadingReport, reportError, loadReport, clearReportError } = useEvaluationWorkspace();
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [topologyResult, setTopologyResult] = useState<{ topology: AgentTopology; errorMessage?: string } | null>(null);
   const root = useRef<HTMLElement>(null);
   const findings = useMemo(() => report?.findings ?? [], [report?.findings]);
+
+  useEffect(() => {
+    if (!report?.agent_id) {
+      setTopologyResult(null);
+      return;
+    }
+
+    let ignore = false;
+    void defaultTopologyRepository.loadAgentTopology(report.agent_id).then((result) => {
+      if (!ignore) {
+        setTopologyResult(result);
+      }
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [report?.agent_id]);
   const selected = useMemo(() => findings.find((finding) => finding.finding_id === selectedId) ?? findings[0], [findings, selectedId]);
   const phase = resolveEvaluationLoadingTipPhase({
     hasReport: Boolean(report),
@@ -109,7 +144,7 @@ export function EvaluationReportWorkspace({ onNavigate }: { onNavigate?: Evaluat
     return <section ref={root} className="evaluation-page evaluation-report-page" aria-label="测评报告工作台"><div className="evaluation-report-loading"><LoaderIcon />{reportError ? <><h1>报告暂不可用</h1><p>{reportError || tip}</p><button type="button" className="evaluation-primary-button" onClick={() => { clearReportError(); void loadReport(); }}>重新读取</button></> : <><h1>{run?.status === "completed" ? "正在读取测评报告" : "测评尚未完成"}</h1><p>{tip}</p>{run?.status !== "completed" && <button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}><ArrowLeft size={15} />返回测评运行</button>}</>}</div></section>;
   }
 
-  return <section ref={root} className={`evaluation-page evaluation-report-page ${report.summary ? "has-summary" : ""}`} aria-label="测评报告工作台"><header className="evaluation-page-header evaluation-report-reveal"><div><span className="evaluation-eyebrow">EVALUATION REPORT</span><h1>测评报告</h1><p>{report.conclusion}</p></div><div className="evaluation-report-actions"><EvaluationAgentBadge agentId={report.agent_id} /><button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}><ArrowLeft size={15} />返回运行</button><span className={`evaluation-severity-badge is-${severityClass(report.severity)}`}>{SEVERITY_LABEL[report.severity] ?? report.severity}</span></div></header><div className="evaluation-report-reveal"><ScorePanel report={report} /></div>{report.summary && <ReportSummaryPanel summary={report.summary} />}<div className={`evaluation-report-layout evaluation-report-reveal ${drawerOpen ? "is-drawer-open" : ""}`}><FindingList findings={findings} selectedId={selected?.finding_id} onSelect={(finding) => { setSelectedId(finding.finding_id); setDrawerOpen(true); }} />{selected ? <EvidenceDetail finding={selected} traceEvents={(trace?.events ?? []) as SequencedEvent[]} onClose={() => setDrawerOpen(false)} /> : <div className="evaluation-empty-report"><CheckCircle2 size={24} /><h2>没有已确认的风险发现</h2><p>本次运行没有返回可复算的 Judge Finding。</p></div>}</div></section>;
+  return <section ref={root} className={`evaluation-page evaluation-report-page ${report.summary ? "has-summary" : ""}`} aria-label="测评报告工作台"><header className="evaluation-page-header evaluation-report-reveal"><div><span className="evaluation-eyebrow">EVALUATION REPORT</span><h1>测评报告</h1><p>{report.conclusion}</p></div><div className="evaluation-report-actions"><EvaluationAgentBadge agentId={report.agent_id} />{topologyResult ? <span className="evaluation-report-topology-badge" title={topologyResult.errorMessage ?? "当前 Agent 拓扑"}><span>{topologyLabel(topologyResult.topology)}</span><small>{topologyResult.topology.nodes.length} 节点 · {topologyResult.topology.edges.length} 通道{topologyResult.errorMessage ? " · fallback" : ""}</small></span> : null}<button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}><ArrowLeft size={15} />返回运行</button><span className={`evaluation-severity-badge is-${severityClass(report.severity)}`}>{SEVERITY_LABEL[report.severity] ?? report.severity}</span></div></header><div className="evaluation-report-reveal"><ScorePanel report={report} /></div>{report.summary && <ReportSummaryPanel summary={report.summary} findings={findings} />}<div className={`evaluation-report-layout evaluation-report-reveal ${drawerOpen ? "is-drawer-open" : ""}`}><FindingList findings={findings} selectedId={selected?.finding_id} onSelect={(finding) => { setSelectedId(finding.finding_id); setDrawerOpen(true); }} />{selected ? <EvidenceDetail finding={selected} traceEvents={(trace?.events ?? []) as SequencedEvent[]} onClose={() => setDrawerOpen(false)} /> : <div className="evaluation-empty-report"><CheckCircle2 size={24} /><h2>没有已确认的风险发现</h2><p>本次运行没有返回可复算的 Judge Finding。</p></div>}</div></section>;
 }
 
 function LoaderIcon() {

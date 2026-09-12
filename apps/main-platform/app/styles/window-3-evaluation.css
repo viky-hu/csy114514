@@ -384,3 +384,75 @@
   .evaluation-comparison-report-workspace .evaluation-comparison-ledger-detail dd { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { .evaluation-report-loader svg { animation: none; }.evaluation-page * { scroll-behavior: auto; transition-duration: 0.01ms !important; }.evaluation-page-header .evaluation-inference-status.is-hidden { transform: translate(-50%, -50%); }.evaluation-confirmation-backdrop, .evaluation-confirmation-dialog { animation: none; }.evaluation-confirmation-allow, .evaluation-confirmation-dialog .evaluation-secondary-button, .evaluation-confirmation-dialog .evaluation-icon-command { transition: none; } }
+
+.evaluation-selector-meta small.is-topology {
+  color: var(--evaluation-blue);
+  font-weight: 600;
+}
+
+.evaluation-report-topology-badge {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 128px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--evaluation-blue);
+  background: rgba(49, 82, 244, .045);
+  color: var(--evaluation-ink);
+}
+
+.evaluation-report-topology-badge span {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.evaluation-report-topology-badge small {
+  color: var(--evaluation-muted);
+  font-size: 8px;
+}
+
+.evaluation-risk-coverage {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--evaluation-line);
+}
+
+.evaluation-risk-coverage > header,
+.evaluation-risk-coverage-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.evaluation-risk-coverage > header {
+  color: var(--evaluation-muted);
+  font-size: 8px;
+}
+
+.evaluation-risk-coverage-row {
+  min-height: 24px;
+  color: var(--evaluation-ink);
+  font-size: 10px;
+}
+
+.evaluation-risk-coverage-row strong {
+  font-weight: 500;
+}
+
+.evaluation-risk-coverage-row span {
+  color: var(--evaluation-green);
+  white-space: nowrap;
+}
+
+.evaluation-risk-coverage-row span.is-unavailable {
+  color: var(--evaluation-amber);
+}
+
+@container evaluation-page (max-width: 560px) {
+  .evaluation-report-topology-badge {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}

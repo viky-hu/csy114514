@@ -7,7 +7,16 @@ import { useEvaluationWorkspace } from "./EvaluationWorkspaceProvider";
 import { EVALUATION_AGENT_OPTIONS } from "./evaluation-agent";
 import { filterTestCases } from "./test-case-selection";
 
-const RISK_PATTERNS = ["ALL", "R1", "R2", "R3", "R4"] as const;
+const RISK_PATTERNS = ["ALL", "R1", "R2", "R3", "R4", "R5", "R6"] as const;
+const RISK_PATTERN_LABELS: Record<(typeof RISK_PATTERNS)[number], string> = {
+  ALL: "全部路径",
+  R1: "R1 · 网页注入",
+  R2: "R2 · 记忆污染",
+  R3: "R3 · 状态延续",
+  R4: "R4 · 持久链路",
+  R5: "R5 · 计划污染",
+  R6: "R6 · RAG 上下文投毒",
+};
 
 export function TestCaseSelector() {
   const {
@@ -54,7 +63,7 @@ export function TestCaseSelector() {
       </header>
       <div className="evaluation-selector-toolbar">
         <label className="evaluation-search-control"><Search size={15} /><span className="evaluation-visually-hidden">搜索 TestCase</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 ID、名称或风险类型" /></label>
-        <label className="evaluation-pattern-control"><span className="evaluation-visually-hidden">风险路径</span><select value={riskPattern} onChange={(event) => setRiskPattern(event.target.value as (typeof RISK_PATTERNS)[number])}>{RISK_PATTERNS.map((pattern) => <option key={pattern} value={pattern}>{pattern === "ALL" ? "全部路径" : pattern}</option>)}</select></label>
+        <label className="evaluation-pattern-control"><span className="evaluation-visually-hidden">风险路径</span><select value={riskPattern} onChange={(event) => setRiskPattern(event.target.value as (typeof RISK_PATTERNS)[number])}>{RISK_PATTERNS.map((pattern) => <option key={pattern} value={pattern}>{RISK_PATTERN_LABELS[pattern]}</option>)}</select></label>
         <label className="evaluation-agent-control"><span className="evaluation-visually-hidden">Agent 类型</span><select value={evaluationMode === "comparison" ? "comparison" : evaluationAgentId} onChange={(event) => { if (event.target.value === "comparison") setEvaluationMode("comparison"); else { setEvaluationMode("single"); setEvaluationAgentId(event.target.value as typeof evaluationAgentId); } }}>{EVALUATION_AGENT_OPTIONS.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}<option value="comparison">Bare vs Defended（对比）</option></select></label>
         <button type="button" className="evaluation-secondary-button" onClick={toggleVisible} disabled={filtered.length === 0}>{allFilteredSelected ? <CheckSquare2 size={15} /> : <Square size={15} />}{allFilteredSelected ? "取消当前结果" : `选择当前结果 (${filtered.length})`}</button>
         <button type="button" className="evaluation-icon-command" title="清空选择" aria-label="清空选择" onClick={() => setSelectedTestCaseIds([])} disabled={selectedTestCaseIds.length === 0}><X size={16} /></button>
@@ -62,7 +71,7 @@ export function TestCaseSelector() {
       <div className="evaluation-selector-list" aria-busy={isLoadingTestCases}>
         {isLoadingTestCases ? <div className="evaluation-selector-empty"><LoaderCircle className="evaluation-spin" size={19} />{tip}</div> : testCaseError ? <div className="evaluation-selector-empty is-error"><CircleAlert size={18} />{testCaseError || tip}</div> : filtered.length === 0 ? <div className="evaluation-selector-empty">{tip}</div> : filtered.map((testCase) => {
           const checked = selected.has(testCase.id);
-          return <label className={`evaluation-selector-row ${checked ? "is-selected" : ""}`} key={testCase.id}><input type="checkbox" checked={checked} onChange={() => toggleTestCaseSelection(testCase.id)} /><span className="evaluation-selector-check" aria-hidden="true">{checked && <CheckSquare2 size={16} />}</span><span className="evaluation-selector-main"><strong>{testCase.name}</strong><small>{testCase.id} · {testCase.description}</small></span><span className="evaluation-selector-meta"><b>{testCase.target_risk_pattern}</b><span>{testCase.risk_type}</span><small>{testCase.severity} · {testCase.turn_count} TURN</small></span></label>;
+          return <label className={`evaluation-selector-row ${checked ? "is-selected" : ""}`} key={testCase.id}><input type="checkbox" checked={checked} onChange={() => toggleTestCaseSelection(testCase.id)} /><span className="evaluation-selector-check" aria-hidden="true">{checked && <CheckSquare2 size={16} />}</span><span className="evaluation-selector-main"><strong>{testCase.name}</strong><small>{testCase.id} · {testCase.description}</small></span><span className="evaluation-selector-meta"><b>{testCase.target_risk_pattern}</b><span>{testCase.risk_type}</span>{["R5", "R6"].includes(testCase.target_risk_pattern) ? <small className="is-topology">拓扑风险</small> : null}<small>{testCase.severity} · {testCase.turn_count} TURN</small></span></label>;
         })}
       </div>
       <footer className="evaluation-selector-footer">

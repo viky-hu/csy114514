@@ -18,6 +18,9 @@ import {
   overviewFixtureViewModel,
 } from "./overview-fixtures";
 import { OverviewR4Graph } from "./OverviewR4Graph";
+import { TopologyFlow } from "../topology/TopologyFlow";
+import { createFallbackTopology } from "../topology/topology-repository";
+import type { AgentTopology } from "../topology/topology-types";
 import {
   useFrozenGraphInlineSize,
   type SidebarContentMetrics,
@@ -30,6 +33,7 @@ type OverviewDashboardProps = {
   isGraphFrozen: boolean;
   onNavigate: (key: OverviewNavKey) => void;
   sidebarContentMetrics: SidebarContentMetrics;
+  topology?: AgentTopology;
 };
 
 type OverviewNavKey = "anatomy" | "profile" | "report" | "run";
@@ -126,7 +130,9 @@ export function OverviewDashboard({
   isGraphFrozen,
   onNavigate,
   sidebarContentMetrics,
+  topology,
 }: OverviewDashboardProps) {
+  const activeTopology = topology ?? createFallbackTopology(activeAgentId);
   const [viewModel, setViewModel] = useState(overviewFixtureViewModel);
   const rootRef = useRef<HTMLElement>(null);
   const mapRef = useRef<HTMLElement>(null);
@@ -241,7 +247,13 @@ export function OverviewDashboard({
       <header className="overview-brief overview-animate">
         <div className="overview-brief-copy">
           <span className="overview-kicker">CorpMate v0 示例评估</span>
-          <h1>R4 持久性间接提示注入已形成完整攻击链</h1>
+          <h1>
+            {activeTopology.topology_type === "single"
+              ? "R4 持久性间接提示注入已形成完整攻击链"
+              : activeTopology.topology_type === "planner_executor"
+                ? "R5 计划污染暴露多节点执行链"
+                : "R6 检索上下文投毒暴露知识流"}
+          </h1>
           <p>{formatConclusion(viewModel.risk.conclusion)}</p>
         </div>
         <div
@@ -260,19 +272,32 @@ export function OverviewDashboard({
         <section
           ref={mapRef}
           className="overview-map overview-animate"
-          aria-label="R4 攻击链"
+          aria-label={activeTopology.topology_type === "single" ? "R4 攻击链" : "Agent 多节点拓扑"}
         >
           <div className="overview-section-heading">
             <div>
-              <span className="overview-kicker">R4 攻击路径</span>
+              <span className="overview-kicker">
+                {activeTopology.topology_type === "single"
+                  ? "R4 攻击路径"
+                  : "Agent 拓扑架构"}
+              </span>
             </div>
           </div>
 
-          <OverviewR4Graph nodes={viewModel.attackChain} />
+          {activeTopology.topology_type === "single" ? (
+            <OverviewR4Graph nodes={viewModel.attackChain} />
+          ) : (
+            <TopologyFlow
+              ariaLabel={`${activeTopology.topology_type} Agent 拓扑图`}
+              topology={activeTopology}
+            />
+          )}
 
           <div className="overview-map-footer">
             <p className="overview-path-caption">
-              {formatFindingDescription(viewModel.r4Finding.description)}
+              {activeTopology.topology_type === "single"
+                ? formatFindingDescription(viewModel.r4Finding.description)
+                : "当前总览保留既有风险摘要，同时展示多节点之间的任务计划或检索内容流。"}
             </p>
             <button
               className="overview-icon-command"

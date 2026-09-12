@@ -37,12 +37,15 @@ import type {
   SecurityProfileViewModel,
 } from "./security-profile-data";
 import { DefenseVisualizationStage } from "./DefenseVisualizationStage";
+import { TopologyFlow } from "../topology/TopologyFlow";
+import type { AgentTopology } from "../topology/topology-types";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
 type SecurityProfileGraphProps = {
   isGraphFrozen: boolean;
   sidebarContentMetrics: SidebarContentMetrics;
+  topology?: AgentTopology;
   viewModel: SecurityProfileViewModel;
 };
 
@@ -219,6 +222,7 @@ function SecurityProfileInspector({ node }: { node: SecurityProfileNode }) {
 export function SecurityProfileGraph({
   isGraphFrozen,
   sidebarContentMetrics,
+  topology,
   viewModel,
 }: SecurityProfileGraphProps) {
   const rootRef = useRef<HTMLElement>(null);
@@ -932,6 +936,22 @@ export function SecurityProfileGraph({
           <SecurityProfileInspector node={selectedNode} />
         </div>
           </div>
+
+          {topology && topology.topology_type !== "single" ? (
+            <section className="security-profile-topology security-profile-reveal" aria-label="当前 Agent 拓扑架构">
+              <div className="security-profile-topology-heading">
+                <div>
+                  <span className="overview-kicker">架构拓扑</span>
+                  <h2>{topology.topology_type}</h2>
+                </div>
+                <span>{topology.nodes.length} 节点 · {topology.edges.length} 通道</span>
+              </div>
+              <TopologyFlow
+                ariaLabel={`${topology.topology_type} 安全画像拓扑图`}
+                topology={topology}
+              />
+            </section>
+          ) : null}
 
           <footer className="security-profile-footer security-profile-reveal">
             <button
