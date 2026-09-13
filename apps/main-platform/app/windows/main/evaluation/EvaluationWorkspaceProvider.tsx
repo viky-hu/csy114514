@@ -14,7 +14,6 @@ import { EVALUATION_HANDOFF_EVENT, readEvaluationHandoff, type EvaluationHandoff
 import { DEFAULT_AGENT_ID } from "../../shared/agent-config";
 import { EmailConfirmationDialog } from "./EmailConfirmationDialog";
 import {
-  DEFAULT_EVALUATION_AGENT_ID,
   type EvaluationAgentId,
 } from "./evaluation-agent";
 import { enqueueEmailConfirmation, getEmailConfirmationFromEvent, resolveEmailConfirmationQueue, type EmailConfirmation, type EmailConfirmationDecision } from "./email-confirmation";
@@ -163,7 +162,7 @@ export function EvaluationWorkspaceProvider({
     trace: null,
     testCases: mockMode ? createMockTestCases() : [],
     selectedTestCaseIds: mockMode ? createMockTestCases().map((item) => item.id) : [],
-    evaluationAgentId: DEFAULT_EVALUATION_AGENT_ID,
+    evaluationAgentId: activeAgentId as EvaluationAgentId,
     evaluationMode: "single",
     comparison: null,
     comparisonEvents: EMPTY_COMPARISON_EVENTS,
@@ -225,8 +224,6 @@ export function EvaluationWorkspaceProvider({
       isBootstrapping: false,
     }));
   }, [mockMode]);
-
-  void activeAgentId;
 
   const appendMockEvent = useCallback((event: SequencedEvent) => {
     if (!mockMode || !mockRunRef.current) return;

@@ -13,13 +13,15 @@ type AccountIdentity = {
 };
 
 export default function HomePage() {
-  const [isMainWindowVisible, setIsMainWindowVisible] = useState(false);
+  const [mockMode, setMockMode] = useState(() => typeof window !== "undefined" && isEvaluationMockEnabled(window.location.search));
+  const [isMainWindowVisible, setIsMainWindowVisible] = useState(() => typeof window !== "undefined" && isEvaluationMockEnabled(window.location.search));
   const [activeAgentId, setActiveAgentId] = useState(DEFAULT_AGENT_ID);
   const [accountIdentity, setAccountIdentity] = useState<AccountIdentity | null>(null);
-  const [mockMode, setMockMode] = useState(false);
 
   useEffect(() => {
-    setMockMode(isEvaluationMockEnabled(window.location.search));
+    const enabled = isEvaluationMockEnabled(window.location.search);
+    setMockMode(enabled);
+    if (enabled) setIsMainWindowVisible(true);
   }, []);
 
   if (isMainWindowVisible) {

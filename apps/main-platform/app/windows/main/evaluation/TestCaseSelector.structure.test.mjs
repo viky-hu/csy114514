@@ -79,3 +79,8 @@ test("selector exposes the Stage 3 Agent choices without owning TestCase state",
   assert.match(selectorSource, /setEvaluationMode\("comparison"\)/);
   assert.match(selectorSource, /setEvaluationAgentId\(event\.target\.value as typeof evaluationAgentId\)/);
 });
+
+test("evaluation starts in the Agent selected by the shared workspace", () => {
+  assert.doesNotMatch(providerSource, /void activeAgentId/);
+  assert.match(providerSource, /evaluationAgentId:\s*activeAgentId as EvaluationAgentId/);
+});

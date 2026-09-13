@@ -280,6 +280,7 @@ function MainWindowContent({
   activeAgentId,
   accountIdentity,
   isSidebarGraphFrozen,
+  mockMode,
   onAgentSaved,
   onLogout,
   onNavigate,
@@ -291,6 +292,7 @@ function MainWindowContent({
   activeNavKey: MainNavKey;
   accountIdentity?: AccountIdentity | null;
   isSidebarGraphFrozen: boolean;
+  mockMode: boolean;
   onAgentSaved: (agentId: string) => void;
   onLogout: () => void;
   onNavigate: (key: MainNavKey) => void;
@@ -311,7 +313,7 @@ function MainWindowContent({
   }
 
   if (activeNavKey === "redteam") {
-    return <RedTeamWorkspace activeAgentId={activeAgentId} />;
+    return <RedTeamWorkspace activeAgentId={activeAgentId} mockMode={mockMode} />;
   }
 
   if (activeNavKey === "profile") {
@@ -1080,6 +1082,7 @@ export function MainWindow({
               activeNavKey={renderedNavKey}
               accountIdentity={accountIdentity}
               isSidebarGraphFrozen={isSidebarGraphFrozen}
+              mockMode={mockMode}
               onAgentSaved={handleAgentSaved}
               onLogout={onLogout}
               onNavigate={handleMainNavSelect}
