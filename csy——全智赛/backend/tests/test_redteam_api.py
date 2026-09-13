@@ -377,3 +377,30 @@ class TestPersistentRedTeamRuns:
             "supports_reset": True,
             "adapter_kind": "in_process_fixture",
         }
+    def test_fixture_connection_is_rejected_when_debug_is_disabled(self, tmp_path, monkeypatch):
+        from backend.app.config import settings
+        from backend.app.services import redteam_service
+        from backend.app.services.redteam_service import RedTeamCoordinator
+
+        monkeypatch.setattr(settings, "debug", False)
+        monkeypatch.setitem(settings.__dict__, "redteam_fixture_adapter_enabled", True)
+        monkeypatch.setattr(settings, "redteam_bff_signing_secret", "test-signing-secret")
+        coordinator = RedTeamCoordinator(database_path=tmp_path / "fixture-disabled.sqlite3", start_worker=False)
+        monkeypatch.setattr(redteam_service, "_coordinator", coordinator)
+        owner = "alice"
+        headers = {
+            "X-Redteam-Owner": owner,
+            "X-Redteam-Signature": hmac.new(b"test-signing-secret", owner.encode(), hashlib.sha256).hexdigest(),
+        }
+
+        response = client.post("/redteam/connections", headers=headers, json={
+            "agent_id": "fixture-agent",
+            "endpoint": "fixture://redteam-v1",
+        })
+
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "INVALID_ADAPTER_CONNECTION"
+        assert response.json()["error"]["message"] == (
+            "The in-process fixture adapter requires DEBUG=true and "
+            "REDTEAM_FIXTURE_ADAPTER_ENABLED=true."
+        )

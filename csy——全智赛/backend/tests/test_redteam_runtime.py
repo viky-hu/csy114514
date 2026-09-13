@@ -144,3 +144,26 @@ def test_persistent_run_reuses_one_seed_snapshot_and_emits_round_weight_events(t
     assert len(strategy_events) == 2
     assert all(len(event.payload["strategies"]) == 3 for event in strategy_events)
     assert report["conclusion"] == "no_bypass_observed"
+
+
+def test_in_process_fixture_adapter_returns_valid_v1_metadata_and_outcome():
+    from backend.app.services.redteam_adapter import (
+        FIXTURE_ADAPTER_ENDPOINT,
+        InProcessFixtureRedTeamAdapter,
+    )
+
+    adapter = InProcessFixtureRedTeamAdapter(FIXTURE_ADAPTER_ENDPOINT)
+
+    assert adapter.verify() == {
+        "protocol_version": "v1",
+        "environment": "test",
+        "supports_reset": True,
+        "adapter_kind": "in_process_fixture",
+    }
+    adapter.reset("rtr-fixture")
+    assert adapter.evaluate(run_id="rtr-fixture", variant={"id": "tc-fixture"}) == {
+        "verdict": "PASS",
+        "defense_labels": ["D1:FixtureDefense"],
+        "duration_s": 0.0,
+        "tool_calls": [],
+    }
