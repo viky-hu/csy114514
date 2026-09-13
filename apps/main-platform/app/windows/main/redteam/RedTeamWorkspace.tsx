@@ -1,7 +1,7 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CircleDashed, Play, RadioTower, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ArrowLeft, Check, CircleDashed, Play, RadioTower, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MIA_RAG_TOKEN_KEY } from "../../../lib/client/auth-adapter";
 import {
   buildMockRedTeamEvents,
@@ -13,6 +13,7 @@ import {
   type RedTeamReport as Report,
   type RedTeamRun as Run,
 } from "./redteam-mock";
+import { deriveRedTeamSteps, formatRedTeamEvent } from "./redteam-running";
 
 function authHeaders() {
   const token = typeof window === "undefined" ? null : window.localStorage.getItem(MIA_RAG_TOKEN_KEY);
@@ -75,6 +76,13 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
     setEvents([]);
     const timers = playback.map((event, index) => window.setTimeout(() => {
       setEvents((current) => [...current, event]);
+      if (event.type === "ROUND_STARTED") {
+        setActiveRun((current) => current ? { ...current, current_round: Number(event.payload.round) || current.current_round } : current);
+      }
+      if (event.type === "RUN_COMPLETED") {
+        setActiveRun((current) => current ? { ...current, status: "completed", current_round: current.config.rounds, report_available: true } : current);
+        setRuns((current) => current.map((run) => run.run_id === event.run_id ? { ...run, status: "completed", current_round: run.config.rounds, report_available: true } : run));
+      }
     }, index * 420));
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [activeRun?.run_id, mockMode, view]);
@@ -128,7 +136,7 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
     setStarting(true); setError(null);
     try {
       if (mockMode) {
-        const run = createMockRedTeamRun(activeConnection);
+        const run = { ...createMockRedTeamRun(activeConnection), status: "running" as const, current_round: 0, report_available: false };
         setRuns((current) => [run, ...current.filter((item) => item.run_id !== run.run_id)]); setActiveRun(run); setEvents([]); setReport(null); setView("running");
         return;
       }
@@ -138,22 +146,31 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
     finally { setStarting(false); }
   };
 
-  const visibleEvents = events.slice(-10).reverse();
+  const runningSteps = useMemo(() => activeRun ? deriveRedTeamSteps(activeRun, events) : [], [activeRun, events]);
   const reportCopy = report ? CONCLUSION_COPY[report.conclusion] : null;
   const outcome = report?.outcome_summary ?? {};
   const weightRows = useMemo(() => report?.weight_snapshots?.flatMap((snapshot) => Object.entries(snapshot.weights_after).map(([strategy, weight]) => ({ round: snapshot.round, strategy, weight }))) ?? [], [report]);
 
   return <section className={`redteam-page is-${view}`} aria-label="红队演练工作区">
-    <header className="redteam-header"><div><span>ADAPTIVE RED TEAM</span><h1>{view === "entry" ? "红队演练" : view === "running" ? "演练进程" : "演练报告"}</h1><p>{view === "entry" ? "固定种子集，按每轮权重最高的三种策略持续变异与验证。" : activeRun ? `${activeRun.agent_id} · ${activeRun.run_id.slice(-8)}` : "运行专属证据与覆盖度结论"}</p></div><div className="redteam-header-actions"><span className={`redteam-mode-label ${mockMode ? "is-mock" : "is-live"}`}>{mockMode ? "MOCK · 无认证回放" : "LIVE · BFF 连接"}</span>{view !== "entry" && <button type="button" className="redteam-ghost" onClick={() => setView("entry")}><ArrowLeft size={15} />返回入口</button>}<button type="button" className="redteam-icon-command" title="刷新历史" aria-label="刷新历史" onClick={() => void refresh()}><RefreshCw size={15} /></button></div></header>
+    <header className="redteam-header"><div><span>ADAPTIVE RED TEAM</span><h1>{view === "entry" ? "红队演练" : view === "running" ? "演练进程" : "演练报告"}</h1><p>{view === "entry" ? "固定种子集，按每轮权重最高的三种策略持续变异与验证。" : activeRun ? `${activeRun.agent_id} · ${activeRun.run_id.slice(-8)}` : "运行专属证据与覆盖度结论"}</p></div><div className="redteam-header-actions"><span className={`redteam-mode-label ${mockMode ? "is-mock" : "is-live"}`}>{mockMode ? "MOCK · 无认证回放" : "LIVE · BFF 连接"}</span>{activeRun?.report_available && view === "running" && <button className="redteam-primary redteam-header-report" type="button" onClick={() => void openReport(activeRun.run_id)}><Check size={16} />查看运行报告</button>}{view !== "entry" && <button type="button" className="redteam-ghost" onClick={() => setView("entry")}><ArrowLeft size={15} />返回入口</button>}<button type="button" className="redteam-icon-command" title="刷新历史" aria-label="刷新历史" onClick={() => void refresh()}><RefreshCw size={15} /></button></div></header>
     {error && <div className="redteam-error"><AlertTriangle size={16} />{error}</div>}
     {view === "entry" && <div className="redteam-entry">
       <article className="redteam-command-card"><span className="redteam-kicker">TARGET CONNECTION</span><h2>{activeConnection ? activeConnection.agent_id : "尚未配置演练连接"}</h2><p>{activeConnection ? `${activeConnection.adapter_metadata.environment ?? "unknown"} · Adapter ${activeConnection.adapter_metadata.protocol_version ?? "unknown"}` : "请先在初始接口登记并验证专用测试环境的 HTTP Adapter。"}</p><dl><div><dt>种子选择</dt><dd>仅在运行开始时选择一次</dd></div><div><dt>策略规则</dt><dd>每轮固定取权重最高三种</dd></div><div><dt>目标范围</dt><dd>专用测试环境，不连接生产或内网</dd></div></dl></article>
       <form className="redteam-config" onSubmit={(event) => { event.preventDefault(); void start(); }}><label>变异轮次<input type="number" min="1" max="10" value={config.rounds} onChange={(event) => setConfig({ ...config, rounds: Number(event.target.value) })} /></label><label>固定种子数<input type="number" min="1" max="20" value={config.seed_count} onChange={(event) => setConfig({ ...config, seed_count: Number(event.target.value) })} /></label><label>每种子变体<input type="number" min="1" max="5" value={config.variants_per_seed} onChange={(event) => setConfig({ ...config, variants_per_seed: Number(event.target.value) })} /></label><button className="redteam-primary" disabled={!activeConnection || starting} type="submit">{starting ? <CircleDashed className="redteam-spin" size={17} /> : <Play size={17} />}{starting ? "正在创建运行" : "开始红队演练"}</button></form>
       <RunHistory runs={runs} onOpen={(run) => { if (run.report_available) void openReport(run.run_id); else { setActiveRun(run); setEvents([]); setView("running"); } }} />
     </div>}
-    {view === "running" && <div className="redteam-running"><section className="redteam-progress"><div className="redteam-progress-head"><RadioTower size={18} /><div><b>{activeRun?.status === "queued" ? "等待演练资源" : "红队正在执行"}</b><small>当前轮次 {activeRun?.current_round ?? 0} / {activeRun?.config.rounds ?? config.rounds}</small></div></div><div className="redteam-rail"><span className={events.some((event) => event.type === "SEEDS_SELECTED") ? "is-done" : ""}>选取种子</span><span className={events.some((event) => event.type === "VARIANT_CREATED") ? "is-done" : ""}>生成变体</span><span className={events.some((event) => event.type === "VARIANT_EVALUATED") ? "is-done" : ""}>沙箱测评</span><span className={events.some((event) => event.type === "WEIGHTS_UPDATED") ? "is-done" : ""}>调整权重</span></div></section><section className="redteam-event-feed"><header><span>LIVE EVENT STREAM</span><b>{events.length}</b></header>{visibleEvents.length ? visibleEvents.map((event) => <div key={`${event.run_id}:${event.seq}`}><time>{new Date(event.timestamp).toLocaleTimeString("zh-CN")}</time><strong>{event.type}</strong><small>{event.payload.strategy as string ?? event.payload.message as string ?? event.payload.conclusion as string ?? "已记录"}</small></div>) : <p>等待后端发布第一条可重放事件…</p>}</section>{activeRun?.status === "failed" && <div className="redteam-error"><ShieldAlert size={17} />{activeRun.error_message || "运行失败，请检查适配器测试环境。"}</div>}{activeRun?.report_available && <button className="redteam-primary" type="button" onClick={() => void openReport(activeRun.run_id)}>查看运行报告</button>}</div>}
+    {view === "running" && <div className="redteam-running"><div className="redteam-running-body"><section className="redteam-progress"><div className="redteam-progress-head"><RadioTower size={18} /><div><b>{activeRun?.status === "queued" ? "等待演练资源" : activeRun?.status === "failed" ? "演练已停止" : "红队正在执行"}</b><small>当前轮次 {activeRun?.current_round ?? 0} / {activeRun?.config.rounds ?? config.rounds}</small></div></div><ol className="redteam-step-list">{runningSteps.map((step, index) => <li className={`redteam-step-row is-${step.state}`} key={step.key}><span className="redteam-step-connector" aria-hidden="true" /> <span className="redteam-step-index">{step.state === "complete" ? <Check size={13} /> : String(index + 1).padStart(2, "0")}</span><div className="redteam-step-copy"><div><strong>{step.title}</strong><span>{step.state === "complete" ? "已完成" : step.state === "running" ? "处理中" : step.state === "error" ? "运行异常" : "待处理"}</span></div><b>{step.summary}</b><small>{step.detail}</small><code>{step.code}</code></div></li>)}</ol></section><RedTeamEventFeed events={events} /></div>{activeRun?.status === "failed" && <div className="redteam-error"><ShieldAlert size={17} />{activeRun.error_message || "运行失败，请检查适配器测试环境。"}</div>}</div>}
     {view === "report" && report && reportCopy && <div className="redteam-report"><section className={`redteam-conclusion is-${reportCopy.tone}`}><div>{reportCopy.tone === "safe" ? <ShieldCheck size={24} /> : <ShieldAlert size={24} />}</div><div><span>CONCLUSION · EVIDENCE QUALIFIED</span><h2>{reportCopy.title}</h2><p>{reportCopy.detail}</p></div></section><section className="redteam-matrix" aria-label="判定结果矩阵">{[["confirmed_bypass", "已证实绕过"], ["defense_success", "防守成功"], ["not_exercised", "未充分触发"], ["execution_error", "执行错误"], ["inconclusive", "结果不确定"]].map(([key, label]) => <div key={key}><span>{label}</span><b>{outcome[key] ?? 0}</b></div>)}</section><RedTeamVisualizations report={report} /><section className="redteam-report-grid"><article><header><span>STRATEGY EVOLUTION</span><h3>策略与最终权重</h3></header>{report.strategy_effectiveness?.map((item) => <div className="redteam-strategy" key={item.strategy}><span>{item.strategy}</span><i style={{ width: `${Math.max(8, item.weight_final * 32)}%` }} /><small>{item.variants} 变体 · {item.bypasses} 绕过 · {item.weight_final.toFixed(2)}</small></div>)}</article><article><header><span>ROUND COVERAGE</span><h3>轮次与已选策略</h3></header>{report.round_evolution?.map((item) => <div className="redteam-round" key={item.round}><b>R{item.round}</b><span>{item.variants} 变体</span><small>{item.active_strategies.join(" · ")}</small></div>)}</article></section><section className="redteam-evidence"><header><span>BYPASS EVIDENCE</span><h3>已证实绕过</h3></header>{report.bypasses?.length ? report.bypasses.map((item) => <div key={item.variant_id}><strong>{item.strategy}</strong><span>{item.seed_id}</span><small>{item.risk_pattern}</small></div>) : <p>本次没有已证实绕过；请结合上方覆盖度结论判断结果可信度。</p>}</section><section className="redteam-weight-data"><span>WEIGHT SNAPSHOTS</span><p>{weightRows.map((item) => `R${item.round} ${item.strategy} ${item.weight.toFixed(2)}`).join(" · ") || "尚无权重快照"}</p></section></div>}
   </section>;
+}
+
+function RedTeamEventFeed({ events }: { events: RunEvent[] }) {
+  const feedRef = useRef<HTMLDivElement>(null);
+  const orderedEvents = useMemo(() => [...events].sort((a, b) => a.seq - b.seq || a.timestamp.localeCompare(b.timestamp)), [events]);
+  useEffect(() => {
+    if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
+  }, [orderedEvents.length]);
+  return <section className="redteam-event-feed"><header><span>实时事件流</span><b>{orderedEvents.length}</b></header><div ref={feedRef} className="redteam-event-feed-content">{orderedEvents.length ? orderedEvents.map((event) => { const formatted = formatRedTeamEvent(event); return <div className="redteam-event-line" key={`${event.run_id}:${event.seq}`}><time>{new Date(event.timestamp).toLocaleTimeString("zh-CN")}</time><strong className={`is-${formatted.kind}`}>{formatted.label}</strong><small>{formatted.detail}</small></div>; }) : <p>等待后端发布第一条可重放事件…</p>}</div></section>;
 }
 
 function RunHistory({ runs, onOpen }: { runs: Run[]; onOpen: (run: Run) => void }) {

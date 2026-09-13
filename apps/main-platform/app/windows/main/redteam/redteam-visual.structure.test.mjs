@@ -10,6 +10,10 @@ const workspace = readFileSync(
   new URL("./RedTeamWorkspace.tsx", import.meta.url),
   "utf8",
 );
+const running = readFileSync(
+  new URL("./redteam-running.ts", import.meta.url),
+  "utf8",
+);
 
 test("red-team workbench inherits the shell surface and uses compact controls", () => {
   assert.match(styles, /\.redteam-page\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/s);
@@ -39,4 +43,21 @@ test("header actions use an accessible refresh icon and a labelled back control"
   assert.match(workspace, /<ArrowLeft size=\{15\} \/>返回入口/);
   assert.match(workspace, /className="redteam-icon-command" title="刷新历史" aria-label="刷新历史"/);
   assert.match(workspace, /<RefreshCw size=\{15\} \/>/);
+});
+
+test("running view uses a fixed shell, four vertical steps, and header report action", () => {
+  assert.match(styles, /\.redteam-running\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(styles, /\.redteam-running-body\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*62fr\)\s+minmax\(300px,\s*38fr\);[^}]*min-height:\s*0;/s);
+  assert.match(styles, /\.redteam-step-list\s*\{[^}]*grid-template-columns:\s*1fr;/s);
+  assert.match(styles, /\.redteam-step-row\.is-error/);
+  assert.match(styles, /\.redteam-event-feed\s*\{[^}]*overflow:\s*hidden;/s);
+  assert.match(styles, /\.redteam-event-feed-content\s*\{[^}]*overflow:\s*auto;/s);
+  assert.match(workspace, /查看运行报告/);
+  assert.match(workspace, /className="redteam-primary redteam-header-report"/);
+  assert.doesNotMatch(workspace, /activeRun\?\.report_available && <button className="redteam-primary"/);
+  assert.match(running, /选取种子/);
+  assert.match(running, /生成变体/);
+  assert.match(running, /沙箱测评/);
+  assert.match(running, /调整权重/);
+  assert.match(workspace, /实时事件流/);
 });

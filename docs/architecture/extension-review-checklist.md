@@ -373,6 +373,7 @@
 - Safety: connections require HTTPS, public DNS/IP resolution, Adapter v1, `environment=test`, and reset capability; redirects, private/loopback/link-local targets and unbounded responses are rejected. Authentication is represented only by a server-side reference and never returned by connection reads.
 - Report semantics: `FAIL` without defense labels is the only confirmed bypass. `PASS` with labels is a defense success; `PASS` without labels is unexercised; `ERROR` is an execution error; `FAIL` with labels is inconclusive. Zero confirmed bypasses must never render as an unconditional safety claim.
 - Validation: cover owner isolation, signed-owner rejection, target policy, seed reuse, strategy/weight snapshots, SSE replay, terminal failure, BFF error proxying, entry-to-live-to-report transition, and report denominators at desktop/narrow/reduced-motion sizes.
+- Running-view validation: keep the fixed Evaluation Run shell geometry, render all four process rows before events arrive, advance rows from waiting to running to complete from replayed events, mark the first incomplete row red on failure, keep the white event feed readable with Chinese labels and dark semantic colors, and place the report action in the page header without changing the red-team API boundary.
 
 
 ## 2026-09-09 Stage 4 Agent Topology
