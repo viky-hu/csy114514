@@ -566,10 +566,26 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
     await page.waitForTimeout(500);
 
     const metrics = await bridge.evaluate((node) => {
-      type Rect = { left: number; top: number; right: number; bottom: number };
+      type Rect = {
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+        width: number;
+        height: number;
+        centerY: number;
+      };
       const toRect = (item: Element): Rect => {
         const value = item.getBoundingClientRect();
-        return { left: value.left, top: value.top, right: value.right, bottom: value.bottom };
+        return {
+          left: value.left,
+          top: value.top,
+          right: value.right,
+          bottom: value.bottom,
+          width: value.width,
+          height: value.height,
+          centerY: value.top + value.height / 2,
+        };
       };
       const overlaps = (a: Rect, b: Rect) =>
         a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
@@ -584,7 +600,6 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
         queryRect(".llm-bridge-reasoning"),
         queryRect(".llm-bridge-tool-call"),
         queryRect(".llm-bridge-checks"),
-        queryRect(".llm-bridge-bottom"),
       ];
       const transitionBand = queryRect(".llm-bridge-connector-row");
       const longArrow = queryRect(".llm-bridge-stage-arrow-long");
@@ -627,12 +642,35 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
         const rect = item.getBoundingClientRect();
         return { x: rect.left + rect.width / 2 - innerRect.left, y: rect.top + rect.height / 2 - innerRect.top };
       };
+      const rectFor = (selector: string) => {
+        const item = node.querySelector<HTMLElement>(selector);
+        if (!item) throw new Error(`missing ${selector}`);
+        const rect = item.getBoundingClientRect();
+        return {
+          right: rect.right - innerRect.left,
+          centerY: rect.top + rect.height / 2 - innerRect.top,
+        };
+      };
       const perCallOut = pointFor('[data-bridge-anchor="per-call-out"]');
       const checkInputs = ["D3", "D4", "D5", "D6", "D7"].map((id) =>
         pointFor(`[data-bridge-anchor="check-${id}-in"]`),
       );
+      const blockedEdges = ["D3", "D4", "D5", "D6", "D7"].map((id) =>
+        rectFor(`[data-bridge-blocked="${id}"]`),
+      );
+      const sandboxRect = queryRect(".llm-bridge-sandbox");
+      const confirmRect = queryRect(".llm-bridge-confirm");
+      const noLabels = ["D3", "D4", "D5", "D6", "D7"].map((id) =>
+        pointFor(`[data-bridge-anchor="check-${id}-no"]`),
+      );
       const branchRoutes = Array.from(
-        node.querySelectorAll<SVGPathElement>(".llm-bridge-route:not(.llm-bridge-route-no)"),
+        node.querySelectorAll<SVGPathElement>(
+          ".llm-bridge-route:not(.llm-bridge-route-no):not(.llm-bridge-route-confirmation)",
+        ),
+        (route) => route.getAttribute("d") ?? "",
+      );
+      const noRoutes = Array.from(
+        node.querySelectorAll<SVGPathElement>(".llm-bridge-route-no"),
         (route) => route.getAttribute("d") ?? "",
       );
       return {
@@ -643,6 +681,8 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
         stageRects,
         decisionRects,
         blockedRects,
+        sandboxRect,
+        confirmRect,
         stageRailRects,
         perCallRect,
         reasoningCore,
@@ -660,7 +700,10 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
         canvasBottom: innerRect.bottom,
         perCallOut,
         checkInputs,
+        blockedEdges,
+        noLabels,
         branchRoutes,
+        noRoutes,
         checkStageDecisionOverlap: stageRects.some((item, index) => overlaps(item, decisionRects[index]!)),
         checkDecisionBlockedOverlap: decisionRects.some((item, index) => overlaps(item, blockedRects[index]!)),
       };
@@ -680,13 +723,17 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
     expect(metrics.majorRects[3]!.top - metrics.transitionBand.bottom).toBeLessThanOrEqual(6);
     expect(metrics.longArrow.top).toBeCloseTo(metrics.transitionBand.top, 0);
     expect(metrics.longArrow.bottom).toBeGreaterThanOrEqual(metrics.perCallRect.top - 6);
-    expect(metrics.longArrow.bottom).toBeLessThanOrEqual(metrics.perCallRect.top + 8);
+    expect(metrics.longArrow.bottom).toBeLessThanOrEqual(metrics.perCallRect.top + 9);
     for (let index = 0; index < 5; index += 1) {
       expect(metrics.stageRects[index]!.right).toBeLessThanOrEqual(metrics.decisionRects[index]!.left + 0.5);
       expect(metrics.decisionRects[index]!.right).toBeLessThanOrEqual(metrics.blockedRects[index]!.left + 0.5);
     }
     expect(metrics.stageRailRects).toHaveLength(4);
     expect(metrics.perCallRect.right).toBeLessThanOrEqual(metrics.stageRects[0]!.left + 0.5);
+    const noPathMidpoint = (metrics.blockedRects[0]!.centerY + metrics.blockedRects[4]!.centerY) / 2;
+    expect(Math.abs(metrics.sandboxRect.centerY - noPathMidpoint)).toBeLessThanOrEqual(2);
+    expect(metrics.confirmRect.top).toBeGreaterThan(metrics.sandboxRect.bottom);
+
     const checksMidpoint = (metrics.stageRects[0]!.top + metrics.stageRects[4]!.bottom) / 2;
     const perCallMidpoint = (metrics.perCallRect.top + metrics.perCallRect.bottom) / 2;
     expect(Math.abs(perCallMidpoint - checksMidpoint)).toBeLessThanOrEqual(10);
@@ -704,6 +751,23 @@ test("bridge canvas keeps its left rail and measured per-call fan-out geometry",
       expect(Number(endY)).toBeCloseTo(metrics.checkInputs[index]!.y, 0);
       expect(Number(trunkX)).toBeGreaterThan(Number(startX));
       expect(Number(trunkX)).toBeLessThan(Number(endX));
+    });
+    expect(metrics.noRoutes).toHaveLength(5);
+    const noRouteParts = metrics.noRoutes.map((route) => {
+      const parts = route.match(/^M ([\d.]+) ([\d.]+) H ([\d.]+) V ([\d.]+) H ([\d.]+)$/);
+      expect(parts, route).not.toBeNull();
+      return parts!;
+    });
+    const noRailX = Number(noRouteParts[0]![3]);
+    noRouteParts.forEach((parts, index) => {
+      const [, startX, startY, railX] = parts;
+      const blocked = metrics.blockedEdges[index]!;
+      const label = metrics.noLabels[index]!;
+      expect(Number(startX)).toBeCloseTo(blocked.right, 0);
+      expect(Number(startY)).toBeCloseTo(blocked.centerY, 0);
+      expect(Number(railX)).toBeCloseTo(noRailX, 0);
+      expect(label.x).toBeCloseTo((Number(startX) + noRailX) / 2, 0);
+      expect(label.y).toBeLessThan(Number(startY));
     });
     expect(metrics.checkStageDecisionOverlap).toBeFalsy();
     expect(metrics.checkDecisionBlockedOverlap).toBeFalsy();
@@ -1033,5 +1097,113 @@ test("D7 keeps a stable four-step visual frame for two-step rules", async ({ pag
       expect(current.sourceOverflowY).toBe("auto");
       expect(current.explanationOverflowY).toBe("hidden");
     }
+  }
+});
+
+
+test("bridge keeps Sandbox and D8 as separate vertically connected rectangles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openMainWindow(page);
+  await page.getByRole("button", { name: /安全画像/ }).click();
+  await page.getByRole("button", { name: "进入防御机制可视化" }).click();
+  await page.getByRole("button", { name: "下一层" }).click();
+  await page.getByRole("button", { name: "下一层" }).click();
+
+  const bridge = page.locator(".llm-tool-call-bridge-panel");
+  await expect(bridge).toBeVisible();
+
+  const metrics = await bridge.evaluate((node) => {
+    const inner = node.querySelector<HTMLElement>(".llm-bridge-canvas-inner");
+    const sandbox = node.querySelector<HTMLElement>(".llm-bridge-sandbox");
+    const confirm = node.querySelector<HTMLElement>(".llm-bridge-confirm");
+    const route = node.querySelector<SVGPathElement>(".llm-bridge-route-confirmation");
+    if (!inner || !sandbox || !confirm || !route) throw new Error("bridge topology nodes are missing");
+    const innerRect = inner.getBoundingClientRect();
+    const relative = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left - innerRect.left, right: rect.right - innerRect.left, top: rect.top - innerRect.top, bottom: rect.bottom - innerRect.top, centerX: rect.left + rect.width / 2 - innerRect.left };
+    };
+    const sandboxOut = relative(sandbox.querySelector<HTMLElement>('[data-bridge-anchor="sandbox-out"]')!);
+    const confirmIn = relative(confirm.querySelector<HTMLElement>('[data-bridge-anchor="confirmation-in"]')!);
+    return {
+      sandbox: relative(sandbox),
+      confirm: relative(confirm),
+      sandboxOut,
+      confirmIn,
+      path: route.getAttribute("d") ?? "",
+      overflow: inner.scrollWidth - inner.clientWidth,
+    };
+  });
+
+  expect(metrics.confirm.top).toBeGreaterThan(metrics.sandbox.bottom);
+  expect(metrics.sandbox.left).toBeLessThan(metrics.sandbox.right);
+  expect(metrics.confirm.left).toBeLessThan(metrics.confirm.right);
+  expect(metrics.confirm.centerX).toBeCloseTo(metrics.sandbox.centerX, 0);
+  expect(metrics.confirmIn.centerX).toBeCloseTo(metrics.sandboxOut.centerX, 0);
+  expect(metrics.path).toMatch(/^M ([\d.]+) ([\d.]+) V ([\d.]+)$/);
+  const pathParts = metrics.path.match(/^M ([\d.]+) ([\d.]+) V ([\d.]+)$/)!;
+  expect(Number(pathParts[1])).toBeCloseTo(metrics.sandboxOut.centerX, 0);
+  expect(Number(pathParts[2])).toBeCloseTo(metrics.sandboxOut.top + 1, 0);
+  expect(Number(pathParts[3])).toBeCloseTo(metrics.confirmIn.top + 1, 0);
+  expect(metrics.overflow).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 560, height: 700 });
+  await expect.poll(() => bridge.evaluate((node) => {
+    const inner = node.querySelector<HTMLElement>(".llm-bridge-canvas-inner");
+    return inner ? inner.scrollWidth - inner.clientWidth : 999;
+  })).toBeLessThanOrEqual(1);
+});test("bridge no routes start at blocked right edges and place labels above their horizontal spans", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openMainWindow(page);
+  await page.getByRole("button", { name: /安全画像/ }).click();
+  await page.getByRole("button", { name: "进入防御机制可视化" }).click();
+
+  await page.getByRole("button", { name: "下一层" }).click();
+  await page.getByRole("button", { name: "下一层" }).click();
+  const bridge = page.locator(".llm-tool-call-bridge-panel");
+  await expect(bridge).toBeVisible();
+
+  const metrics = await bridge.evaluate((node) => {
+    const inner = node.querySelector<HTMLElement>(".llm-bridge-canvas-inner");
+    if (!inner) throw new Error("bridge canvas inner is missing");
+    const innerRect = inner.getBoundingClientRect();
+    const relativeRect = (selector: string) => {
+      const element = node.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`missing ${selector}`);
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left - innerRect.left,
+        right: rect.right - innerRect.left,
+        top: rect.top - innerRect.top,
+        bottom: rect.bottom - innerRect.top,
+        centerX: rect.left + rect.width / 2 - innerRect.left,
+        centerY: rect.top + rect.height / 2 - innerRect.top,
+      };
+    };
+    const stageIds = ["D3", "D4", "D5", "D6", "D7"];
+    const blocked = stageIds.map((id) => relativeRect(`[data-bridge-blocked="${id}"]`));
+    const labels = stageIds.map((id) => relativeRect(`[data-bridge-anchor="check-${id}-no"]`));
+    const noRoutes = Array.from(node.querySelectorAll<SVGPathElement>(".llm-bridge-route-no"), (route) => route.getAttribute("d") ?? "");
+
+    return { blocked, labels, noRoutes };
+  });
+
+  expect(metrics.noRoutes).toHaveLength(5);
+  const railXs = metrics.noRoutes.map((route) => {
+    const parts = route.match(/^M ([\d.]+) ([\d.]+) H ([\d.]+) V ([\d.]+) H ([\d.]+)$/);
+    expect(parts, route).not.toBeNull();
+    return parts!;
+  });
+  const sharedRailX = Number(railXs[0]![3]);
+  for (let index = 0; index < 5; index += 1) {
+    const [, startX, startY, railX, , sandboxX] = railXs[index]!;
+    const blocked = metrics.blocked[index]!;
+    const label = metrics.labels[index]!;
+    expect(Number(startX)).toBeCloseTo(blocked.right, 0);
+    expect(Number(startY)).toBeCloseTo(blocked.centerY, 0);
+    expect(Number(railX)).toBeCloseTo(sharedRailX, 0);
+    expect(Number(sandboxX)).toBeGreaterThan(sharedRailX);
+    expect(label.centerX).toBeCloseTo((Number(startX) + sharedRailX) / 2, 0);
+    expect(label.bottom).toBeLessThanOrEqual(Number(startY) - 1);
   }
 });

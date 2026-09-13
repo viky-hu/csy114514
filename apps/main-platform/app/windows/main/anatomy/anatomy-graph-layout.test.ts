@@ -8,10 +8,14 @@ import {
   ANATOMY_NODE_LAYOUTS,
   ANATOMY_PHASE_LABEL_Y,
   ANATOMY_PHASE_RAIL_PATH,
+  ANATOMY_TOPOLOGY_PHASES,
   buildAnatomyRouteSegments,
+  buildTopologyChainSegments,
+  createTopologyChainNodeLayout,
   getActiveAnatomyRouteNodeIds,
   getAnatomyNodeAnchor,
   getAnatomyNodeBounds,
+  getTopologyStepPhaseXs,
 } from "./anatomy-graph-layout.ts";
 
 function getPathNumbers(path: string) {
@@ -95,4 +99,82 @@ test("derives active nodes from every selected route endpoint", () => {
     "tool-email-read",
     "tool-email-send",
   ]);
+});
+
+test("maps topology chains onto the five anatomy phase columns", () => {
+  assert.deepEqual(
+    ANATOMY_TOPOLOGY_PHASES.map((phase) => phase.id),
+    ["entry", "process", "handoff", "exec", "sink"],
+  );
+  assert.deepEqual(
+    ANATOMY_TOPOLOGY_PHASES.map((phase) => phase.x),
+    [160, 334, 504, 674, 832],
+  );
+  assert.deepEqual(getTopologyStepPhaseXs(4), [160, 334, 674, 832]);
+  assert.deepEqual(getTopologyStepPhaseXs(5), [160, 334, 504, 674, 832]);
+  assert.deepEqual(getTopologyStepPhaseXs(3), [160, 334, 504]);
+  assert.deepEqual(getTopologyStepPhaseXs(0), []);
+});
+
+test("keeps topology chain nodes at the anatomy node size on the shared rail", () => {
+  assert.deepEqual(createTopologyChainNodeLayout(160), {
+    height: 88,
+    width: 150,
+    x: 160,
+    y: 194,
+  });
+
+  for (const x of getTopologyStepPhaseXs(5)) {
+    const layout = createTopologyChainNodeLayout(x);
+    const bounds = {
+      bottom: layout.y + layout.height / 2,
+      left: layout.x - layout.width / 2,
+      right: layout.x + layout.width / 2,
+      top: layout.y - layout.height / 2,
+    };
+
+    assert.deepEqual(bounds, { bottom: 238, left: x - 75, right: x + 75, top: 150 });
+    // The five-phase rail stays below the node band, exactly like the R1-R4 graph.
+    assert.ok(bounds.bottom < ANATOMY_PHASE_LABEL_Y);
+  }
+});
+
+test("joins topology chain nodes from edge center to edge center", () => {
+  const layouts = getTopologyStepPhaseXs(5).map(createTopologyChainNodeLayout);
+  const segments = buildTopologyChainSegments(layouts);
+
+  assert.equal(segments.length, 4);
+
+  segments.forEach((segment, index) => {
+    const numbers = getPathNumbers(segment.d);
+
+    assert.equal(numbers.length, 8);
+    assert.deepEqual(
+      [numbers[0], numbers[1], numbers[6], numbers[7]],
+      [layouts[index].x + 75, 194, layouts[index + 1].x - 75, 194],
+      `segment ${index} must attach to node edge centers on the shared rail`,
+    );
+    assert.deepEqual([numbers[3], numbers[5]], [194, 194]);
+    assert.equal(segment.labelX, (layouts[index].x + layouts[index + 1].x) / 2);
+    // Channel labels ride above the 150x88 node band so node surfaces never
+    // paint over them.
+    assert.equal(segment.labelY, 132);
+    assert.ok(segment.labelY < 150);
+  });
+});
+
+test("keeps topology chain segments non-inverted even on the narrow 8px column gap", () => {
+  const layouts = getTopologyStepPhaseXs(4).map(createTopologyChainNodeLayout);
+  const segments = buildTopologyChainSegments(layouts);
+  const last = segments.at(-1);
+  const numbers = getPathNumbers(last?.d ?? "");
+
+  // Columns 4 and 5 are 158 apart while nodes are 150 wide: the route must stay
+  // a short forward stroke instead of collapsing or crossing backwards.
+  assert.deepEqual(
+    [numbers[0], numbers[6]],
+    [layouts[2].x + 75, layouts[3].x - 75],
+  );
+  assert.ok(numbers[6] > numbers[0]);
+  assert.ok(segments[1].labelX > segments[0].labelX);
 });

@@ -3,9 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  createTopologySecurityProfileViewModel,
   createSecurityProfileViewModel,
   type SecurityProfileInput,
 } from "./security-profile-data.ts";
+import type { AgentTopology } from "../topology/topology-types.ts";
 
 function readFixture<T>(name: string): T {
   const fixtureUrl = new URL(
@@ -91,4 +93,54 @@ test("does not invent tools or deny permissions missing from fixtures", () => {
   assert.equal(allNodeText.includes("delete"), false);
   assert.equal(allNodeText.includes("删除"), false);
   assert.equal(viewModel.nodes.some((node) => node.permission === "DENY"), false);
+});
+
+test("projects planner and executor into the existing execution boundary with their real task-plan channel", () => {
+  const agentProfile = readFixture<SecurityProfileInput["agentProfile"]>(
+    "agent_profile.json",
+  );
+  const attackGraph = readFixture<SecurityProfileInput["attackGraph"]>(
+    "attack_graph.json",
+  );
+  const topology: AgentTopology = {
+    agent_id: "corp-mate",
+    edges: [
+      {
+        carries_untrusted_content: true,
+        channel: "task_plan",
+        from_node: "planner",
+        to_node: "executor",
+      },
+    ],
+    nodes: [
+      { id: "planner", role: "PLANNER", tools: [], trust_boundary: "internal" },
+      { id: "executor", role: "EXECUTOR", tools: ["email.send"], trust_boundary: "internal" },
+    ],
+    topology_type: "planner_executor",
+  };
+
+  const viewModel = createTopologySecurityProfileViewModel(
+    createSecurityProfileViewModel({ agentProfile, attackGraph }),
+    topology,
+  );
+
+  assert.deepEqual(
+    viewModel.nodes
+      .filter((node) => node.id === "planner" || node.id === "executor")
+      .map((node) => [node.id, node.columnId, node.label, node.subtitle]),
+    [
+      ["planner", "agent-core", "任务规划", "PLANNER · INTERNAL"],
+      ["executor", "agent-core", "任务执行", "EXECUTOR · INTERNAL"],
+    ],
+  );
+  assert.deepEqual(viewModel.routes.find((route) => route.id === "topology-planner-executor"), {
+    carriesUntrustedContent: true,
+    channel: "task_plan",
+    description: "不可信内容经 task_plan 从任务规划进入任务执行。",
+    id: "topology-planner-executor",
+    sourceNodeId: "planner",
+    targetNodeId: "executor",
+    type: "task_plan",
+  });
+  assert.equal(viewModel.nodes.some((node) => node.id === "agent-corpmate"), false);
 });

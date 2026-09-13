@@ -1,17 +1,17 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { LINE_DRAW_EASE } from "../shared/animation";
-import { DEFAULT_AGENT_ID } from "../shared/agent-config";
+import { DEFAULT_AGENT_ID, type AgentManifest } from "../shared/agent-config";
 import { AgentInterfaceWorkspace } from "./agent/AgentInterfaceWorkspace";
+import { saveAgentManifest } from "./agent/agent-manifest-repository";
 import { AttackGraphWorkspace } from "./anatomy/AnatomyGraph";
 import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
 import { MainSidebarToggleButton } from "./MainSidebarToggleButton";
 import { OverviewDashboard } from "./overview/OverviewDashboard";
-import { securityProfileFixtureViewModel } from "./profile/profile-fixtures";
-import { SecurityProfileGraph } from "./profile/SecurityProfileGraph";
+import { SecurityProfileWorkspace } from "./profile/SecurityProfileWorkspace";
 import { AccountSettingsWorkspace, type AccountIdentity } from "./settings/AccountSettingsWorkspace";
 import {
   EvaluationReportWorkspace,
@@ -20,6 +20,9 @@ import {
 } from "./evaluation";
 import { clearEvaluationWorkspaceSession } from "./evaluation/evaluation-session";
 import type { SidebarContentMetrics } from "./shared/useFrozenGraphInlineSize";
+import { createFallbackTopology, defaultTopologyRepository } from "./topology/topology-repository";
+import { TopologyModeNav } from "./topology/TopologyModeNav";
+import type { AgentTopology, TopologyType } from "./topology/topology-types";
 
 gsap.registerPlugin(useGSAP);
 
@@ -72,6 +75,7 @@ type MainNavKey =
   | "anatomy"
   | "dashboard"
   | "profile"
+  | "redteam"
   | "report"
   | "run"
   | "setting";
@@ -86,12 +90,13 @@ const MAIN_NAV_ITEMS: MainWindowNavItem[] = [
   { key: "anatomy", label: "攻击图谱", english: "风险路径" },
   { key: "run", label: "测评运行", english: "执行流程" },
   { key: "report", label: "测评报告", english: "证据结论" },
+  { key: "redteam", label: "红队演练", english: "攻击演练" },
   { key: "agent", label: "初始接口", english: "接口接入" },
   { key: "setting", label: "设置", english: "账号中心" },
 ];
 
 const MAIN_MODULE_PLACEHOLDERS: Record<
-  Exclude<MainNavKey, "dashboard">,
+  Exclude<MainNavKey, "dashboard" | "redteam">,
   { description: string; english: string; label: string }
 > = {
   agent: {
@@ -256,7 +261,7 @@ function restoreContentPageShell(pageShell: HTMLDivElement | null) {
 function MainModulePlaceholder({
   activeNavKey,
 }: {
-  activeNavKey: Exclude<MainNavKey, "dashboard">;
+  activeNavKey: Exclude<MainNavKey, "dashboard" | "redteam">;
 }) {
   const placeholder = MAIN_MODULE_PLACEHOLDERS[activeNavKey];
 
@@ -278,6 +283,8 @@ function MainWindowContent({
   onLogout,
   onNavigate,
   sidebarContentMetrics,
+  topology,
+  onDraftSnapshotChange,
 }: {
   activeAgentId: string;
   activeNavKey: MainNavKey;
@@ -287,6 +294,8 @@ function MainWindowContent({
   onLogout: () => void;
   onNavigate: (key: MainNavKey) => void;
   sidebarContentMetrics: SidebarContentMetrics;
+  topology: AgentTopology;
+  onDraftSnapshotChange: (manifest: AgentManifest | null) => void;
 }) {
   if (activeNavKey === "dashboard") {
     return (
@@ -295,22 +304,28 @@ function MainWindowContent({
         isGraphFrozen={isSidebarGraphFrozen}
         onNavigate={onNavigate}
         sidebarContentMetrics={sidebarContentMetrics}
+        topology={topology}
       />
     );
   }
 
+  if (activeNavKey === "redteam") {
+    return null;
+  }
+
   if (activeNavKey === "profile") {
     return (
-      <SecurityProfileGraph
+      <SecurityProfileWorkspace
+        agentId={activeAgentId}
         isGraphFrozen={isSidebarGraphFrozen}
         sidebarContentMetrics={sidebarContentMetrics}
-        viewModel={securityProfileFixtureViewModel}
+        topology={topology}
       />
     );
   }
 
   if (activeNavKey === "anatomy") {
-    return <AttackGraphWorkspace agentId={activeAgentId} onNavigate={onNavigate} />;
+    return <AttackGraphWorkspace agentId={activeAgentId} onNavigate={onNavigate} topology={topology} />;
   }
 
   if (activeNavKey === "run") {
@@ -326,6 +341,7 @@ function MainWindowContent({
       <AgentInterfaceWorkspace
         activeAgentId={activeAgentId}
         onAgentSaved={onAgentSaved}
+        onDraftSnapshotChange={onDraftSnapshotChange}
       />
     );
   }
@@ -349,6 +365,17 @@ export function MainWindow({
   onLogout?: () => void;
 }) {
   const [activeAgentId, setActiveAgentId] = useState(initialAgentId);
+  // Entering the platform always starts at the Single Agent topology; the saved
+  // mode is applied only after an explicit switch, so a returning session never
+  // jumps straight into a non-single projection.
+  const [topology, setTopology] = useState<AgentTopology>(() => createFallbackTopology(initialAgentId));
+  const [agentDraftSnapshot, setAgentDraftSnapshot] = useState<AgentManifest | null>(null);
+  const [isTopologyMenuOpen, setIsTopologyMenuOpen] = useState(false);
+  const [isTopologyDialogClosing, setIsTopologyDialogClosing] = useState(false);
+  const [isTopologySwitching, setIsTopologySwitching] = useState(false);
+  const [pendingTopologyType, setPendingTopologyType] = useState<TopologyType | null>(null);
+  const [topologySwitchError, setTopologySwitchError] = useState<string | null>(null);
+  const [isRestartCover, setIsRestartCover] = useState(false);
   const [activeNavKey, setActiveNavKey] = useState<MainNavKey>("dashboard");
   const [renderedNavKey, setRenderedNavKey] = useState<MainNavKey>("dashboard");
   const [restartToken, setRestartToken] = useState(0);
@@ -366,6 +393,7 @@ export function MainWindow({
   const isSidebarCollapsedRef = useRef(false);
   const isSidebarGraphFrozenRef = useRef(false);
   const navigationTargetRef = useRef<MainNavKey | null>(null);
+  const topologyDialogTimeoutRef = useRef<number | null>(null);
   const topSurfaceRef = useRef<SVGRectElement>(null);
   const mainSurfaceRef = useRef<SVGRectElement>(null);
   const separatorRef = useRef<SVGRectElement>(null);
@@ -433,6 +461,9 @@ export function MainWindow({
       ).matches;
 
       contentSwapTimelineRef.current?.kill();
+      if (nextNavKey !== "agent") {
+        setAgentDraftSnapshot(null);
+      }
       navigationTargetRef.current = nextNavKey;
       restoreContentPageShell(pageShell);
       setActiveNavKey(nextNavKey);
@@ -474,12 +505,92 @@ export function MainWindow({
     [activeNavKey],
   );
 
+  const clearTopologyDialog = useCallback(() => {
+    if (topologyDialogTimeoutRef.current !== null) {
+      window.clearTimeout(topologyDialogTimeoutRef.current);
+      topologyDialogTimeoutRef.current = null;
+    }
+    setIsTopologyDialogClosing(false);
+    setPendingTopologyType(null);
+    setTopologySwitchError(null);
+  }, []);
+
+  const closeTopologyDialog = useCallback(() => {
+    if (isTopologySwitching) {
+      return;
+    }
+    setIsTopologyMenuOpen(false);
+    setIsTopologyDialogClosing(true);
+    topologyDialogTimeoutRef.current = window.setTimeout(clearTopologyDialog, 180);
+  }, [clearTopologyDialog, isTopologySwitching]);
+
+  const handleTopologyRequestChange = useCallback((topologyType: TopologyType) => {
+    if (topologyType === topology.topology_type) {
+      return;
+    }
+    setTopologySwitchError(null);
+    setIsTopologyDialogClosing(false);
+    setPendingTopologyType(topologyType);
+  }, [topology.topology_type]);
+
+  const handleTopologyConfirmChange = useCallback(async () => {
+    if (!pendingTopologyType || isTopologySwitching) {
+      return;
+    }
+
+    const manifest = activeNavKey === "agent" ? agentDraftSnapshot : null;
+    if (activeNavKey === "agent" && !manifest) {
+      setTopologySwitchError("请先补全 Agent ID 与 Agent 名称，再切换模式。");
+      return;
+    }
+
+    setIsTopologyMenuOpen(false);
+    setIsTopologySwitching(true);
+    setTopologySwitchError(null);
+
+    try {
+      const nextAgentId = manifest?.agent_id ?? activeAgentId;
+      if (manifest) {
+        await saveAgentManifest(manifest);
+      }
+      const nextTopology = await defaultTopologyRepository.saveAgentTopology(
+        nextAgentId,
+        pendingTopologyType,
+      );
+
+      // White out the workspace before anything changes, then swap the topology
+      // and nav content underneath the cover and replay the full entry intro.
+      setIsTopologySwitching(false);
+      setIsTopologyDialogClosing(true);
+      setIsRestartCover(true);
+      topologyDialogTimeoutRef.current = window.setTimeout(() => {
+        clearTopologyDialog();
+        clearEvaluationWorkspaceSession();
+        setTopology(nextTopology);
+        setActiveAgentId(nextAgentId);
+        setActiveNavKey("dashboard");
+        setRenderedNavKey("dashboard");
+        setRestartToken((value) => value + 1);
+      }, 180);
+    } catch (error) {
+      setIsTopologySwitching(false);
+      setTopologySwitchError(error instanceof Error ? error.message : "切换模式失败，请重试。");
+    }
+  }, [activeAgentId, activeNavKey, agentDraftSnapshot, clearTopologyDialog, isTopologySwitching, pendingTopologyType]);
+
   const handleAgentSaved = useCallback((agentId: string) => {
     clearEvaluationWorkspaceSession();
+    setIsRestartCover(true);
     setActiveAgentId(agentId);
     setActiveNavKey("dashboard");
     setRenderedNavKey("dashboard");
     setRestartToken((value) => value + 1);
+  }, []);
+
+  useEffect(() => () => {
+    if (topologyDialogTimeoutRef.current !== null) {
+      window.clearTimeout(topologyDialogTimeoutRef.current);
+    }
   }, []);
 
   useGSAP(
@@ -503,6 +614,7 @@ export function MainWindow({
       const sidebarToggleIcon = root.querySelector<SVGGElement>(
         ".main-sidebar-toggle-icon",
       );
+      const topologyModeNav = root.querySelector<HTMLElement>(".topology-mode-nav");
       const sidebarItems = gsap.utils.toArray<HTMLElement>(
         ".main-line-sidebar-item",
         root,
@@ -510,7 +622,7 @@ export function MainWindow({
       const prefersReducedMotion = window.matchMedia(
         "(prefers-reduced-motion: reduce)",
       ).matches;
-      if (!sidebar || !contentRegion || !sidebarToggleButton || !sidebarToggleIcon) {
+      if (!sidebar || !contentRegion || !sidebarToggleButton || !sidebarToggleIcon || !topologyModeNav) {
         return;
       }
 
@@ -626,6 +738,7 @@ export function MainWindow({
           rotation: 0,
           svgOrigin: "22 22",
         });
+        gsap.set(topologyModeNav, { autoAlpha: 1, y: 0 });
         gsap.set(contentRegion, { autoAlpha: 1, y: 0 });
         sidebarCollapseTimelineRef.current = createSidebarCollapseTimeline(layout);
         sidebarCollapseTimelineRef.current.pause(
@@ -650,6 +763,7 @@ export function MainWindow({
           rotation: 0,
           svgOrigin: "22 22",
         });
+        gsap.set(topologyModeNav, { autoAlpha: 0, y: -6 });
         gsap.set(contentRegion, { autoAlpha: 0, y: 16 });
         root.setAttribute("data-main-window-stage", "intro");
       };
@@ -661,6 +775,7 @@ export function MainWindow({
         if (prefersReducedMotion) {
           hasSettled = true;
           renderSettledLayout(layout);
+          setIsRestartCover(false);
           return;
         }
 
@@ -671,11 +786,13 @@ export function MainWindow({
           onComplete: () => {
             hasSettled = true;
             renderSettledLayout(getMainLayout());
+            setIsRestartCover(false);
             introTimeline = null;
           },
           onInterrupt: () => {
             hasSettled = true;
             renderSettledLayout(getMainLayout());
+            setIsRestartCover(false);
             introTimeline = null;
           },
         });
@@ -709,6 +826,16 @@ export function MainWindow({
               y: 0,
             },
             "brandReveal",
+          )
+          .to(
+            topologyModeNav,
+            {
+              autoAlpha: 1,
+              duration: 0.42,
+              ease: "power2.out",
+              y: 0,
+            },
+            0.92,
           )
           .set(separator, { autoAlpha: 1 }, 1.4)
           .set(transitionBlue, { autoAlpha: 0 }, 1.4)
@@ -789,6 +916,7 @@ export function MainWindow({
           sidebar,
           sidebarToggleButton,
           sidebarToggleIcon,
+          topologyModeNav,
           contentRegion,
           ...sidebarItems,
         ]);
@@ -854,10 +982,11 @@ export function MainWindow({
   return (
     <main
       ref={rootRef}
-      className="main-window"
+      className="main-window has-topology-mode-nav"
       data-main-window-stage="intro"
       data-sidebar-collapsed={isSidebarCollapsed}
       data-sidebar-graph-frozen={isSidebarGraphFrozen}
+      data-topology-menu-open={isTopologyMenuOpen}
       aria-label="AgentProof Agent 安全评估平台"
     >
       <svg className="main-window-svg" aria-hidden="true" focusable="false">
@@ -885,6 +1014,18 @@ export function MainWindow({
           AgentProof
         </text>
       </svg>
+      <TopologyModeNav
+        dialogClosing={isTopologyDialogClosing}
+        errorMessage={topologySwitchError}
+        isExpanded={isTopologyMenuOpen}
+        isSwitching={isTopologySwitching}
+        pendingTopologyType={pendingTopologyType}
+        topology={topology}
+        onConfirmChange={() => void handleTopologyConfirmChange()}
+        onDismissChange={closeTopologyDialog}
+        onOpenChange={setIsTopologyMenuOpen}
+        onRequestChange={handleTopologyRequestChange}
+      />
       <MainLineSidebar
         activeKey={activeNavKey}
         id="main-line-sidebar"
@@ -903,7 +1044,13 @@ export function MainWindow({
         mockMode={mockMode}
         onNavigate={handleMainNavSelect}
       >
-        <section className="main-content-region">
+        <section
+          className={
+            isRestartCover
+              ? "main-content-region is-restart-cover"
+              : "main-content-region"
+          }
+        >
           <div
             key={renderedNavKey}
             ref={contentPageRef}
@@ -918,6 +1065,8 @@ export function MainWindow({
               onLogout={onLogout}
               onNavigate={handleMainNavSelect}
               sidebarContentMetrics={sidebarContentMetrics}
+              topology={topology}
+              onDraftSnapshotChange={setAgentDraftSnapshot}
             />
           </div>
         </section>

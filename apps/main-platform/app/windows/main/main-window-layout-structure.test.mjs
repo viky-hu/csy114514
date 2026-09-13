@@ -220,7 +220,7 @@ test("main workspace keeps graph layout frozen for the full reversible sidebar t
   );
   assert.match(
     mainWindowSource,
-    /<SecurityProfileGraph[\s\S]*?isGraphFrozen=\{isSidebarGraphFrozen\}/,
+    /<SecurityProfileWorkspace[\s\S]*?isGraphFrozen=\{isSidebarGraphFrozen\}/,
   );
   assert.match(mainStyles, /data-sidebar-graph-frozen="true"/);
   assert.doesNotMatch(
@@ -243,4 +243,29 @@ test("main workspace collapse controller is an overlay and reflows dashboard by 
   assert.match(mainStyles, /@media \(max-width:\s*720px\)[\s\S]*?\.main-sidebar-toggle-button\s*\{\s*display:\s*none;/s);
   assert.match(mainStyles, /@container overview-dashboard \(max-width:\s*980px\)/);
   assert.doesNotMatch(mainStyles, /@media \(max-width:\s*1180px\)/);
+});
+
+test("main workspace registers an empty red team navigation destination", () => {
+  assert.match(mainWindowSource, /\| "redteam"/);
+  assert.match(
+    mainWindowSource,
+    /\{ key: "report", label: "测评报告", english: "证据结论" \},\s*\{ key: "redteam", label: "红队演练", english: "攻击演练" },\s*\{ key: "agent"/s,
+  );
+  assert.match(mainWindowSource, /if \(activeNavKey === "redteam"\) \{\s*return null;\s*\}/);
+  assert.match(mainWindowSource, /Exclude<MainNavKey, "dashboard" \| "redteam">/);
+  assert.match(mainWindowSource, /activeNavKey: Exclude<MainNavKey, "dashboard" \| "redteam">/);
+});
+
+test("main workspace constrains sidebar overflow and keeps all eight items reachable", () => {
+  assert.match(mainStyles, /\.main-line-sidebar\s*\{[\s\S]*?overflow-x:\s*hidden;/s);
+  assert.match(mainSidebarSource, /itemGap = 36/);
+  assert.match(mainStyles, /.main-line-sidebar\s*\{[\s\S]*?overflow-y:\s*auto;/s);
+  assert.match(
+    mainStyles,
+    /@media \(max-width:\s*720px\)[\s\S]*?\.main-line-sidebar-list\s*\{[\s\S]*?display:\s*flex;[\s\S]*?overflow-x:\s*auto;/s,
+  );
+  assert.match(
+    mainStyles,
+    /@media \(max-width:\s*720px\)[\s\S]*?\.main-line-sidebar-item\s*\{[\s\S]*?flex:\s*0 0 64px;/s,
+  );
 });

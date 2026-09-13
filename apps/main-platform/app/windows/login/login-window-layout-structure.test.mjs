@@ -64,7 +64,7 @@ test("login Agent loading tips use the local SplitText component", () => {
   );
   assert.match(
     loginSource,
-    /className="login-agent-bracket-button is-secondary"[\s\S]*?onClick=\{\(\) => beginAgentLoadingRef\.current\(DEFAULT_AGENT_ID\)\}[\s\S]*?<span>稍后再说<\/span>/,
+    /className="login-agent-bracket-button is-secondary"[\s\S]*?onClick=\{\(\) => beginAgentLoadingRef\.current\(DEFAULT_AGENT_ID,\s*true\)\}[\s\S]*?<span>稍后再说<\/span>/,
   );
   assert.doesNotMatch(loginSource, /\.login-agent-loading-char/);
   assert.doesNotMatch(loginSource, /loadingTextTimeline/);

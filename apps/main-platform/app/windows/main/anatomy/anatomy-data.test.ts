@@ -140,3 +140,32 @@ test("treats graph risk_path_ids as potential until a report finding verifies th
   });
   assert.equal(viewModel.selectedPath?.evidence.length, 0);
 });
+
+
+test("builds R5 and R6 topology paths from role metadata and preserves potential status", () => {
+  const baseProfile = { agent_id: "topology-agent", manifest: { name: "Topology Agent", version: "1", tool_permissions: {} }, security_assets: { dangerous_tools: ["email.send"], persistent_stores: [], sensitive_tools: [], untrusted_sources: [] } } satisfies AnatomyInput["agentProfile"];
+  const riskPatterns = [
+    { id: "R5", name: "计划污染", description: "plan pollution", risk_type: "R5", severity: "HIGH", attack_goal: "dangerous execution", success_condition: "executor sends email" },
+    { id: "R6", name: "RAG 上下文投毒", description: "rag poisoning", risk_type: "R6", severity: "HIGH", attack_goal: "context poisoning", success_condition: "agent sends email" },
+  ] satisfies AnatomyInput["riskPatterns"];
+  const attackGraph = {
+    nodes: [
+      { node_id: "browser", node_type: "SOURCE", labels: ["UNTRUSTED"], metadata: { name: "browser.open_page", role: "browser" } },
+      { node_id: "planner", node_type: "AGENT", labels: [], metadata: { name: "Planner", role: "planner" } },
+      { node_id: "executor", node_type: "AGENT", labels: [], metadata: { name: "Executor", role: "executor" } },
+      { node_id: "external-docs", node_type: "SOURCE", labels: ["UNTRUSTED"], metadata: { name: "External Documents", role: "external" } },
+      { node_id: "knowledge", node_type: "KNOWLEDGE_BASE", labels: [], metadata: { name: "Knowledge Base", role: "knowledge_base" } },
+      { node_id: "retriever", node_type: "AGENT", labels: [], metadata: { name: "Retriever", role: "retriever" } },
+      { node_id: "agent", node_type: "AGENT", labels: [], metadata: { name: "Topology Agent", role: "agent" } },
+      { node_id: "email", node_type: "TOOL", labels: ["DANGEROUS"], metadata: { name: "email.send" } },
+    ],
+    edges: [],
+    risk_path_ids: ["R5", "R6"],
+  } satisfies AnatomyInput["attackGraph"];
+  const model = createAnatomyViewModel({ agentProfile: baseProfile, attackGraph, attackSeeds: [], mode: "live", riskPatterns, selectedPathId: "R5", testCases: [] });
+  assert.deepEqual(model.paths.map((path) => path.id), ["R5", "R6"]);
+  assert.deepEqual(model.paths[0]?.steps.map((step) => [step.role, step.label]), [["source", "browser.open_page"], ["planner", "Planner"], ["executor", "Executor"], ["tool", "email.send"]]);
+  assert.deepEqual(model.paths[1]?.steps.map((step) => [step.role, step.label]), [["source", "External Documents"], ["knowledge_base", "Knowledge Base"], ["retriever", "Retriever"], ["agent", "Topology Agent"], ["tool", "email.send"]]);
+  assert.equal(model.paths[0]?.status, "potential");
+  assert.equal(model.paths[0]?.testCaseId, null);
+});

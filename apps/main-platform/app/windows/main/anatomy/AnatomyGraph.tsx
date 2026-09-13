@@ -8,11 +8,13 @@ import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
+  Database,
   DatabaseZap,
   Globe2,
   MailCheck,
   MailSearch,
   PlayCircle,
+  Search,
   ShieldQuestion,
 } from "lucide-react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
@@ -22,6 +24,7 @@ import type {
   AnatomyMode,
   AnatomyPath,
   AnatomyPathStatus,
+  AnatomyPathStep,
   AnatomyViewModel,
 } from "./anatomy-data";
 import { DEFAULT_ANATOMY_AGENT_ID, anatomyPreviewViewModel } from "./anatomy-fixtures";
@@ -33,9 +36,13 @@ import {
   ANATOMY_PHASE_RAIL_PATH,
   ANATOMY_GRAPH_VIEWBOX,
   ANATOMY_LAYOUT_BY_NODE_ID,
+  ANATOMY_TOPOLOGY_PHASES,
   buildAnatomyRouteSegments,
+  buildTopologyChainSegments,
   createClockwiseRoundedRectPath,
+  createTopologyChainNodeLayout,
   getActiveAnatomyRouteNodeIds,
+  getTopologyStepPhaseXs,
 } from "./anatomy-graph-layout";
 import type { AnatomyGraphNodeLayout } from "./anatomy-graph-layout";
 import {
@@ -43,7 +50,7 @@ import {
   type AnatomyRepository,
   type AnatomyRepositoryResult,
 } from "./anatomy-repository";
-import { TopologyFlow } from "../topology/TopologyFlow";
+import { planTopologyChain } from "./anatomy-topology-chain";
 import type { AgentTopology } from "../topology/topology-types";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
@@ -78,6 +85,18 @@ const NODE_ICONS: Record<AnatomyGraphNodeLayout["role"], LucideIcon> = {
   agent: Bot,
   data: MailSearch,
   memory: DatabaseZap,
+  source: Globe2,
+  tool: MailCheck,
+};
+
+const TOPOLOGY_NODE_ICONS: Record<AnatomyPathStep["role"], LucideIcon> = {
+  agent: Bot,
+  data: MailSearch,
+  executor: Bot,
+  knowledge_base: Database,
+  memory: DatabaseZap,
+  planner: Bot,
+  retriever: Search,
   source: Globe2,
   tool: MailCheck,
 };
@@ -229,6 +248,213 @@ function getVisibleActiveNodeIds(selectedPath: AnatomyPath | null) {
   const routeNodeIds = pathId ? getActiveAnatomyRouteNodeIds(pathId) : new Set<string>();
 
   return new Set([...getActiveNodeIds(selectedPath), ...routeNodeIds]);
+}
+
+function TopologyRiskPathStage({
+  graphNodes,
+  path,
+  topology,
+}: {
+  graphNodes: AnatomyInput["attackGraph"]["nodes"];
+  path: AnatomyPath | null;
+  topology: AgentTopology | undefined;
+}) {
+  const plan = useMemo(
+    () => planTopologyChain({ graphNodes, path, topology }),
+    [graphNodes, path, topology],
+  );
+
+  const status = path?.status ?? "potential";
+
+  if (plan.kind === "missing") {
+    return (
+      <div className="anatomy-map is-topology" aria-label="拓扑风险路径数据不足">
+        <div className="anatomy-map-stage">
+          <svg
+            className="anatomy-svg"
+            role="img"
+            aria-label="拓扑风险路径数据不足"
+            viewBox={`0 0 ${ANATOMY_GRAPH_VIEWBOX.width} ${ANATOMY_GRAPH_VIEWBOX.height}`}
+          >
+            <path
+              className="anatomy-phase-rail"
+              d={ANATOMY_PHASE_RAIL_PATH}
+              fill="none"
+            />
+            {ANATOMY_TOPOLOGY_PHASES.map((phase) => (
+              <g
+                key={phase.id}
+                className={`anatomy-phase is-${phase.id}`}
+                transform={`translate(${phase.x}, ${ANATOMY_PHASE_LABEL_Y})`}
+              >
+                <text className="anatomy-column-label" textAnchor="middle" x={0} y={0}>
+                  {phase.label}
+                </text>
+                <text className="anatomy-column-title" textAnchor="middle" x={0} y={24}>
+                  {phase.title}
+                </text>
+                <text
+                  className="anatomy-column-subtitle"
+                  textAnchor="middle"
+                  x={0}
+                  y={45}
+                >
+                  {phase.subtitle}
+                </text>
+              </g>
+            ))}
+          </svg>
+          <div className="anatomy-map-empty" role="status">
+            <ShieldQuestion size={15} aria-hidden="true" />
+            <span>
+              路径数据不足：{plan.reason}
+              {plan.missing.length > 0
+                ? `缺少真实节点：${plan.missing.join("、")}。`
+                : ""}
+              不会补造节点或连线。
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const chain = plan.nodes;
+  const phaseXs = getTopologyStepPhaseXs(chain.length);
+  const layouts = chain.map((_, index) =>
+    createTopologyChainNodeLayout(phaseXs[index]),
+  );
+  const segments = buildTopologyChainSegments(layouts);
+
+  return (
+    <div className={`anatomy-map is-topology is-${status}`} aria-label={`${path?.id} 拓扑风险路径`}>
+      <div className="anatomy-map-stage">
+          <svg
+            className="anatomy-svg"
+            role="img"
+            aria-label={`${path?.id} 拓扑风险路径从不可信入口传播到危险工具`}
+            viewBox={`0 0 ${ANATOMY_GRAPH_VIEWBOX.width} ${ANATOMY_GRAPH_VIEWBOX.height}`}
+          >
+            <defs>
+              <linearGradient id="anatomy-route-stroke" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stopColor="#3152f4" stopOpacity="0.22" />
+                <stop offset="38%" stopColor="#4f7cff" stopOpacity="0.9" />
+                <stop offset="72%" stopColor="#7c3aed" stopOpacity="0.94" />
+                <stop offset="100%" stopColor="#b45cff" stopOpacity="0.9" />
+              </linearGradient>
+              <linearGradient id="anatomy-verified-stroke" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stopColor="#3152f4" stopOpacity="0.48" />
+                <stop offset="55%" stopColor="#7c3aed" stopOpacity="1" />
+                <stop offset="100%" stopColor="#f0447a" stopOpacity="0.95" />
+              </linearGradient>
+            </defs>
+            <path
+              className="anatomy-phase-rail"
+              d={ANATOMY_PHASE_RAIL_PATH}
+              fill="none"
+            />
+            {ANATOMY_TOPOLOGY_PHASES.map((phase) => (
+              <g
+                key={phase.id}
+                className={`anatomy-phase is-${phase.id}`}
+                transform={`translate(${phase.x}, ${ANATOMY_PHASE_LABEL_Y})`}
+              >
+                <text className="anatomy-column-label" textAnchor="middle" x={0} y={0}>
+                  {phase.label}
+                </text>
+                <text className="anatomy-column-title" textAnchor="middle" x={0} y={24}>
+                  {phase.title}
+                </text>
+                <text
+                  className="anatomy-column-subtitle"
+                  textAnchor="middle"
+                  x={0}
+                  y={45}
+                >
+                  {phase.subtitle}
+                </text>
+              </g>
+            ))}
+            <g className="anatomy-routes" aria-hidden="true">
+              {segments.map((segment, index) => {
+                const channel = plan.channels[index] ?? null;
+
+                return (
+                  <g key={`topology-${index}`}>
+                    <path
+                      className={`anatomy-route-stroke is-active is-${status}${channel ? " is-channel" : ""}`}
+                      d={segment.d}
+                      fill="none"
+                      pathLength={1}
+                      stroke={
+                        status === "verified"
+                          ? "url(#anatomy-verified-stroke)"
+                          : "url(#anatomy-route-stroke)"
+                      }
+                    />
+                    {channel ? (
+                      <text
+                        className={`anatomy-topology-channel-label${channel.untrusted ? " is-untrusted" : ""}`}
+                        x={segment.labelX}
+                        y={segment.labelY}
+                        textAnchor="middle"
+                      >
+                        {channel.label}
+                      </text>
+                    ) : null}
+                  </g>
+                );
+              })}
+            </g>
+            <g className="anatomy-nodes">
+              {chain.map((node, index) => {
+                const layout = layouts[index];
+                const Icon = TOPOLOGY_NODE_ICONS[node.role];
+                const rectPath = createClockwiseRoundedRectPath(layout);
+                const iconX = layout.x - 12;
+                const iconY = layout.y - 34;
+
+                return (
+                  <g
+                    key={`${node.nodeId}-${index}`}
+                    className={`anatomy-svg-node is-${node.role} is-active${node.trustBoundary === "external" ? " is-external" : ""}`}
+                    data-node-id={`topology-${node.nodeId}`}
+                  >
+                    <path className="anatomy-node-surface" d={rectPath} />
+                    <path className="anatomy-node-outline" d={rectPath} />
+                    <Icon
+                      aria-hidden="true"
+                      className="anatomy-node-icon"
+                      height={24}
+                      width={24}
+                      x={iconX}
+                      y={iconY}
+                      strokeWidth={1.65}
+                    />
+                    <text
+                      className="anatomy-node-label"
+                      x={layout.x}
+                      y={layout.y + 14}
+                      textAnchor="middle"
+                    >
+                      {node.displayName}
+                    </text>
+                    <text
+                      className="anatomy-node-caption"
+                      x={layout.x}
+                      y={layout.y + 34}
+                      textAnchor="middle"
+                    >
+                      {node.caption}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
+        </div>
+      </div>
+  );
 }
 
 function AnatomyInspector({
@@ -401,70 +627,7 @@ function AnatomyInspector({
   );
 }
 
-function TopologyAnatomyInspector({ topology }: { topology: AgentTopology }) {
-  const isPlannerExecutor = topology.topology_type === "planner_executor";
-  const title = isPlannerExecutor ? "R5 计划污染" : "R6 检索上下文投毒";
-  const description = isPlannerExecutor
-    ? "不可信内容进入规划器后，被包装成任务计划并影响执行器；需要重点检查计划通道和执行器的工具调用边界。"
-    : "外部知识库内容经检索器进入智能体上下文；需要重点检查知识库来源、检索结果净化和下游工具权限。";
-  const untrustedEdges = topology.edges.filter(
-    (edge) => edge.carries_untrusted_content,
-  );
 
-  return (
-    <aside className="anatomy-inspector anatomy-topology-inspector" aria-label="拓扑风险解释">
-      <div className="anatomy-inspector-heading">
-        <span>拓扑风险</span>
-        <h2>{title}</h2>
-      </div>
-      <p>{description}</p>
-      <dl className="anatomy-topology-metrics">
-        <div>
-          <dt>节点</dt>
-          <dd>{topology.nodes.length}</dd>
-        </div>
-        <div>
-          <dt>通道</dt>
-          <dd>{topology.edges.length}</dd>
-        </div>
-        <div>
-          <dt>不可信通道</dt>
-          <dd>{untrustedEdges.length}</dd>
-        </div>
-      </dl>
-      <section className="anatomy-detail-block">
-        <span>审查重点</span>
-        <ul className="anatomy-evidence-list">
-          {untrustedEdges.map((edge) => (
-            <li key={`${edge.from_node}-${edge.to_node}-${edge.channel}`}>
-              <strong>{edge.channel}</strong>
-              <p>{edge.from_node} → {edge.to_node}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </aside>
-  );
-}
-function TopologyRiskCard({ topology }: { topology: AgentTopology }) {
-  const isPlannerExecutor = topology.topology_type === "planner_executor";
-  const riskId = isPlannerExecutor ? "R5" : "R6";
-  const riskName = isPlannerExecutor ? "计划污染" : "检索上下文投毒";
-  const story = isPlannerExecutor
-    ? "恶意内容进入 Planner 生成的 task plan，再影响 Executor 的危险工具调用。"
-    : "外部文档进入知识库后被 Retriever 取回，污染 Agent 上下文并影响工具调用。";
-
-  return (
-    <article className="anatomy-topology-risk-card">
-      <span>{riskId}</span>
-      <div>
-        <strong>{riskName}</strong>
-        <p>{story}</p>
-      </div>
-      <em>待验证 · 拓扑风险</em>
-    </article>
-  );
-}
 export function AttackGraphWorkspace({
   agentId = DEFAULT_ANATOMY_AGENT_ID,
   onNavigate,
@@ -484,6 +647,23 @@ export function AttackGraphWorkspace({
     [repositoryResult.viewModel, selectedPathId],
   );
   const isTopologyMode = topology?.topology_type !== "single";
+  // Topology mode focuses on the topology's own risk pattern (R5 planner_executor
+  // / R6 rag_agent). When the loaded attack graph carries no matching path, the
+  // projected path is null and the stage renders the explicit insufficient-data
+  // state rather than fabricating planner/retriever nodes from single-mode data.
+  const topologyPathId =
+    topology?.topology_type === "planner_executor"
+      ? "R5"
+      : topology?.topology_type === "rag_agent"
+        ? "R6"
+        : null;
+  const topologyPath = useMemo(
+    () =>
+      topologyPathId
+        ? (viewModel.paths.find((path) => path.id === topologyPathId) ?? null)
+        : null,
+    [viewModel.paths, topologyPathId],
+  );
   const dataSourceLabel =
     repositoryResult.source === "api"
       ? "API 图谱"
@@ -737,28 +917,12 @@ export function AttackGraphWorkspace({
 
       <div className="anatomy-body">
         <div className="anatomy-graph-column anatomy-reveal">
-          {isTopologyMode && topology ? (
-            <section className="anatomy-topology-map" aria-label="当前 Agent 多节点拓扑">
-              <div className="anatomy-topology-heading">
-                <div>
-                  <span className="overview-kicker">拓扑架构</span>
-                  <h2>{topology.topology_type}</h2>
-                </div>
-                <span>{topology.nodes.length} 节点 · {topology.edges.length} 通道</span>
-              </div>
-              <TopologyFlow
-                ariaLabel={`${topology.topology_type} 攻击面拓扑图`}
-                topology={topology}
-              />
-              <p className="anatomy-topology-caption">
-                {topology.topology_type === "planner_executor"
-                  ? "R5 计划污染：不可信内容进入规划器后，沿任务计划通道影响执行器。"
-                  : "R6 检索上下文投毒：不可信知识库内容沿检索通道进入智能体。"}
-              </p>
-              <div className="anatomy-topology-risk-list" aria-label="拓扑风险路径">
-                <TopologyRiskCard topology={topology} />
-              </div>
-            </section>
+          {isTopologyMode ? (
+            <TopologyRiskPathStage
+              graphNodes={viewModel.graph.nodes}
+              path={topologyPath}
+              topology={topology}
+            />
           ) : (
             <>
           <div className="anatomy-map">
@@ -893,12 +1057,14 @@ export function AttackGraphWorkspace({
           </div>
           </div>
 
+            </>
+          )}
           <div className="anatomy-path-list" aria-label="风险路径筛选">
-            {viewModel.paths.map((path) => (
+            {(isTopologyMode ? (topologyPath ? [topologyPath] : []) : viewModel.paths).map((path) => (
               <button
                 key={path.id}
                 className={`anatomy-path-card is-${path.status}`}
-                data-active={path.id === viewModel.selectedPathId}
+                data-active={isTopologyMode || path.id === viewModel.selectedPathId}
                 onClick={() => setSelectedPathId(path.id)}
                 type="button"
               >
@@ -908,22 +1074,17 @@ export function AttackGraphWorkspace({
               </button>
             ))}
           </div>
-            </>
-          )}
         </div>
 
-        <div className="anatomy-side anatomy-reveal">          {isTopologyMode && topology ? (
-            <TopologyAnatomyInspector topology={topology} />
-          ) : (
-            <AnatomyInspector
-              dataSourceLabel={dataSourceLabel}
-              errorMessage={repositoryResult.errorMessage ?? null}
-              mode={viewModel.mode}
-              onVerify={verifySelectedPath}
-              path={viewModel.selectedPath}
-              selectedNode={selectedNode}
-            />
-          )}
+        <div className="anatomy-side anatomy-reveal">
+          <AnatomyInspector
+            dataSourceLabel={dataSourceLabel}
+            errorMessage={repositoryResult.errorMessage ?? null}
+            mode={viewModel.mode}
+            onVerify={verifySelectedPath}
+            path={isTopologyMode ? topologyPath : viewModel.selectedPath}
+            selectedNode={isTopologyMode ? null : selectedNode}
+          />
         </div>
       </div>
     </section>

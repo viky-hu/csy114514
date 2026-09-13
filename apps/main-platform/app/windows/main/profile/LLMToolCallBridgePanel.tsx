@@ -45,7 +45,7 @@ type BridgePoint = {
 
 type BridgeRoute = {
   id: string;
-  kind: "branch" | "no";
+  kind: "branch" | "no" | "confirmation";
   d: string;
 };
 
@@ -53,6 +53,9 @@ type BridgeGeometry = {
   width: number;
   height: number;
   routes: BridgeRoute[];
+  noLabels: Array<{ id: string; x: number; y: number }>;
+  sandboxCenterY: number;
+  sideLaneTop: number;
 };
 
 const HANDOFF_ICONS = {
@@ -84,6 +87,10 @@ function routeToSandbox(
   return `M ${from.x} ${from.y} H ${railX} V ${sandbox.y} H ${sandbox.x}`;
 }
 
+function routeToConfirmation(from: BridgePoint, to: BridgePoint): string {
+  return `M ${from.x} ${from.y} V ${to.y}`;
+}
+
 export function LLMToolCallBridgePanel({
   onSelectDisplayIndex,
   isVisible,
@@ -97,7 +104,8 @@ export function LLMToolCallBridgePanel({
     const root = innerRef.current;
     if (!root) return;
 
-    const measure = () => {
+    let settleFrame: number | null = null;
+    const measure = (isSettled = false) => {
       const rootRect = root.getBoundingClientRect();
       const point = (name: string): BridgePoint | null => {
         const anchor = root.querySelector<HTMLElement>(
@@ -110,20 +118,35 @@ export function LLMToolCallBridgePanel({
           y: rect.top + rect.height / 2 - rootRect.top,
         };
       };
+      const blockedPoint = (displayId: string): BridgePoint | null => {
+        const blocked = root.querySelector<HTMLElement>(
+          `[data-bridge-blocked="${displayId}"]`,
+        );
+        if (!blocked) return null;
+        const rect = blocked.getBoundingClientRect();
+        return {
+          x: rect.right - rootRect.left,
+          y: rect.top + rect.height / 2 - rootRect.top,
+        };
+      };
 
       const perCall = point("per-call-out");
       const checkPoints = TOOL_CALL_PIPELINE.map((stage) =>
         point(`check-${stage.displayId}-in`),
       );
       const sandbox = point("sandbox-in");
-      const noPoints = TOOL_CALL_PIPELINE.map((stage) =>
-        point(`check-${stage.displayId}-no`),
+      const sandboxOut = point("sandbox-out");
+      const confirmationIn = point("confirmation-in");
+      const blockedPoints = TOOL_CALL_PIPELINE.map((stage) =>
+        blockedPoint(stage.displayId),
       );
       if (
         !perCall ||
         checkPoints.some((item) => !item) ||
         !sandbox ||
-        noPoints.some((item) => !item)
+        !sandboxOut ||
+        !confirmationIn ||
+        blockedPoints.some((item) => !item)
       ) {
         return;
       }
@@ -137,31 +160,66 @@ export function LLMToolCallBridgePanel({
         d: routeToCheck(perCall, target, trunkX),
       }));
 
-      const railX = Math.max(...(noPoints as BridgePoint[]).map((item) => item.x)) + 18;
-      (noPoints as BridgePoint[]).forEach((from, index) => {
+      const railX = Math.min(
+        rootRect.width - 16,
+        Math.max(...(blockedPoints as BridgePoint[]).map((item) => item.x)) + 36,
+      );
+      const blockedYs = (blockedPoints as BridgePoint[]).map((item) => item.y);
+      const sandboxCenterY = (Math.min(...blockedYs) + Math.max(...blockedYs)) / 2;
+      const sideLane = root.querySelector<HTMLElement>(".llm-bridge-side-lane");
+      const inlineSideLaneTop = sideLane?.style.top ?? "";
+      const currentSideLaneTop = inlineSideLaneTop.endsWith("px")
+        ? Number.parseFloat(inlineSideLaneTop)
+        : rootRect.height / 2;
+      const sideLaneDeltaY = sandboxCenterY - sandbox.y;
+      const sideLaneTop = currentSideLaneTop + sideLaneDeltaY;
+      const noLabels: BridgeGeometry["noLabels"] = [];
+      (blockedPoints as BridgePoint[]).forEach((from, index) => {
         routes.push({
           id: `no-${TOOL_CALL_PIPELINE[index]!.displayId}`,
           kind: "no",
-          d: routeToSandbox(from, sandbox, railX),
+          d: routeToSandbox(from, { ...sandbox, y: sandboxCenterY }, railX),
         });
+        noLabels.push({
+          id: TOOL_CALL_PIPELINE[index]!.displayId,
+          x: (from.x + railX) / 2,
+          y: from.y - 5,
+        });
+      });
+      routes.push({
+        id: "sandbox-confirmation",
+        kind: "confirmation",
+        d: routeToConfirmation(
+          { ...sandboxOut, y: sandboxOut.y + sideLaneDeltaY },
+          { ...confirmationIn, y: confirmationIn.y + sideLaneDeltaY },
+        ),
       });
 
       setGeometry({
         width: Math.max(1, rootRect.width),
         height: Math.max(1, rootRect.height),
         routes,
+        noLabels,
+        sandboxCenterY,
+        sideLaneTop,
       });
+
+      if (!isSettled) {
+        settleFrame = window.requestAnimationFrame(() => measure(true));
+      }
     };
 
-    const frame = window.requestAnimationFrame(measure);
-    const observer = new ResizeObserver(measure);
+    const frame = window.requestAnimationFrame(() => measure());
+    const observer = new ResizeObserver(() => measure());
     observer.observe(root);
-    window.addEventListener("resize", measure);
+    const handleResize = () => measure();
+    window.addEventListener("resize", handleResize);
 
     return () => {
       window.cancelAnimationFrame(frame);
+      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
       observer.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
@@ -232,7 +290,7 @@ export function LLMToolCallBridgePanel({
             {geometry?.routes.map((route) => (
               <path
                 key={route.id}
-                className={`llm-bridge-route${route.kind === "no" ? " llm-bridge-route-no" : ""}`}
+                className={`llm-bridge-route${route.kind === "no" ? " llm-bridge-route-no" : route.kind === "confirmation" ? " llm-bridge-route-confirmation" : ""}`}
                 d={route.d}
               />
             ))}
@@ -334,33 +392,52 @@ export function LLMToolCallBridgePanel({
                 <div className="llm-bridge-decision" aria-hidden="true">
                   <strong>blocked?</strong>
                 </div>
-                <div className="llm-bridge-blocked">
+                <div className="llm-bridge-blocked" data-bridge-blocked={stage.displayId}>
                   <Ban size={17} aria-hidden="true" />
                   <strong>yes → 阻断</strong>
                   <code>{stage.blockedLabel}</code>
                 </div>
-                <span className="llm-bridge-no-path" data-bridge-anchor={`check-${stage.displayId}-no`}>no</span>
               </div>
             ))}
           </section>
 
-          <div className="llm-bridge-bottom" data-bridge-animate>
+          <div className="llm-bridge-no-labels" aria-hidden="true">
+            {geometry?.noLabels.map((label) => (
+              <span
+                key={label.id}
+                className="llm-bridge-no-path"
+                data-bridge-animate
+                data-bridge-anchor={`check-${label.id}-no`}
+                style={{ left: `${label.x}px`, top: `${label.y}px` }}
+              >
+                no
+              </span>
+            ))}
+          </div>
+
+          <div
+            className="llm-bridge-side-lane"
+            data-bridge-animate
+            style={{ top: geometry ? `${geometry.sideLaneTop}px` : "50%" }}
+          >
             <section className="llm-bridge-sandbox" aria-label="Sandbox 执行 tool call">
               <span className="llm-bridge-anchor" data-bridge-anchor="sandbox-in" />
+              <span className="llm-bridge-anchor llm-bridge-sandbox-out" data-bridge-anchor="sandbox-out" />
               <div className="llm-bridge-sandbox-main">
                 <CheckCircle2 size={22} aria-hidden="true" />
                 <strong>Sandbox 执行 tool call</strong>
               </div>
-              <button
-                type="button"
-                className={`llm-bridge-confirm${activeStageId === SANDBOX_CONFIRMATION.displayId ? " is-active" : ""}`}
-                aria-label={`${SANDBOX_CONFIRMATION.displayId} ${SANDBOX_CONFIRMATION.label}，作用范围：${SANDBOX_CONFIRMATION.scope}`}
-                onClick={() => selectStage(SANDBOX_CONFIRMATION.displayIndex, SANDBOX_CONFIRMATION.displayId)}
-              >
-                <LockKeyhole size={17} aria-hidden="true" />
-                <strong>D8 确认门控</strong>
-              </button>
             </section>
+            <button
+              type="button"
+              className={`llm-bridge-confirm${activeStageId === SANDBOX_CONFIRMATION.displayId ? " is-active" : ""}`}
+              aria-label={`${SANDBOX_CONFIRMATION.displayId} ${SANDBOX_CONFIRMATION.label}，作用范围：${SANDBOX_CONFIRMATION.scope}`}
+              onClick={() => selectStage(SANDBOX_CONFIRMATION.displayIndex, SANDBOX_CONFIRMATION.displayId)}
+            >
+              <span className="llm-bridge-anchor" data-bridge-anchor="confirmation-in" />
+              <LockKeyhole size={17} aria-hidden="true" />
+              <strong>D8 确认门控</strong>
+            </button>
           </div>
         </div>
       </div>

@@ -1,3 +1,9 @@
+import type {
+  AgentTopology,
+  TopologyNode,
+  TopologyNodeRole,
+} from "../topology/topology-types.ts";
+
 export type SecurityProfilePermission = "ALLOW" | "CONFIRM" | "DENY";
 
 type AgentProfile = {
@@ -87,9 +93,13 @@ export type SecurityProfileNode = {
   meta: Array<{ label: string; value: string }>;
   permission?: SecurityProfilePermission;
   subtitle: string;
+  /** Present only on topology-projected nodes; drives role-specific icons and copy. */
+  topologyRole?: TopologyNodeRole;
 };
 
 export type SecurityProfileRoute = {
+  carriesUntrustedContent?: boolean;
+  channel?: string;
   description: string;
   id: string;
   sourceNodeId: string;
@@ -178,6 +188,123 @@ function createSourceNode(source: string, profile: AgentProfile): SecurityProfil
     ],
     permission,
     subtitle: isUntrusted ? "UNTRUSTED SOURCE" : "DATA SOURCE",
+  };
+}
+
+const TOPOLOGY_ROLE_LABELS: Record<TopologyNode["role"], string> = {
+  AGENT: "主 Agent",
+  EXECUTOR: "任务执行",
+  KNOWLEDGE_BASE: "知识库",
+  PLANNER: "任务规划",
+  RETRIEVER: "上下文检索",
+};
+
+function createTopologyProfileNode(node: TopologyNode): SecurityProfileNode {
+  const isKnowledgeBase = node.role === "KNOWLEDGE_BASE";
+  const roleLabel = TOPOLOGY_ROLE_LABELS[node.role];
+  const trustBoundary = node.trust_boundary.toUpperCase();
+
+  return {
+    columnId: isKnowledgeBase ? "input-data" : "agent-core",
+    detail:
+      node.role === "KNOWLEDGE_BASE"
+        ? "知识库位于外部信任边界，存储的检索内容不可默认视为可信；进入主 Agent 前需按 retrieval 通道核验。"
+        : `${roleLabel}是后端拓扑声明的逻辑节点，当前信任边界为 ${trustBoundary}。`,
+    evidence: [
+      `topology.nodes: ${node.id}`,
+      `role: ${node.role}`,
+      `trust_boundary: ${node.trust_boundary}`,
+      `tools: ${node.tools.join(" / ") || "无"}`,
+    ],
+    id: node.id,
+    kind: isKnowledgeBase ? "data" : "agent",
+    label: roleLabel,
+    labels: isKnowledgeBase
+      ? [node.role, "UNTRUSTED", "EXTERNAL"]
+      : [node.role, trustBoundary],
+    meta: [
+      { label: "角色", value: node.role },
+      { label: "信任边界", value: trustBoundary },
+      { label: "工具", value: node.tools.join(" / ") || "无" },
+    ],
+    subtitle: isKnowledgeBase
+      ? "EXTERNAL / UNTRUSTED"
+      : `${node.role} · ${trustBoundary}`,
+    topologyRole: node.role,
+  };
+}
+
+export function createTopologySecurityProfileViewModel(
+  viewModel: SecurityProfileViewModel,
+  topology: AgentTopology,
+): SecurityProfileViewModel {
+  if (topology.topology_type === "single") {
+    return viewModel;
+  }
+
+  const topologyNodes = topology.nodes.map(createTopologyProfileNode);
+
+  // Context nodes: keep only the single-node assets that remain semantically true
+  // for the active topology. A persistent-memory asset and a dangerous tool sink
+  // hold for both non-single topologies; the untrusted web entry only belongs to
+  // planner_executor, while rag_agent expresses its external entry through the
+  // knowledge_base node itself (never alongside the web source, which would overlap
+  // the same first-column slot). Single-only email data and ALLOW read tools are
+  // omitted so the projected canvas never stacks irrelevant single-mode corners.
+  const contextNodes = viewModel.nodes.filter((node) => {
+    if (node.kind === "memory") {
+      return true;
+    }
+    if (
+      node.kind === "tool" &&
+      (node.labels.includes("DANGEROUS") || node.permission === "CONFIRM")
+    ) {
+      return true;
+    }
+    if (node.kind === "source" && topology.topology_type === "planner_executor") {
+      return true;
+    }
+    return false;
+  });
+
+  const nodes = [...contextNodes, ...topologyNodes];
+  const nodesByColumn = new Map<SecurityProfileColumnId, string[]>();
+
+  for (const node of nodes) {
+    const ids = nodesByColumn.get(node.columnId) ?? [];
+    ids.push(node.id);
+    nodesByColumn.set(node.columnId, ids);
+  }
+
+  // Default inspector subject is the topology's primary agent: the single AGENT
+  // role for rag_agent, else the first agent-core topology node (planner for
+  // planner_executor). It never falls back to the single-mode agent-corpmate node.
+  const mainAgent =
+    topology.topology_type === "rag_agent"
+      ? (topologyNodes.find((node) => node.topologyRole === "AGENT") ?? null)
+      : (topologyNodes.find((node) => node.columnId === "agent-core") ?? null);
+
+  const topologyRoutes: SecurityProfileRoute[] = topology.edges.map((edge) => ({
+    carriesUntrustedContent: edge.carries_untrusted_content,
+    channel: edge.channel,
+    description: edge.carries_untrusted_content
+      ? `不可信内容经 ${edge.channel} 从${TOPOLOGY_ROLE_LABELS[topology.nodes.find((node) => node.id === edge.from_node)?.role ?? "AGENT"]}进入${TOPOLOGY_ROLE_LABELS[topology.nodes.find((node) => node.id === edge.to_node)?.role ?? "AGENT"]}。`
+      : `${edge.channel} 从 ${edge.from_node} 进入 ${edge.to_node}。`,
+    id: `topology-${edge.from_node}-${edge.to_node}`,
+    sourceNodeId: edge.from_node,
+    targetNodeId: edge.to_node,
+    type: edge.channel,
+  }));
+
+  return {
+    ...viewModel,
+    agent: mainAgent ?? topologyNodes[0] ?? viewModel.agent,
+    columns: viewModel.columns.map((column) => ({
+      ...column,
+      nodeIds: nodesByColumn.get(column.id) ?? [],
+    })),
+    nodes,
+    routes: topologyRoutes,
   };
 }
 

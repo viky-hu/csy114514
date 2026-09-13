@@ -50,7 +50,7 @@ function formatIndex(index: number) {
 export function MainLineSidebar({
   activeKey,
   id,
-  itemGap = 42,
+  itemGap = 36,
   isCollapsed = false,
   items,
   markerLength = 72,

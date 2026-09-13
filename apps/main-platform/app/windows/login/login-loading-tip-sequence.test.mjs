@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createLoginLoadingTipSequence,
   createLoginMockLoadingPlan,
+  LOGIN_LOADING_BRIEF_TOTAL_MS,
   LOGIN_LOADING_MOCK_MAX_MS,
   LOGIN_LOADING_MOCK_MIN_MS,
 } from "./login-loading-tip-sequence.ts";
@@ -48,4 +49,21 @@ test("a future backend phase event replaces the next tip only at an exit boundar
   const next = sequence.advanceAfterExit();
   assert.equal(next.kind, "tip");
   assert.equal(next.presentation.tip.phase, "preflight");
+});
+
+test("brief loading keeps a single tip around the one-second window", () => {
+  const plan = createLoginMockLoadingPlan("corpmate-v0", true);
+  const defaultPlan = createLoginMockLoadingPlan("corpmate-v0");
+
+  assert.equal(plan.steps.length, 1);
+  assert.ok(plan.totalDurationMs <= LOGIN_LOADING_BRIEF_TOTAL_MS);
+
+  const sequence = createLoginLoadingTipSequence("corpmate-v0", true);
+  assert.equal(sequence.start().kind, "tip");
+  assert.deepEqual(sequence.advanceAfterExit(), { kind: "complete" });
+
+  // The full path remains untouched at 7–10s and multi-step.
+  assert.ok(defaultPlan.steps.length >= 3 && defaultPlan.steps.length <= 5);
+  assert.ok(defaultPlan.totalDurationMs >= LOGIN_LOADING_MOCK_MIN_MS);
+  assert.ok(defaultPlan.totalDurationMs <= LOGIN_LOADING_MOCK_MAX_MS);
 });

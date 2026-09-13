@@ -12,6 +12,11 @@ const layoutSource = readFileSync(
   "utf8",
 );
 
+const chainSource = readFileSync(
+  new URL("./anatomy-topology-chain.ts", import.meta.url),
+  "utf8",
+);
+
 const mainWindowSource = readFileSync(
   new URL("../MainWindow.tsx", import.meta.url),
   "utf8",
@@ -160,4 +165,66 @@ test("anatomy graph keeps R4 as the default focus and reuses the graph primitive
   assert.match(layoutSource, /memory-persistent/);
   assert.match(layoutSource, /agent-first-pass/);
   assert.match(layoutSource, /agent-recall/);
+});
+
+test("topology modes render the selected risk path instead of embedding the shared topology flow", () => {
+  assert.doesNotMatch(graphSource, /TopologyFlow/);
+  assert.match(graphSource, /TopologyRiskPathStage/);
+  assert.match(graphSource, /path\.steps/);
+  assert.match(graphSource, /topologyPathId/);
+  assert.match(graphSource, /planner_executor/);
+  assert.match(graphSource, /rag_agent/);
+  assert.doesNotMatch(graphSource, /anatomy-topology-path-node/);
+});
+
+test("topology risk paths reuse the anatomy SVG skeleton instead of text cards", () => {
+  assert.match(graphSource, /planTopologyChain\(\{ graphNodes, path, topology \}\)/);
+  assert.match(graphSource, /getTopologyStepPhaseXs\(chain\.length\)/);
+  assert.match(graphSource, /createTopologyChainNodeLayout\(phaseXs\[index\]\)/);
+  assert.match(graphSource, /buildTopologyChainSegments\(layouts\)/);
+  assert.match(graphSource, /anatomy-topology-channel-label/);
+  assert.match(graphSource, /anatomy-svg-node is-\$\{node\.role\} is-active/);
+  assert.match(graphSource, /graphNodes=\{viewModel\.graph\.nodes\}/);
+  assert.match(graphSource, /ANATOMY_TOPOLOGY_PHASES/);
+  assert.match(graphSource, /ANATOMY_PHASE_RAIL_PATH/);
+  assert.match(graphSource, /anatomy-map is-topology is-\$\{status\}/);
+  assert.match(graphSource, /viewBox=\{`0 0 \$\{ANATOMY_GRAPH_VIEWBOX\.width\} \$\{ANATOMY_GRAPH_VIEWBOX\.height\}`\}/);
+  // The topology stage renders only the graph canvas: no risk-path heading,
+  // story paragraph, status badge, or caption block may shrink the canvas.
+  assert.doesNotMatch(graphSource, /anatomy-topology-path-heading/);
+  assert.doesNotMatch(graphSource, /anatomy-topology-path-story/);
+  assert.doesNotMatch(graphSource, /anatomy-topology-path-caption/);
+  assert.doesNotMatch(graphSource, /anatomy-topology-path\b/);
+});
+
+test("topology risk paths never fabricate nodes when the backend returns no path", () => {
+  assert.match(graphSource, /className="anatomy-map is-topology"/);
+  assert.match(graphSource, /anatomy-map-empty/);
+  assert.match(graphSource, /路径数据不足/);
+  assert.match(graphSource, /不会补造节点或连线/);
+  assert.match(graphSource, /plan\.missing\.join/);
+  assert.match(graphSource, /ShieldQuestion/);
+});
+
+test("topology chain layout stays inside the anatomy five-phase rail", () => {
+  assert.match(layoutSource, /ANATOMY_TOPOLOGY_NODE_Y = offsetY\(166\)/);
+  assert.match(layoutSource, /ANATOMY_TOPOLOGY_NODE_WIDTH = ANATOMY_NODE_WIDTH/);
+  assert.match(layoutSource, /ANATOMY_TOPOLOGY_NODE_HEIGHT = ANATOMY_NODE_HEIGHT/);
+  assert.match(layoutSource, /export function getTopologyStepPhaseXs/);
+  assert.match(layoutSource, /export function createTopologyChainNodeLayout/);
+  assert.match(layoutSource, /export function buildTopologyChainSegments/);
+  assert.match(layoutSource, /labelY: y - source\.height \/ 2 - 18/);
+  assert.match(layoutSource, /ANATOMY_PHASE_RAIL_PATH/);
+});
+
+test("topology chain is planned from real topology nodes and real topology edges", () => {
+  assert.match(chainSource, /export function planTopologyChain/);
+  assert.match(chainSource, /export function orderTopologyChainNodes/);
+  assert.match(chainSource, /kind: "missing"/);
+  assert.match(chainSource, /reason: "当前 Agent 未接入多节点拓扑。"/);
+  assert.match(chainSource, /reason: "拓扑与攻击图谱未同时返回完整节点。"/);
+  assert.match(chainSource, /carries_untrusted_content/);
+  assert.match(chainSource, /formatChannelLabel/);
+  assert.doesNotMatch(chainSource, /TASK PLAN|RETRIEVAL|External Documents|Knowledge Base/);
+  assert.doesNotMatch(chainSource, /stageLabel/);
 });

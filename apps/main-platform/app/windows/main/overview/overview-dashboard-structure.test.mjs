@@ -262,3 +262,25 @@ test("R4 graph paints layer info as an independent foreground text layer", () =>
   assert.match(mainStyles, /\.overview-r4-layer-title \{[\s\S]*rgba\(17,\s*22,\s*34,\s*0\.88\)/);
   assert.match(mainStyles, /\.overview-r4-layer-subtitle \{[\s\S]*rgba\(17,\s*22,\s*34,\s*0\.66\)/);
 });
+
+test("non-single overview summarizes the truthful topology instead of duplicating a topology canvas", () => {
+  assert.doesNotMatch(dashboardSource, /TopologyFlow/);
+  assert.match(dashboardSource, /topology-summary/);
+  assert.match(dashboardSource, /真实逻辑节点/);
+  assert.match(dashboardSource, /不可信通道/);
+  assert.match(dashboardSource, /开始拓扑测评/);
+  assert.match(dashboardSource, /onNavigate\("anatomy"\)/);
+});
+
+test("non-single overview names the topology risk pattern it recommends", () => {
+  assert.match(dashboardSource, /plan_contamination: "计划污染"/);
+  assert.match(dashboardSource, /rag_context_poisoning: "RAG 上下文投毒"/);
+  assert.match(
+    dashboardSource,
+    /activeTopology\.topology_type === "planner_executor"\s*\?\s*"plan_contamination"\s*:\s*"rag_context_poisoning"/,
+  );
+  assert.match(
+    dashboardSource,
+    /\{recommendedRiskPattern \?\? viewModel\.r4Finding\.riskPatternId\}/,
+  );
+});

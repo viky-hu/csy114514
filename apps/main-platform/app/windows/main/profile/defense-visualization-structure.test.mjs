@@ -108,7 +108,10 @@ test("D2 keeps its source-backed detail while the bridge exposes a canvas-only w
   assert.match(bridge, /data-bridge-anchor="per-call-out"/);
   assert.match(bridge, /llm-bridge-decision/);
   assert.match(bridge, /llm-bridge-blocked/);
+  assert.match(bridge, /data-bridge-blocked=\{stage.displayId\}/);
   assert.match(bridge, /llm-bridge-no-path/);
+  assert.match(bridge, /llm-bridge-no-labels/);
+  assert.match(bridge, /noLabels/);
   assert.match(bridge, /llm-bridge-sandbox/);
   assert.match(bridge, /llm-bridge-reasoning-stage/);
   assert.match(bridge, /REASONING_ICONS/);
@@ -161,6 +164,8 @@ test("bridge uses the left stage rail and the per-call fan-out contract", () => 
   assert.match(bridge, /data-bridge-anchor="per-call-out"/);
   assert.match(bridge, /data-bridge-anchor=\{`check-.*displayId.*-in`\}/);
   assert.match(bridge, /routeToCheck/);
+  assert.match(bridge, /blockedPoint/);
+  assert.match(bridge, /routeToSandbox/);
   assert.doesNotMatch(bridge, /D2 HANDOFF/);
   assert.doesNotMatch(bridge, /ChevronDown/);
   assert.doesNotMatch(bridge, /llm-bridge-flow-marker/);
@@ -275,7 +280,11 @@ test("bridge uses one fluid viewport canvas without page-level horizontal overfl
   assert.match(bridgeStyles, /grid-template-columns:\s*var\(--llm-bridge-rail\) minmax\(0, 1fr\)/);
   assert.match(bridgeStyles, /@media \(max-width: 1100px\)[\s\S]*width: 100%[\s\S]*min-width: 0/);
   assert.match(bridgeStyles, /@media \(max-width: 700px\)[\s\S]*grid-template-rows:/);
-  assert.match(bridgeStyles, /grid-template-columns:\s*var\(--llm-bridge-rail\) minmax\(0, 1\.32fr\)/);
+  assert.match(bridgeStyles, /grid-template-columns:\s*var\(--llm-bridge-rail\) minmax\(112px, 0\.72fr\)/);
+  assert.match(bridgeStyles, /\.llm-bridge-side-lane/);
+  assert.match(bridgeStyles, /\.llm-bridge-route-confirmation/);
+  assert.match(bridgeStyles, /\.llm-bridge-no-labels\s*\{[\s\S]*position:\s*absolute/);
+  assert.doesNotMatch(bridgeStyles, /\.llm-bridge-no-path::before/);
   assert.doesNotMatch(bridgeStyles, /grid-template-columns:\s*repeat\(5/);
   assert.match(bridgeStyles, /grid-template-rows:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(bridgeStyles, /\.llm-bridge-stage-arrow/);

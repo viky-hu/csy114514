@@ -85,6 +85,14 @@ export const PROFILE_COLUMNS: ProfileColumnLayout[] = [
 ] as const;
 
 export const PROFILE_NODE_LAYOUTS = {
+  topologyAgent: {
+    columnId: "agent-core",
+    height: 92,
+    id: "agent",
+    width: 164,
+    x: 397,
+    y: 326,
+  },
   agent: {
     columnId: "agent-core",
     height: 104,
@@ -92,6 +100,46 @@ export const PROFILE_NODE_LAYOUTS = {
     width: 174,
     x: 397,
     y: 256,
+  },
+  executor: {
+    columnId: "agent-core",
+    height: 92,
+    id: "executor",
+    width: 164,
+    x: 397,
+    y: 326,
+  },
+  knowledgeBase: {
+    columnId: "input-data",
+    height: 84,
+    id: "knowledge-base",
+    width: 164,
+    x: 166,
+    y: 184,
+  },
+  knowledgeBaseSnakeCase: {
+    columnId: "input-data",
+    height: 84,
+    id: "knowledge_base",
+    width: 164,
+    x: 166,
+    y: 184,
+  },
+  planner: {
+    columnId: "agent-core",
+    height: 92,
+    id: "planner",
+    width: 164,
+    x: 397,
+    y: 184,
+  },
+  retriever: {
+    columnId: "agent-core",
+    height: 92,
+    id: "retriever",
+    width: 164,
+    x: 397,
+    y: 184,
   },
   dataEmail: {
     columnId: "input-data",
@@ -139,9 +187,20 @@ export const PROFILE_LAYOUT_BY_NODE_ID = Object.fromEntries(
   Object.values(PROFILE_NODE_LAYOUTS).map((layout) => [layout.id, layout]),
 ) as Record<string, ProfileGraphLayout>;
 
+const PROFILE_BASE_LAYOUT_IDS = new Set([
+  "agent-corpmate",
+  "data-email",
+  "memory-persistent",
+  "source-browser",
+  "tool-email-read",
+  "tool-email-send",
+]);
+
 export type ProfileNodeAnchor = "bottom" | "left" | "right" | "top";
 
 export type ProfileRouteDefinition = {
+  carriesUntrustedContent?: boolean;
+  channel?: string;
   id: string;
   routeTone: "amber" | "blue" | "green" | "red";
   sourceAnchor: ProfileNodeAnchor;
@@ -158,6 +217,8 @@ export type ProfileRouteDefinition = {
 
 export type ProfileRouteSegment = ProfileRouteDefinition & {
   d: string;
+  labelX: number;
+  labelY: number;
 };
 
 export function getProfileNodeBounds(layout: ProfileGraphLayout) {
@@ -295,16 +356,71 @@ export function buildProfileCurvePath(route: ProfileRouteDefinition) {
   ].join(" ");
 }
 
-export function buildProfileRouteSegments(): ProfileRouteSegment[] {
-  return PROFILE_ROUTE_DEFINITIONS.map((route) => ({
+function createProfileRouteDefinition(route: {
+  carriesUntrustedContent?: boolean;
+  channel?: string;
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  type: string;
+}): ProfileRouteDefinition | null {
+  const source = PROFILE_LAYOUT_BY_NODE_ID[route.sourceNodeId];
+  const target = PROFILE_LAYOUT_BY_NODE_ID[route.targetNodeId];
+
+  if (!source || !target) {
+    return null;
+  }
+
+  const sameColumn = source.x === target.x;
+
+  return {
+    carriesUntrustedContent: route.carriesUntrustedContent,
+    channel: route.channel ?? route.type,
+    id: route.id,
+    routeTone: route.carriesUntrustedContent ? "amber" : "blue",
+    sourceAnchor: sameColumn ? "bottom" : "right",
+    sourceNodeId: route.sourceNodeId,
+    targetAnchor: sameColumn ? "top" : "left",
+    targetNodeId: route.targetNodeId,
+    visualIntent: route.carriesUntrustedContent ? "inbound" : "tool-read",
+  };
+}
+
+export function buildProfileRouteSegments(
+  routes?: Array<{
+    carriesUntrustedContent?: boolean;
+    channel?: string;
+    id: string;
+    sourceNodeId: string;
+    targetNodeId: string;
+    type: string;
+  }>,
+): ProfileRouteSegment[] {
+  const definitions = routes
+    ? routes
+        .map(createProfileRouteDefinition)
+        .filter((route): route is ProfileRouteDefinition => Boolean(route))
+    : PROFILE_ROUTE_DEFINITIONS;
+
+  return definitions.map((route) => ({
     ...route,
     d: buildProfileCurvePath(route),
+    labelX:
+      (PROFILE_LAYOUT_BY_NODE_ID[route.sourceNodeId].x +
+        PROFILE_LAYOUT_BY_NODE_ID[route.targetNodeId].x) /
+      2,
+    labelY:
+      (PROFILE_LAYOUT_BY_NODE_ID[route.sourceNodeId].y +
+        PROFILE_LAYOUT_BY_NODE_ID[route.targetNodeId].y) /
+      2 -
+      10,
   }));
 }
 
 export const profileHoverBands = PROFILE_COLUMNS.map((column) => {
   const columnLayouts = Object.values(PROFILE_NODE_LAYOUTS).filter(
-    (layout) => layout.columnId === column.id,
+    (layout) =>
+      layout.columnId === column.id && PROFILE_BASE_LAYOUT_IDS.has(layout.id),
   );
   const bounds = columnLayouts.map(getProfileNodeBounds);
 

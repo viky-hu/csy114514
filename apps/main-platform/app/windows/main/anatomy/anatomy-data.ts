@@ -29,6 +29,7 @@ type AttackGraphNodeFixture = {
   metadata: {
     description?: string;
     name?: string;
+    role?: string;
   };
   node_id: string;
   node_type: string;
@@ -115,7 +116,7 @@ export type AnatomyPathStep = {
   label: string;
   labels: string[];
   nodeType: string;
-  role: "agent" | "data" | "memory" | "source" | "tool";
+  role: "agent" | "data" | "executor" | "knowledge_base" | "memory" | "planner" | "retriever" | "source" | "tool";
   stage: AnatomyAttackStage;
   stageLabel: string;
 };
@@ -168,7 +169,7 @@ export type AnatomyViewModel = {
 };
 
 const DEFAULT_SELECTED_PATH_ID = "R4";
-const PATH_ORDER = ["R4", "R1", "R2", "R3"];
+const PATH_ORDER = ["R4", "R1", "R2", "R3", "R5", "R6"];
 
 const STAGE_LABELS: Record<AnatomyAttackStage, string> = {
   first_pass: "初次解析",
@@ -211,6 +212,18 @@ function getAgentNode(nodes: AttackGraphNodeFixture[]) {
   return getNodeBy(nodes, (node) => node.node_type === "AGENT");
 }
 
+function getAgentNodeByRole(nodes: AttackGraphNodeFixture[], role: string) {
+  return getNodeBy(nodes, (node) => node.node_type === "AGENT" && node.metadata.role?.toLowerCase() === role);
+}
+
+function getKnowledgeBaseNode(nodes: AttackGraphNodeFixture[]) {
+  return getNodeBy(nodes, (node) => node.node_type === "KNOWLEDGE_BASE" || node.metadata.role?.toLowerCase() === "knowledge_base");
+}
+
+function getExternalDocumentNode(nodes: AttackGraphNodeFixture[]) {
+  return getNodeBy(nodes, (node) => node.metadata.name === "External Documents" || node.metadata.role?.toLowerCase() === "external");
+}
+
 function getMemoryNode(nodes: AttackGraphNodeFixture[]) {
   return getNodeBy(
     nodes,
@@ -238,10 +251,18 @@ function getDangerousToolNode(
   );
 }
 
-function getNodeRole(node: AttackGraphNodeFixture | undefined): AnatomyPathStep["role"] {
+export function getAnatomyNodeRole(
+  node: AttackGraphNodeFixture | undefined,
+): AnatomyPathStep["role"] {
   if (!node) {
     return "agent";
   }
+
+  const role = node.metadata.role?.toLowerCase();
+  if (role === "planner") return "planner";
+  if (role === "executor") return "executor";
+  if (role === "retriever") return "retriever";
+  if (node.node_type === "KNOWLEDGE_BASE" || role === "knowledge_base") return "knowledge_base";
 
   if (node.node_type === "SOURCE") {
     return "source";
@@ -273,7 +294,7 @@ function createStep(
     label: node?.metadata.name ?? fallback,
     labels: node?.labels ?? [],
     nodeType: node?.node_type ?? "AGENT",
-    role: getNodeRole(node),
+    role: getAnatomyNodeRole(node),
     stage,
     stageLabel: STAGE_LABELS[stage],
   };
@@ -300,6 +321,25 @@ function createPathSteps(
       createStep(agentNode, agentProfile.manifest.name, "first_pass"),
       createStep(memoryNode, "memory.read / memory.write", "persistence"),
       createStep(agentNode, agentProfile.manifest.name, "recall"),
+      createStep(dangerousToolNode, "email.send", "sink"),
+    ];
+  }
+
+  if (pathId === "R5") {
+    return [
+      createStep(sourceNode, "browser.open_page", "ingress"),
+      createStep(getAgentNodeByRole(nodes, "planner"), "Planner", "first_pass"),
+      createStep(getAgentNodeByRole(nodes, "executor"), "Executor", "sensitive_read"),
+      createStep(dangerousToolNode, "email.send", "sink"),
+    ];
+  }
+
+  if (pathId === "R6") {
+    return [
+      createStep(getExternalDocumentNode(nodes), "External Documents", "ingress"),
+      createStep(getKnowledgeBaseNode(nodes), "Knowledge Base", "persistence"),
+      createStep(getAgentNodeByRole(nodes, "retriever"), "Retriever", "recall"),
+      createStep(getAgentNodeByRole(nodes, "agent"), agentProfile.manifest.name, "first_pass"),
       createStep(dangerousToolNode, "email.send", "sink"),
     ];
   }

@@ -8,6 +8,14 @@ export const LOGIN_LOADING_MOCK_MIN_MS = 7000;
 export const LOGIN_LOADING_MOCK_MAX_MS = 10000;
 export const LOGIN_LOADING_TIP_EXIT_MS = 180;
 
+/**
+ * Brief (“稍后再说”) path targets roughly one second of on-screen blue before
+ * the existing collapse animation hands off to the main window intro. Keeping
+ * it as a dedicated constant makes the short path’s timing explicit and
+ * distinct from the full 7–10s plan.
+ */
+export const LOGIN_LOADING_BRIEF_TOTAL_MS = 1000;
+
 const LOGIN_LOADING_TIP_ENTRANCE_BASE_MS = 280;
 const LOGIN_LOADING_TIP_ENTRANCE_STAGGER_MS = 20;
 const LOGIN_LOADING_TIP_ENTRANCE_MAX_MS = 650;
@@ -104,7 +112,53 @@ function createPhaseCycle(agentId: string, phase: LoadingTipPhase) {
   return orderedTips(agentId, phase).map(createPresentation);
 }
 
-export function createLoginMockLoadingPlan(agentId: string): LoginMockLoadingPlan {
+function getBriefHoldMs(singleEntranceMs: number) {
+  return Math.max(
+    LOGIN_LOADING_BRIEF_TOTAL_MS -
+      singleEntranceMs -
+      LOGIN_LOADING_TIP_EXIT_MS,
+    0,
+  );
+}
+
+/**
+ * Builds a single-tip mock plan for the “稍后再说” path. It takes the first
+ * boot-phase tip, keeps the standard entrance/exit animation, and compresses the
+ * hold so the whole presentation stays around `LOGIN_LOADING_BRIEF_TOTAL_MS`.
+ */
+export function createLoginBriefLoadingPlan(
+  agentId: string,
+): LoginMockLoadingPlan {
+  const [firstTip] = orderedTips(agentId, "boot");
+
+  if (!firstTip) {
+    return { steps: [], totalDurationMs: 0 };
+  }
+
+  const entranceMs = getEntranceMs(firstTip.text);
+  const holdMs = getBriefHoldMs(entranceMs);
+
+  const presentation: LoginLoadingTipPresentation = {
+    entranceMs,
+    holdMs,
+    tip: firstTip,
+    totalDurationMs: entranceMs + holdMs + LOGIN_LOADING_TIP_EXIT_MS,
+  };
+
+  return {
+    steps: [presentation],
+    totalDurationMs: presentation.totalDurationMs,
+  };
+}
+
+export function createLoginMockLoadingPlan(
+  agentId: string,
+  brief = false,
+): LoginMockLoadingPlan {
+  if (brief) {
+    return createLoginBriefLoadingPlan(agentId);
+  }
+
   const steps: LoginLoadingTipPresentation[] = [];
   let totalDurationMs = 0;
 
@@ -132,9 +186,9 @@ export class LoginLoadingTipSequence {
   > | null = null;
   private pendingPhase: LoadingTipPhase | null = null;
 
-  public constructor(agentId: string) {
+  public constructor(agentId: string, brief = false) {
     this.agentId = agentId;
-    this.currentPlan = createLoginMockLoadingPlan(agentId).steps;
+    this.currentPlan = createLoginMockLoadingPlan(agentId, brief).steps;
   }
 
   public start(): LoginLoadingTipSequenceAction {
@@ -189,6 +243,9 @@ export class LoginLoadingTipSequence {
   }
 }
 
-export function createLoginLoadingTipSequence(agentId: string) {
-  return new LoginLoadingTipSequence(agentId);
+export function createLoginLoadingTipSequence(
+  agentId: string,
+  brief = false,
+) {
+  return new LoginLoadingTipSequence(agentId, brief);
 }

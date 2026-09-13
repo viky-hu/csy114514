@@ -34,12 +34,14 @@ test("creates the R4 overview view model from shared fixtures", () => {
   });
 
   assert.equal(viewModel.agent.name, "CorpMate v0");
-  assert.equal(viewModel.risk.score, 35);
+  // These numbers track the shared evaluation_report fixture, which currently
+  // carries one CRITICAL R4 finding and an overall_score of 39.
+  assert.equal(viewModel.risk.score, 39);
   assert.equal(viewModel.risk.severity, "CRITICAL");
-  assert.equal(viewModel.risk.totalFindings, 2);
+  assert.equal(viewModel.risk.totalFindings, 1);
   assert.deepEqual(viewModel.risk.severityCounts, {
     CRITICAL: 1,
-    HIGH: 1,
+    HIGH: 0,
     LOW: 0,
     MEDIUM: 0,
   });

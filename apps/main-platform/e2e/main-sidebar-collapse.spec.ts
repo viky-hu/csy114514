@@ -261,7 +261,7 @@ test("main sidebar collapse controller reflows the workspace and keeps its state
   await expect(toggle).toHaveAccessibleName("展开主导航");
 
   await page.getByRole("button", { name: "画像", exact: true }).click();
-  await expect(page.getByRole("region", { name: "安全画像" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "安全画像", exact: true })).toBeVisible();
   await expect(toggle).toHaveAccessibleName("展开主导航");
   await expect(page.locator("#main-line-sidebar")).toHaveAttribute(
     "aria-hidden",
@@ -338,7 +338,7 @@ test("overview and profile retain their expanded graph scale while companion pan
   await page
     .locator(".overview-agent-panel .overview-mini-command")
     .click();
-  await expect(page.getByRole("region", { name: "安全画像" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "安全画像", exact: true })).toBeVisible();
 
   const profileSelectors = {
     companion: ".security-profile-inspector",
@@ -425,7 +425,7 @@ test("graph visual scale stays frozen throughout sidebar motion across responsiv
   await page
     .locator(".overview-agent-panel .overview-mini-command")
     .click();
-  await expect(page.getByRole("region", { name: "安全画像" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "安全画像", exact: true })).toBeVisible();
 
   const profileSelectors = {
     companion: ".security-profile-inspector",

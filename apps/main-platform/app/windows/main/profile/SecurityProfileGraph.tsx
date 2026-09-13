@@ -12,6 +12,7 @@ import {
   KeyRound,
   Mail,
   MailCheck,
+  Search,
   ShieldAlert,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -36,13 +37,20 @@ import type {
   SecurityProfileNode,
   SecurityProfileViewModel,
 } from "./security-profile-data";
+import { createTopologySecurityProfileViewModel } from "./security-profile-data";
 import { DefenseVisualizationStage } from "./DefenseVisualizationStage";
-import { TopologyFlow } from "../topology/TopologyFlow";
-import type { AgentTopology } from "../topology/topology-types";
+import type { AgentTopology, TopologyNodeRole } from "../topology/topology-types";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
 type SecurityProfileGraphProps = {
+  /**
+   * Where the rendered profile came from. `mock` means the Agent profile API was
+   * not reachable and the page falls back to the fixture baseline, so the badge
+   * must never claim a real backend reading.
+   */
+  dataSource?: "api" | "mock";
+  errorMessage?: string;
   isGraphFrozen: boolean;
   sidebarContentMetrics: SidebarContentMetrics;
   topology?: AgentTopology;
@@ -95,6 +103,24 @@ const NODE_ICONS: Record<SecurityProfileNode["kind"], LucideIcon> = {
   source: Globe2,
   tool: MailCheck,
 };
+
+const TOPOLOGY_ROLE_ICONS: Record<TopologyNodeRole, LucideIcon> = {
+  AGENT: Bot,
+  EXECUTOR: Bot,
+  KNOWLEDGE_BASE: Database,
+  PLANNER: Bot,
+  RETRIEVER: Search,
+};
+
+function getProfileNodeIcon(node: SecurityProfileNode): LucideIcon {
+  return node.topologyRole
+    ? TOPOLOGY_ROLE_ICONS[node.topologyRole]
+    : NODE_ICONS[node.kind];
+}
+
+function formatRouteChannelLabel(channel: string) {
+  return channel.toUpperCase().replaceAll("_", " ");
+}
 
 function getProfileFallbackGraphInlineSize(openInlineSize: number) {
   if (openInlineSize <= PROFILE_STACK_INLINE_SIZE) {
@@ -167,8 +193,9 @@ function isReducedMotion() {
 }
 
 function SecurityProfileInspector({ node }: { node: SecurityProfileNode }) {
-  const Icon =
-    node.kind === "agent"
+  const Icon = node.topologyRole
+    ? TOPOLOGY_ROLE_ICONS[node.topologyRole]
+    : node.kind === "agent"
       ? Bot
       : node.kind === "memory"
         ? Database
@@ -220,6 +247,8 @@ function SecurityProfileInspector({ node }: { node: SecurityProfileNode }) {
 }
 
 export function SecurityProfileGraph({
+  dataSource = "mock",
+  errorMessage,
   isGraphFrozen,
   sidebarContentMetrics,
   topology,
@@ -250,13 +279,27 @@ export function SecurityProfileGraph({
       sidebarContentMetrics.openInlineSize <= PROFILE_STACK_INLINE_SIZE,
   });
 
-  const nodesById = useMemo(
-    () => new Map(viewModel.nodes.map((node) => [node.id, node])),
-    [viewModel.nodes],
+  const displayViewModel = useMemo(
+    () =>
+      topology && topology.topology_type !== "single"
+        ? createTopologySecurityProfileViewModel(viewModel, topology)
+        : viewModel,
+    [topology, viewModel],
   );
-  const selectedNode = nodesById.get(selectedNodeId) ?? viewModel.agent;
+
+  const nodesById = useMemo(
+    () => new Map(displayViewModel.nodes.map((node) => [node.id, node])),
+    [displayViewModel.nodes],
+  );
+  const selectedNode = nodesById.get(selectedNodeId) ?? displayViewModel.agent;
   const activeColumnId = hoverColumnId;
-  const routeSegments = useMemo(() => buildProfileRouteSegments(), []);
+  const routeSegments = useMemo(
+    () =>
+      topology && topology.topology_type !== "single"
+        ? buildProfileRouteSegments(displayViewModel.routes)
+        : buildProfileRouteSegments(),
+    [displayViewModel.routes, topology],
+  );
   const activeRouteIds = useMemo(() => {
     if (!activeColumnId) {
       return new Set<string>();
@@ -668,14 +711,22 @@ export function SecurityProfileGraph({
         >
           <header className="security-profile-header security-profile-reveal">
         <div>
-          <span className="overview-kicker">Agent 边界图</span>
-          <h1>{viewModel.agent.label} 的能力边界</h1>
+          <span className="security-profile-eyebrow-row">
+            <span className="overview-kicker">Agent 边界图</span>
+            <span className={`security-profile-inline-badge is-${dataSource}`}>
+              {dataSource === "api" ? "真实接入" : "示例预览"}
+            </span>
+          </span>
+          <h1>{displayViewModel.agent.label} 的能力边界</h1>
           <p>
             平台已识别外部来源、长期记忆、敏感数据与需确认工具；请逐项核对画像是否符合预期。
           </p>
+          {errorMessage ? (
+            <p className="security-profile-source-note">{errorMessage}</p>
+          ) : null}
         </div>
         <div className="security-profile-permission-summary" aria-label="权限摘要">
-          {Object.entries(viewModel.permissionCounts).map(([permission, count]) => (
+          {Object.entries(displayViewModel.permissionCounts).map(([permission, count]) => (
             <span key={permission} className={`is-${permission.toLowerCase()}`}>
               <strong>{count}</strong>
               {PERMISSION_LABELS[permission] ?? permission}
@@ -816,32 +867,44 @@ export function SecurityProfileGraph({
                 clipPath={`url(#${PROFILE_BOUNDARY_CLIP_ID})`}
               >
                 {routeSegments.map((segment) => (
-                  <path
-                    key={segment.id}
-                    className={`security-profile-route is-route-tone-${segment.routeTone} is-${segment.visualIntent} ${
-                      activeRouteIds.has(segment.id) ? "is-active" : ""
-                    }`}
-                    d={segment.d}
-                    stroke="url(#security-profile-route-stroke)"
-                    data-profile-route-id={segment.id}
-                    data-profile-route-tone={segment.routeTone}
-                    data-profile-visual-intent={segment.visualIntent}
-                    pathLength={1}
-                  />
+                  <g key={segment.id}>
+                    <path
+                      className={`security-profile-route is-route-tone-${segment.routeTone} is-${segment.visualIntent} ${
+                        activeRouteIds.has(segment.id) ? "is-active" : ""
+                      } ${segment.carriesUntrustedContent ? "is-untrusted" : ""}`}
+                      d={segment.d}
+                      stroke="url(#security-profile-route-stroke)"
+                      data-profile-route-id={segment.id}
+                      data-profile-route-channel={segment.channel ?? ""}
+                      data-profile-route-tone={segment.routeTone}
+                      data-profile-visual-intent={segment.visualIntent}
+                      pathLength={1}
+                    />
+                    {segment.channel ? (
+                      <text
+                        className="security-profile-route-label"
+                        x={segment.labelX}
+                        y={segment.labelY}
+                        textAnchor="middle"
+                      >
+                        {formatRouteChannelLabel(segment.channel)}
+                      </text>
+                    ) : null}
+                  </g>
                 ))}
               </g>
               <g
                 className="security-profile-nodes"
                 clipPath={`url(#${PROFILE_BOUNDARY_CLIP_ID})`}
               >
-                {viewModel.nodes.map((node) => {
+                {displayViewModel.nodes.map((node) => {
                   const layout = PROFILE_LAYOUT_BY_NODE_ID[node.id];
 
                   if (!layout) {
                     return null;
                   }
 
-                  const Icon = NODE_ICONS[node.kind];
+                  const Icon = getProfileNodeIcon(node);
                   const rectPath = createClockwiseRoundedRectPath(layout);
                   const iconX = layout.x - 12;
                   const iconY = layout.y - 34;
@@ -904,7 +967,7 @@ export function SecurityProfileGraph({
             </svg>
 
             <div className="security-profile-node-hitbox-layer" aria-hidden="false">
-              {viewModel.nodes.map((node) => {
+              {displayViewModel.nodes.map((node) => {
                 const layout = PROFILE_LAYOUT_BY_NODE_ID[node.id];
 
                 if (!layout) {
@@ -936,22 +999,6 @@ export function SecurityProfileGraph({
           <SecurityProfileInspector node={selectedNode} />
         </div>
           </div>
-
-          {topology && topology.topology_type !== "single" ? (
-            <section className="security-profile-topology security-profile-reveal" aria-label="当前 Agent 拓扑架构">
-              <div className="security-profile-topology-heading">
-                <div>
-                  <span className="overview-kicker">架构拓扑</span>
-                  <h2>{topology.topology_type}</h2>
-                </div>
-                <span>{topology.nodes.length} 节点 · {topology.edges.length} 通道</span>
-              </div>
-              <TopologyFlow
-                ariaLabel={`${topology.topology_type} 安全画像拓扑图`}
-                topology={topology}
-              />
-            </section>
-          ) : null}
 
           <footer className="security-profile-footer security-profile-reveal">
             <button

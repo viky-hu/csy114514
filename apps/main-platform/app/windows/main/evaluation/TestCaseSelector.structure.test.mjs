@@ -75,5 +75,7 @@ test("selector exposes the Stage 3 Agent choices without owning TestCase state",
   assert.match(agentSource, /corpmate-v0/);
   assert.match(agentSource, /llm-agent-v0/);
   assert.match(agentSource, /defended-llm-v0/);
-  assert.match(selectorSource, /value=\{evaluationAgentId\}/);
+  assert.match(selectorSource, /value=\{evaluationMode === "comparison" \? "comparison" : evaluationAgentId\}/);
+  assert.match(selectorSource, /setEvaluationMode\("comparison"\)/);
+  assert.match(selectorSource, /setEvaluationAgentId\(event\.target\.value as typeof evaluationAgentId\)/);
 });

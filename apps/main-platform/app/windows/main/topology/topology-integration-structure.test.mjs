@@ -14,26 +14,38 @@ test("MainWindow owns the active topology and passes it to all topology-aware su
   const source = await sourceOf(mainWindow);
 
   assert.match(source, /defaultTopologyRepository/);
-  assert.match(source, /loadAgentTopology\(activeAgentId/);
+  // Entering the platform must start at Single Agent; the saved mode is only
+  // applied after an explicit switch, never auto-loaded on mount.
+  assert.doesNotMatch(source, /loadAgentTopology\(activeAgentId/);
+  assert.match(source, /createFallbackTopology\(initialAgentId\)/);
+  assert.match(source, /isRestartCover/);
+  assert.match(source, /setTopology\(nextTopology\)/);
   assert.match(source, /topology=\{topology\}/);
-  assert.match(source, /onTopologySaved/);
+  assert.match(source, /TopologyModeNav/);
+  assert.match(source, /const topologyModeNav = root\.querySelector<HTMLElement>\("\.topology-mode-nav"\);/);
+  assert.match(source, /gsap\.set\(topologyModeNav, \{ autoAlpha: 0, y: -6 \}\)/);
+  assert.match(source, /\.to\(\s*topologyModeNav,\s*\{\s*autoAlpha: 1,\s*duration: 0\.42,\s*ease: "power2\.out",\s*y: 0,?\s*\},\s*0\.92,?\s*\)/s);
 });
 
-test("agent configuration exposes topology selection and saves it with the manifest", async () => {
+test("agent configuration restores the original manifest-only workspace while MainWindow owns mode switching", async () => {
   const source = await sourceOf(agentWorkspace);
+  const mainSource = await sourceOf(mainWindow);
 
-  assert.match(source, /loadPresets/);
-  assert.match(source, /saveAgentTopology/);
-  assert.match(source, /拓扑架构/);
-  assert.match(source, /planner_executor/);
-  assert.match(source, /rag_agent/);
+  assert.doesNotMatch(source, /agent-interface-topology/);
+  assert.doesNotMatch(source, /loadPresets/);
+  assert.doesNotMatch(source, /saveAgentTopology/);
+  assert.match(source, /onDraftSnapshotChange/);
+  assert.match(mainSource, /TopologyModeNav/);
+  assert.match(mainSource, /onRequestChange/);
+  assert.match(mainSource, /saveAgentTopology/);
 });
 
-test("overview keeps the existing R4 SVG for single topology and uses the shared flow for alternatives", async () => {
+test("overview keeps the existing R4 SVG for single topology and summarizes alternatives", async () => {
   const source = await sourceOf(overview);
 
   assert.match(source, /topology\?: AgentTopology/);
   assert.match(source, /activeTopology\.topology_type === "single"/);
-  assert.match(source, /<TopologyFlow/);
+  assert.doesNotMatch(source, /TopologyFlow/);
+  assert.match(source, /topology-summary/);
   assert.match(source, /<OverviewR4Graph/);
 });

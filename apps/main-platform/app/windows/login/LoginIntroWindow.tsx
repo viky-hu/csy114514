@@ -78,7 +78,9 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
   const isScrollReadyRef = useRef(false);
   const pendingAuthenticatedCloseRef = useRef(false);
   const requestAuthenticatedCloseRef = useRef<() => void>(() => undefined);
-  const beginAgentLoadingRef = useRef<(agentId?: string) => void>(() => undefined);
+  const beginAgentLoadingRef = useRef<(agentId?: string, brief?: boolean) => void>(
+    () => undefined,
+  );
   const completedAgentIdRef = useRef(DEFAULT_AGENT_ID);
   const syncCtaLayoutRef = useRef<() => void>(() => undefined);
   const pageRef = useRef<HTMLElement>(null);
@@ -1247,67 +1249,69 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
       };
       loadingTipExitCompleteRef.current = advanceLoadingTipSequence;
 
-      const beginAgentLoading = withContextSafe((agentId = DEFAULT_AGENT_ID) => {
-        if (agentEntryStageRef.current !== "idle") {
-          return;
-        }
+      const beginAgentLoading = withContextSafe(
+  (agentId = DEFAULT_AGENT_ID, brief = false) => {
+    if (agentEntryStageRef.current !== "idle") {
+      return;
+    }
 
-        completedAgentIdRef.current = agentId;
-        clearIdleTimer();
-        clearOpeningFallback();
-        clearCloseTimeline();
-        clearLoadingTipTimer();
-        clearLoadingTimeline();
-        renderScrollProgress(1);
-        destroyScrollTrigger();
-        lockAgentEntryScroll();
-        setAgentEntryStageValue("loading");
-        renderLockedAgentEntryPage();
+    completedAgentIdRef.current = agentId;
+    clearIdleTimer();
+    clearOpeningFallback();
+    clearCloseTimeline();
+    clearLoadingTipTimer();
+    clearLoadingTimeline();
+    renderScrollProgress(1);
+    destroyScrollTrigger();
+    lockAgentEntryScroll();
+    setAgentEntryStageValue("loading");
+    renderLockedAgentEntryPage();
 
-        const sessionId = loadingSessionRef.current.begin();
-        setLoadingSessionId(sessionId);
-        const loadingTipSequence = createLoginLoadingTipSequence(agentId);
-        loadingTipSequenceRef.current = loadingTipSequence;
-        const initialAction = loadingTipSequence.start();
+    const sessionId = loadingSessionRef.current.begin();
+    setLoadingSessionId(sessionId);
+    const loadingTipSequence = createLoginLoadingTipSequence(agentId, brief);
+    loadingTipSequenceRef.current = loadingTipSequence;
+    const initialAction = loadingTipSequence.start();
 
-        if (initialAction.kind === "tip") {
-          scheduleLoadingTip(initialAction.presentation, sessionId, true);
-        }
+    if (initialAction.kind === "tip") {
+      scheduleLoadingTip(initialAction.presentation, sessionId, true);
+    }
 
-        loadingTimeline = gsap.timeline();
-        loadingTimeline
-          .to(
-            [agentDraftLayer, ...agentPromptLayers],
-            {
-              autoAlpha: 0,
-              y: -14,
-              duration: prefersReducedMotion ? 0 : 0.45,
-              ease: "power2.inOut",
-              stagger: prefersReducedMotion ? 0 : 0.025,
-            },
-            0,
-          )
-          .to(
-            loadingOverlay,
-            {
-              autoAlpha: 1,
-              y: 0,
-              scale: 1,
-              duration: prefersReducedMotion ? 0 : 0.35,
-              ease: "power2.out",
-            },
-            prefersReducedMotion ? 0 : 0.22,
-          )
-          .call(
-            () => {
-              if (initialAction.kind === "tip") {
-                startLoadingTipEntrance(sessionId, initialAction.presentation);
-              }
-            },
-            [],
-            prefersReducedMotion ? 0 : 0.57,
-          );
-      });
+    loadingTimeline = gsap.timeline();
+    loadingTimeline
+      .to(
+        [agentDraftLayer, ...agentPromptLayers],
+        {
+          autoAlpha: 0,
+          y: -14,
+          duration: prefersReducedMotion ? 0 : 0.45,
+          ease: "power2.inOut",
+          stagger: prefersReducedMotion ? 0 : 0.025,
+        },
+        0,
+      )
+      .to(
+        loadingOverlay,
+        {
+          autoAlpha: 1,
+          y: 0,
+          scale: 1,
+          duration: prefersReducedMotion ? 0 : 0.35,
+          ease: "power2.out",
+        },
+        prefersReducedMotion ? 0 : 0.22,
+      )
+      .call(
+        () => {
+          if (initialAction.kind === "tip") {
+            startLoadingTipEntrance(sessionId, initialAction.presentation);
+          }
+        },
+        [],
+        prefersReducedMotion ? 0 : 0.57,
+      );
+  },
+);
 
       requestAuthenticatedCloseRef.current = withContextSafe(() => {
         if (isAuthenticatedRef.current && isScrollReadyRef.current) {
@@ -1588,7 +1592,7 @@ export function LoginIntroWindow({ onAgentEntryComplete, onSignIn }: LoginIntroW
             type="button"
             className="login-agent-bracket-button is-secondary"
             disabled={agentEntryStage !== "idle" || isAgentSaving}
-            onClick={() => beginAgentLoadingRef.current(DEFAULT_AGENT_ID)}
+            onClick={() => beginAgentLoadingRef.current(DEFAULT_AGENT_ID, true)}
           >
             <span className="login-agent-bracket" aria-hidden="true">
               [

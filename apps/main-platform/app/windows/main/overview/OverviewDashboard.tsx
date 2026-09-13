@@ -18,7 +18,6 @@ import {
   overviewFixtureViewModel,
 } from "./overview-fixtures";
 import { OverviewR4Graph } from "./OverviewR4Graph";
-import { TopologyFlow } from "../topology/TopologyFlow";
 import { createFallbackTopology } from "../topology/topology-repository";
 import type { AgentTopology } from "../topology/topology-types";
 import {
@@ -41,6 +40,8 @@ type OverviewNavKey = "anatomy" | "profile" | "report" | "run";
 const RISK_TYPE_LABELS: Record<string, string> = {
   indirect_prompt_injection: "间接提示注入",
   persistent_indirect_prompt_injection: "持久性间接提示注入",
+  plan_contamination: "计划污染",
+  rag_context_poisoning: "RAG 上下文投毒",
 };
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -125,6 +126,18 @@ function isOverviewNavKey(key: string): key is OverviewNavKey {
   return key === "anatomy" || key === "profile" || key === "report" || key === "run";
 }
 
+function topologyLabel(topologyType: AgentTopology["topology_type"]) {
+  if (topologyType === "planner_executor") {
+    return "Planner–Executor";
+  }
+
+  if (topologyType === "rag_agent") {
+    return "RAG Agent";
+  }
+
+  return "Single Agent";
+}
+
 export function OverviewDashboard({
   activeAgentId = DEFAULT_AGENT_ID,
   isGraphFrozen,
@@ -133,6 +146,15 @@ export function OverviewDashboard({
   topology,
 }: OverviewDashboardProps) {
   const activeTopology = topology ?? createFallbackTopology(activeAgentId);
+  const untrustedChannelCount = activeTopology.edges.filter(
+    (edge) => edge.carries_untrusted_content,
+  ).length;
+  const recommendedRiskPattern =
+    activeTopology.topology_type === "planner_executor"
+      ? "R5"
+      : activeTopology.topology_type === "rag_agent"
+        ? "R6"
+        : null;
   const [viewModel, setViewModel] = useState(overviewFixtureViewModel);
   const rootRef = useRef<HTMLElement>(null);
   const mapRef = useRef<HTMLElement>(null);
@@ -272,14 +294,14 @@ export function OverviewDashboard({
         <section
           ref={mapRef}
           className="overview-map overview-animate"
-          aria-label={activeTopology.topology_type === "single" ? "R4 攻击链" : "Agent 多节点拓扑"}
+          aria-label={activeTopology.topology_type === "single" ? "R4 攻击链" : "Agent 拓扑摘要"}
         >
           <div className="overview-section-heading">
             <div>
               <span className="overview-kicker">
                 {activeTopology.topology_type === "single"
                   ? "R4 攻击路径"
-                  : "Agent 拓扑架构"}
+                  : "当前 Agent 结构"}
               </span>
             </div>
           </div>
@@ -287,26 +309,57 @@ export function OverviewDashboard({
           {activeTopology.topology_type === "single" ? (
             <OverviewR4Graph nodes={viewModel.attackChain} />
           ) : (
-            <TopologyFlow
-              ariaLabel={`${activeTopology.topology_type} Agent 拓扑图`}
-              topology={activeTopology}
-            />
+            <div className="topology-summary" aria-label={`${topologyLabel(activeTopology.topology_type)} 摘要`}>
+              <div className="topology-summary-heading">
+                <span>{topologyLabel(activeTopology.topology_type)}</span>
+                <strong>{recommendedRiskPattern} · 待验证</strong>
+              </div>
+              <p>
+                当前结构由后端返回的逻辑节点与通道构成；详细信任边界和风险传播请在对应图谱中查看。
+              </p>
+              <dl className="topology-summary-metrics">
+                <div>
+                  <dt>{activeTopology.nodes.length}</dt>
+                  <dd>真实逻辑节点</dd>
+                </div>
+                <div>
+                  <dt>{untrustedChannelCount}</dt>
+                  <dd>不可信通道</dd>
+                </div>
+                <div>
+                  <dt>{recommendedRiskPattern}</dt>
+                  <dd>推荐验证</dd>
+                </div>
+              </dl>
+            </div>
           )}
 
           <div className="overview-map-footer">
             <p className="overview-path-caption">
               {activeTopology.topology_type === "single"
                 ? formatFindingDescription(viewModel.r4Finding.description)
-                : "当前总览保留既有风险摘要，同时展示多节点之间的任务计划或检索内容流。"}
+                : `发现潜在 ${recommendedRiskPattern}，尚未验证。总览不重复安全画像与攻击图谱的详细内容。`}
             </p>
-            <button
-              className="overview-icon-command"
-              onClick={() => onNavigate("anatomy")}
-              type="button"
-            >
-              <Network size={17} aria-hidden="true" />
-              <span>进入攻击图谱</span>
-            </button>
+            <div className="overview-map-actions">
+              {recommendedRiskPattern ? (
+                <button
+                  className="overview-icon-command is-secondary"
+                  onClick={() => onNavigate("run")}
+                  type="button"
+                >
+                  <Activity size={17} aria-hidden="true" />
+                  <span>开始拓扑测评</span>
+                </button>
+              ) : null}
+              <button
+                className="overview-icon-command"
+                onClick={() => onNavigate("anatomy")}
+                type="button"
+              >
+                <Network size={17} aria-hidden="true" />
+                <span>进入攻击图谱</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -315,10 +368,18 @@ export function OverviewDashboard({
             <div className="overview-section-heading is-compact">
               <div>
                 <span className="overview-kicker">风险类型</span>
-                <h2>{formatRiskType(viewModel.r4Finding.riskType)}</h2>
+                <h2>
+                  {recommendedRiskPattern
+                    ? formatRiskType(
+                        activeTopology.topology_type === "planner_executor"
+                          ? "plan_contamination"
+                          : "rag_context_poisoning",
+                      )
+                    : formatRiskType(viewModel.r4Finding.riskType)}
+                </h2>
               </div>
               <span className="overview-pattern-id">
-                {viewModel.r4Finding.riskPatternId}
+                {recommendedRiskPattern ?? viewModel.r4Finding.riskPatternId}
               </span>
             </div>
             <div className="overview-risk-metrics">

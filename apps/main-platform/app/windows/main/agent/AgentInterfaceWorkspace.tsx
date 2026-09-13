@@ -2,31 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Save } from "lucide-react";
-import {
-  defaultTopologyRepository,
-  type TopologyRepository,
-} from "../topology/topology-repository";
-import type {
-  AgentTopology,
-  TopologyPreset,
-  TopologyType,
-} from "../topology/topology-types";
+import { saveAgentManifest } from "./agent-manifest-repository";
 import { AgentConnectDraft } from "../../login/AgentConnectDraft";
 import { useLoadingTip } from "../../shared/loading-tips";
 import {
   CORPMATE_AGENT_DRAFT,
   buildAgentManifest,
   createAgentDraftFromProfile,
+  type AgentManifest,
   type AgentProfilePayload,
   type AgentDraftState,
 } from "../../shared/agent-config";
 
 type AgentInterfaceWorkspaceProps = {
   activeAgentId: string;
+  onDraftSnapshotChange?: (manifest: AgentManifest | null) => void;
   onAgentSaved: (agentId: string) => void;
-  onTopologySaved: (topology: AgentTopology) => void;
-  topology: AgentTopology;
-  repository?: TopologyRepository;
 };
 
 type WorkspaceStatus = "idle" | "loading" | "saving" | "saved";
@@ -60,38 +51,23 @@ function isAgentProfilePayload(value: unknown): value is AgentProfilePayload {
 
 export function AgentInterfaceWorkspace({
   activeAgentId,
+  onDraftSnapshotChange,
   onAgentSaved,
-  onTopologySaved,
-  repository = defaultTopologyRepository,
-  topology,
 }: AgentInterfaceWorkspaceProps) {
   const [draft, setDraft] = useState<AgentDraftState>(CORPMATE_AGENT_DRAFT);
   const [status, setStatus] = useState<WorkspaceStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [presets, setPresets] = useState<TopologyPreset[]>([]);
-  const [selectedTopologyType, setSelectedTopologyType] = useState<TopologyType>(
-    topology.topology_type,
-  );
-  useEffect(() => {
-    setSelectedTopologyType(topology.topology_type);
-  }, [topology.topology_type]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void repository.loadPresets({ signal: controller.signal }).then((nextPresets) => {
-      if (!controller.signal.aborted) {
-        setPresets(nextPresets);
-      }
-    });
-    return () => controller.abort();
-  }, [repository]);
-
   const statusTip = useLoadingTip("boot", {
     active: status === "loading" || status === "saving",
   });
 
   const manifest = useMemo(() => buildAgentManifest(draft), [draft]);
-  const canSave = Boolean(manifest.agent_id.trim() && manifest.name.trim());
+  const canSave = Boolean(draft.agentId.trim() && draft.agentName.trim());
+
+  useEffect(() => {
+    onDraftSnapshotChange?.(canSave ? manifest : null);
+    return () => onDraftSnapshotChange?.(null);
+  }, [canSave, manifest, onDraftSnapshotChange]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -148,63 +124,15 @@ export function AgentInterfaceWorkspace({
     setErrorMessage(null);
 
     try {
-      const response = await fetch("/api/agents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(manifest),
-      });
-      const body = (await response.json()) as unknown;
-
-      if (!response.ok) {
-        throw new Error(getErrorMessage(body, "Agent 保存失败"));
-      }
-
-      const savedTopology = await repository.saveAgentTopology(
-        manifest.agent_id,
-        selectedTopologyType,
-      );
+      await saveAgentManifest(manifest);
 
       setStatus("saved");
-      onTopologySaved(savedTopology);
       onAgentSaved(manifest.agent_id);
     } catch (error) {
       setStatus("idle");
       setErrorMessage(error instanceof Error ? error.message : "Agent 保存失败");
     }
   };
-
-  const topologyOptions: TopologyPreset[] = presets.length > 0 ? presets : [
-    { topology_type: "single", description: "单一智能体与工具", node_count: 1, edge_count: 0 },
-    { topology_type: "planner_executor", description: "规划与执行分离", node_count: 2, edge_count: 1 },
-    { topology_type: "rag_agent", description: "检索增强生成架构", node_count: 3, edge_count: 2 },
-  ];
-  const topologySelector = (
-    <section className="agent-interface-topology" aria-label="拓扑架构">
-      <div className="agent-interface-topology-heading">
-        <div>
-          <span className="overview-kicker">Stage 4</span>
-          <h2>拓扑架构</h2>
-        </div>
-        <span>{selectedTopologyType}</span>
-      </div>
-      <div className="agent-interface-topology-options" role="list">
-        {topologyOptions.map((preset) => (
-          <button
-            key={preset.topology_type}
-            aria-pressed={selectedTopologyType === preset.topology_type}
-            className={`agent-interface-topology-option${selectedTopologyType === preset.topology_type ? " is-selected" : ""}`}
-            onClick={() => setSelectedTopologyType(preset.topology_type)}
-            role="listitem"
-            type="button"
-          >
-            <strong>{preset.topology_type}</strong>
-            <span>{preset.description}</span>
-            <em>{preset.node_count} 节点 · {preset.edge_count} 通道</em>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
 
   const footer = (
     <div className="agent-interface-footer">
@@ -243,7 +171,6 @@ export function AgentInterfaceWorkspace({
       className="agent-interface-page"
       aria-label={`初始接口配置，当前 Agent ${activeAgentId}`}
     >
-      {topologySelector}
       <AgentConnectDraft draft={draft} footer={footer} onDraftChange={setDraft} />
     </section>
   );

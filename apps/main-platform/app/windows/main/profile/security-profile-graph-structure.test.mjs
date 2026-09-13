@@ -207,3 +207,40 @@ test("security profile route styling keeps a unified blue-purple gradient while 
   assert.doesNotMatch(mainStyles, /\.security-profile-route\.is-route-tone-green/);
   assert.doesNotMatch(mainStyles, /\.security-profile-route\.is-route-tone-amber/);
 });
+
+test("security profile projects topology roles and channels into its boundary canvas without a second topology flow", () => {
+  assert.doesNotMatch(graphSource, /TopologyFlow/);
+  assert.match(graphSource, /createTopologySecurityProfileViewModel/);
+  assert.match(graphSource, /buildProfileRouteSegments\(displayViewModel\.routes\)/);
+  assert.match(graphSource, /security-profile-route-label/);
+  assert.match(graphSource, /data-profile-route-channel=\{segment\.channel \?\? ""\}/);
+  assert.match(graphSource, /formatRouteChannelLabel/);
+  assert.match(mainStyles, /security-profile-route\.is-untrusted/);
+});
+
+test("security profile workspace loads the Agent profile through its repository instead of the fixture", () => {
+  const workspaceSource = readFileSync(
+    new URL("./SecurityProfileWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const repositorySource = readFileSync(
+    new URL("./security-profile-repository.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(workspaceSource, /ApiSecurityProfileRepository/);
+  assert.match(workspaceSource, /MockSecurityProfileRepository/);
+  assert.match(workspaceSource, /defaultRepository\.load\(agentId\)/);
+  assert.match(repositorySource, /\/api\/agents\/\$\{encodeURIComponent\(agentId\)\}\/graph/);
+  assert.match(repositorySource, /this\.fetcher\(`\/api\/agents\/\$\{encodeURIComponent\(agentId\)\}`, \{/);
+  // The fixture stays a labelled fallback baseline instead of the only source.
+  assert.match(workspaceSource, /new MockSecurityProfileRepository\(\s*securityProfileFixtureViewModel,?\s*\)/);
+  assert.match(workspaceSource, /dataSource=\{result\.source\}/);
+  assert.match(graphSource, /security-profile-inline-badge is-\$\{dataSource\}/);
+  assert.match(graphSource, /dataSource === "api" \? "真实接入" : "示例预览"/);
+  assert.match(graphSource, /security-profile-source-note/);
+  assert.doesNotMatch(graphSource, /securityProfileFixtureViewModel/);
+  assert.match(graphSource, /TopologyNodeRole/);
+  assert.match(workspaceSource, /<SecurityProfileGraph[\s\S]*?isGraphFrozen=\{isGraphFrozen\}/);
+  assert.match(workspaceSource, /topology=\{topology\}/);
+});

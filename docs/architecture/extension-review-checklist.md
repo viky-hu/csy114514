@@ -29,6 +29,20 @@
 - Extensibility: use `verify:default` for normal feature work and `verify:full` when changing tests, CI, lint/type tooling, or intentionally clearing historical type debt.
 - Validation: `pnpm -C apps/main-platform run type-check`, `pnpm -C apps/main-platform run lint`, and `pnpm -C apps/main-platform build` must start from stable scripts; sandbox/ACL failures get one meaningful retry before reporting the concrete blocker.
 
+## 2026-09-11 Stage 4 Native Topology Projections
+
+- [ ] Keep `TopologyModeNav` and its existing mode-switch animation independent from the topology visual projection.
+- [ ] Overview is an entry summary only for non-single topology; do not append a second generic topology canvas there. Its risk heading may name the recommended topology pattern (`plan_contamination` / `rag_context_poisoning`) while `OverviewR4Graph` remains the only overview SVG.
+- [ ] Security Profile must render topology nodes, channels, and untrusted-channel treatment inside its existing boundary graph; Anatomy must render the selected `risk_path_ids` path inside its existing risk-path workbench.
+- [ ] Use topology API data as the source of architecture truth; use Attack Graph/report data only as same-Agent risk context. Missing graph/path data must be labelled as insufficient rather than filled with fabricated nodes or edges.
+- [ ] `anatomy-topology-chain.ts` is the only place that builds an R5/R6 chain: the middle nodes come from `AgentTopology.nodes` walked along real `edges`, the two end nodes come from the attack-graph nodes the selected path starts and ends with, and channel labels come from real `TopologyEdges.channel` values. Never key topology copy off guessed step labels, and resolve to `{ kind: "missing" }` with the offending node names when data is incomplete.
+- [ ] The anatomy topology chain reuses the mature five-phase rail (`ANATOMY_TOPOLOGY_PHASES`, `getTopologyStepPhaseXs`, `ANATOMY_TOPOLOGY_NODE_WIDTH/HEIGHT`) and must keep channel labels above the 88px node band, because adjacent column centers are only 158-174 apart.
+- [ ] The anatomy topology stage renders only the graph canvas (`.anatomy-map.is-topology`): phase rail, real chain nodes, channel labels, and a compact in-canvas empty notice when data is missing. No risk-path heading/story/status-badge/caption text blocks and no extra wrapper rectangle may be added; the canvas keeps the same full size as the R1-R4 graph.
+- [ ] Entering the platform always starts at the `single` topology; never auto-load the saved mode on mount. A confirmed mode switch must white out the workspace before the content swap (`isRestartCover` hides the content region in the same commit), defer `setTopology`/nav resets to the restart tick, and replay the full entry intro; the cover is released only when the intro settles.
+- [ ] Security Profile must not present fixture content as a backend reading: page data loads through `SecurityProfileWorkspace` → `security-profile-repository.ts` (same-origin `/api/agents/{agentId}` + `/graph`), and the header provenance badge reflects `source: "api" | "mock"` with the repository error message.
+- [ ] Preserve `single` mode's R4 visual language and keep R5/R6 `verified` only when report findings provide evidence.
+- [ ] Run focused topology/profile/anatomy/overview structure and data tests, then `pnpm -C apps/main-platform run verify:default` and the Stage 4 browser coverage. `overview-data.test.ts` expectations track the shared `evaluation_report` fixture; update them together with that fixture.
+
 ## 2026-09-08 D8 Confirmation Gate Visual State
 
 - Ownership: `d3-d8-defense-visualization-data.ts` owns the pure D8 flow-state mapping; `D8ConfirmationGatePanel.tsx` only projects those states into node classes and keeps the existing branch/source selection behavior.
@@ -74,7 +88,7 @@
 ## 2026-08-19 Login Loading Session Safety
 
 - Ownership: `app/windows/login/login-loading-session.ts` owns login loading session identity, active tip identity, reveal completion, stale-callback rejection, and one-shot exit completion. `LoginIntroWindow.tsx` remains the owner of the overlay timeline and local mock sequence.
-- Boundary: the login “稍后再说” action is a frontend-only mock path and must remain usable without a running backend. The first tip enters only after the blue overlay reveal completes; later tips change only after the previous whole-line fade-out callback is accepted for the current session and tip. Keep `LoginSplitLoadingTip` mounted across tip changes and keep visible lines in SplitText DOM: a text-derived React `key` or phase-driven `revertOnUpdate` can dispose animation state while its callback is advancing the sequence.
+- Boundary: the login “稍后再说” action is a frontend-only mock path and must remain usable without a running backend. It runs the loading sequence in `brief` mode: a single boot tip held around one second (< `LOGIN_LOADING_BRIEF_TOTAL_MS`) before the existing collapse animation hands off to the main window intro, leaving “确认接入”‘s full 7-10 second plan untouched. The first tip enters only after the blue overlay reveal completes; in the full path later tips change only after the previous whole-line fade-out callback is accepted for the current session and tip. Keep `LoginSplitLoadingTip` mounted across tip changes and keep visible lines in SplitText DOM: a text-derived React `key` or phase-driven `revertOnUpdate` can dispose animation state while its callback is advancing the sequence.
 - Extensibility: a future backend `phase`, `complete`, or `failed` event may request the next boundary, but it cannot mutate a superseded session or interrupt a partially entered line. SplitText entrance timing is capped in both the controller and component so long Chinese tips cannot be faded out before their last character enters.
 - Validation: add a Playwright case with `/api/**` returning a structured 503, ignore only Chromium's expected resource-load diagnostics, and assert no application console/page errors, no visible unsplit loading-text frame, stable font metrics through hold/exit, complete first-tip character rendering, session idempotence while loading, and normal 7-10-second mock completion. Keep focused Node session, sequence, structure, and type checks.
 
@@ -300,7 +314,7 @@
 - [ ] D1 and D2 source readers use the shared `usePythonSourceHighlighting.ts` Shiki Python renderer with escaped token HTML, line numbers, active-line highlighting, and rule/stage-driven scrolling.
 - [ ] The UI-only bridge sits between displayed D2 and D3, has the same navigable workspace status as a defense detail, and has no canonical D ID or backend/report field. Left/right navigation and branch navigation always use display indices.
 - [ ] The bridge graph models `DefendedLLMAgent.chat()` tool-call handling in order: LLM inference returns tool calls, then D5 chain detection, D6 intent classification, D7 for `memory.write` only, D8 for `email.send` only, D2 output filtering as the last pre-sandbox tool-call defense, then Sandbox execution. D3 confirmation is represented only in the Sandbox `email.send` path.
-- [ ] Every bridge defense branch is a keyboard-operable button with a visible focus state and its label/scope in `aria-label`. It navigates through the uniform detail fade lifecycle to display D3-D8 as appropriate; each blocked branch names the retained defense label/reason outcome.
+- [ ] Every bridge defense branch is a keyboard-operable button with a visible focus state and its label/scope in `aria-label`. It navigates through the uniform detail fade lifecycle to display D3-D8 as appropriate; each blocked branch names the retained defense label/reason outcome. Sandbox remains a distinct green execution module in the right lane, and D8 is a separate keyboard-operable button below it.
 - [ ] The flow SVG, bridge routes, and panel motion retain the existing profile/overview/anatomy visual language: `xMidYMid meet`, dotted paths, active outlines, short GSAP reveals, and direct stable reduced-motion states. No chart library or new navigation workspace is introduced.
 - [ ] The frontend defense rail order is D1 `输入过滤`, D2 `指令隔离`, D3 `因果链监测`, D4 `意图分类`, D5 `记忆审计`, D6 `会话监控`, D7 `输出过滤`, D8 `确认门控`; this display order is independent from the bridge panel's backend tool-call execution order.
 - [ ] The shared D2/bridge detail shell establishes the fixed outer storage region first, gives the upper flow visualization a bounded roughly 42% track with an explicit narrow-width floor, anchors the lower split to the bottom edge, and allows its panels to move downward when the flow needs room.
@@ -319,9 +333,16 @@
 - [ ] The bridge left rail shows `D2 指令交接` → `MODEL STEP` → `LLM RESPONSE` → `对每个 tool call` with three downward arrows, including one long connector arrow between LLM RESPONSE and the per-call node. D2 and model cards show primary labels only; the neutral structured `email.send` sample remains beside LLM RESPONSE; the per-call rectangle sits independently to the left of D3-D7.
 - [ ] Display numbering is separated from canonical numbering: D3→D5, D4→D6, D5→D7, D6→D8, D7→D2, while Sandbox-local D8→D3. The bridge remains UI-only and is absent from canonical defense fields.
 - [ ] D5 states that memory auditing applies only to `memory.write` and is skipped for the sample; D6 states that `email.send` triggers session monitoring; D7 is described as the last pre-Sandbox defense. The sample remains neutral and `待审`.
-- [ ] Each check exposes a keyboard-operable primary-label button, `blocked?`, a side `yes → 阻断` label pod, and a downward `no` path. All no paths converge on Sandbox, where the D8 confirmation gate is embedded.
+- [ ] Each check exposes a keyboard-operable primary-label button, `blocked?`, a side `yes → 阻断` label pod, and a downward `no` path. All no paths converge on a distinct right-lane Sandbox rectangle, with a separate D8 confirmation button below it.
 - [ ] The bridge uses SVG routes over HTML modules, a `1120px` wide-desktop design canvas, and a fluid clamped left rail that contracts with the actual content width. Measured DOM anchors drive one per-call trunk plus five horizontal D3-D7 branch endings; laptop and narrow widths fit without page or bridge horizontal overflow, and page/panel vertical scrolling remains disabled. Reduced motion shows the final state without animation.
 - [ ] Validation covers structure/data contracts, arrow and keyboard navigation, branch display-to-canonical routing, `memory.write`/`email.send` copy, responsive no-horizontal-overflow geometry, reduced motion, type-check, lint, build, and focused Playwright screenshots.
+
+### 2026-09-09 Bridge No-Path Geometry Refinement
+
+- [ ] D3-D7 check and blocked modules leave a dedicated right-side route corridor after compacting their grid columns.
+- [ ] Every green no route starts at the measured right boundary and vertical midpoint of its corresponding red blocked module, then joins one shared right-side vertical trunk, takes a short horizontal segment into the right-lane Sandbox rectangle, and continues from Sandbox bottom to the separate D8 rectangle through a short vertical route.
+- [ ] Each `no` label is independently positioned above the midpoint of its horizontal route segment; no per-row vertical pseudo-element may pass through the label.
+- [ ] The geometry contract remains valid at desktop, 1024px, 900px, and 560px viewports without page, panel, or bridge horizontal/vertical overflow.
 ## 2026-09-08 Security Profile D3-D8 Defense Details
 
 - [ ] D3-D8 render dedicated upper visualizations rather than placeholders: causal-chain graph, intent evidence balance, memory quarantine, session swimlanes, tool-call X-ray, and confirmation state machine.
@@ -334,3 +355,29 @@
 - [ ] Diagram and rule controls are keyboard-operable native buttons with visible focus and at least 44px targets. Existing display-index arrows remain linear and reduced motion renders stable final states.
 - [ ] Static cases are labeled as implementation logic, traceable to backend source anchors, and do not depend on live SSE `defense_labels`, red-team reports, or new APIs.
 - [x] Focused data/structure tests, `type-check:app`, lint, `verify:default`, and defense-page Playwright coverage pass without modifying backend or frozen contracts.
+
+
+## 2026-09-09 Red Team Workspace Entry
+
+- Ownership: `MainWindow` owns the red-team navigation identity and keyed page transition. The current `redteam` destination is deliberately blank and must not introduce red-team API requests or placeholder content until the execution/report design is approved.
+- Boundary: this change adds only the eighth navigation item and responsive menu reachability. It does not modify evaluation state, report behavior, backend contracts, Agent selection, or red-team execution logic.
+- Validation: verify eight-item navigation order, keyboard activation, empty red-team content, return navigation to 测评运行, reduced-motion transitions, and desktop/narrow sidebar reachability.
+
+
+## 2026-09-09 Stage 4 Agent Topology
+
+- [ ] Browser topology access goes only through same-origin `app/api/topology/**/route.ts`; backend URLs and secrets remain server-only.
+- [ ] Topology wire fields remain snake_case and are validated at the repository boundary; no changes to AgentManifest, shared contracts, or frozen evaluation events.
+- [ ] `single` preserves existing Stage 3/R4 behavior; invalid, unavailable, and save-failure states remain local and retryable.
+- [ ] Non-single topology uses native SVG/HTML with fixed positions, no third-party graph library, keyboard-reachable node buttons, visible focus, responsive layout, and reduced-motion final state.
+- [ ] R5/R6 paths reuse Anatomy path list, inspector, handoff, finding, and evidence semantics; graph structure never changes potential to verified.
+- [ ] Run/report additions preserve Provider reducer, SSE events, scoring, evidence redaction, and sessionStorage behavior.
+
+### 2026-09-11 Topology Mode Navigation
+
+- [ ] `TopologyModeNav` remains a React/project-CSS component; no Vue Bits, shadcn-vue, new state library, or client-visible backend URL is introduced.
+- [ ] The centered header control overlays the main window without changing `.main-content-region` geometry. Desktop retains AgentProof; at 720px and below its wordmark hides while the control remains centered and the cards stack without horizontal overflow.
+- [ ] The active topology is visibly marked, semantically current, disabled, and cannot invoke hover/click mode change. Every alternative card, menu toggle, dialog action, and focus state remains keyboard reachable.
+- [ ] Confirming from 初始接口 saves the valid Agent Manifest before `POST /api/topology/[agentId]`; other modules save topology only. Cancel/backdrop/Escape write nothing. A failure retains the dialog/error state and does not update topology, navigation, evaluation session, or restart animation.
+- [ ] A successful switch updates the topology owner, clears the evaluation workspace session, navigates to 总览, and reuses the existing `restartToken` SVG transition. Reduced motion resolves directly to the final state.
+- [ ] The topology confirmation dialog mirrors the email confirmation visual system only: no `MODE SWITCH` eyebrow or rounded container, a square warm surface with blue top rule, and two neutral buttons that turn blue with white text on hover/focus. It keeps topology-owned confirmation/cancel/error semantics and does not inherit the email dialog's close control or delayed decision callback.

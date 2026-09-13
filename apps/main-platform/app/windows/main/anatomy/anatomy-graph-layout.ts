@@ -345,3 +345,146 @@ export function getActiveAnatomyRouteNodeIds(pathId: string) {
       .flatMap((segment) => [segment.sourceNodeId, segment.targetNodeId]),
   );
 }
+
+// ---------------------------------------------------------------------------
+// Topology risk-path projection (R5 planner_executor / R6 rag_agent)
+//
+// The topology mode reuses the mature Anatomy five-stage rail, uniform 150x88
+// node rectangles, edge-center anchors and curved route strokes, but maps its
+// steps onto five semantic columns from the topology plan (5.5): 风险入口 ->
+// 内容处理 -> 状态交接 -> 决策执行 -> 危险动作. R5 is a four-node chain that
+// skips the handoff column (the task_plan channel crosses it), while R6 fills
+// all five columns. Short paths keep the same stable node size instead of
+// stretching nodes to fill space.
+// ---------------------------------------------------------------------------
+
+export const ANATOMY_TOPOLOGY_PHASES = [
+  {
+    id: "entry",
+    label: "01",
+    title: "风险入口",
+    subtitle: "不可信内容进入",
+    x: offsetX(112),
+  },
+  {
+    id: "process",
+    label: "02",
+    title: "内容处理",
+    subtitle: "规划 / 检索",
+    x: offsetX(286),
+  },
+  {
+    id: "handoff",
+    label: "03",
+    title: "状态交接",
+    subtitle: "计划 / 检索通道",
+    x: offsetX(456),
+  },
+  {
+    id: "exec",
+    label: "04",
+    title: "决策执行",
+    subtitle: "执行器 / 主 Agent",
+    x: offsetX(626),
+  },
+  {
+    id: "sink",
+    label: "05",
+    title: "危险动作",
+    subtitle: "外发工具",
+    x: offsetX(784),
+  },
+] as const;
+
+export const ANATOMY_TOPOLOGY_NODE_Y = offsetY(166);
+export const ANATOMY_TOPOLOGY_NODE_WIDTH = ANATOMY_NODE_WIDTH;
+export const ANATOMY_TOPOLOGY_NODE_HEIGHT = ANATOMY_NODE_HEIGHT;
+
+const TOPOLOGY_PHASE_CENTERS = ANATOMY_TOPOLOGY_PHASES.map((phase) => phase.x);
+
+/**
+ * Maps a chain of `stepCount` topology steps onto the five phase column
+ * centers. Four-node R5 chains occupy columns 1/2/4/5 (the task_plan handoff
+ * column 3 stays empty and is crossed by a labelled edge); five-node R6 chains
+ * fill all five columns.
+ */
+export function getTopologyStepPhaseXs(stepCount: number): number[] {
+  if (stepCount === 4) {
+    return [
+      offsetX(112),
+      offsetX(286),
+      offsetX(626),
+      offsetX(784),
+    ];
+  }
+
+  if (stepCount === 5) {
+    return [
+      offsetX(112),
+      offsetX(286),
+      offsetX(456),
+      offsetX(626),
+      offsetX(784),
+    ];
+  }
+
+  return TOPOLOGY_PHASE_CENTERS.slice(0, Math.max(0, Math.min(stepCount, 5)));
+}
+
+export type TopologyChainNodeLayout = {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+};
+
+export function createTopologyChainNodeLayout(x: number): TopologyChainNodeLayout {
+  return {
+    height: ANATOMY_TOPOLOGY_NODE_HEIGHT,
+    width: ANATOMY_TOPOLOGY_NODE_WIDTH,
+    x,
+    y: ANATOMY_TOPOLOGY_NODE_Y,
+  };
+}
+
+export type TopologyChainSegment = {
+  d: string;
+  labelX: number;
+  labelY: number;
+};
+
+/**
+ * Chains the projected steps with the mature curved route language. The channel
+ * label rides above the node band (`y - height / 2 - 18`) because adjacent
+ * topology columns are only 158-174 apart while nodes are 150 wide: a label on
+ * the rail line itself would be painted over by the node surfaces.
+ */
+export function buildTopologyChainSegments(
+  layouts: TopologyChainNodeLayout[],
+): TopologyChainSegment[] {
+  const segments: TopologyChainSegment[] = [];
+
+  for (let index = 0; index < layouts.length - 1; index += 1) {
+    const source = layouts[index];
+    const target = layouts[index + 1];
+    const sourceRight = source.x + source.width / 2;
+    const targetLeft = target.x - target.width / 2;
+    const span = targetLeft - sourceRight;
+    const controlOneX = sourceRight + span * 0.38;
+    const controlTwoX = targetLeft - span * 0.38;
+    const y = source.y;
+
+    segments.push({
+      d: [
+        `M ${sourceRight} ${y}`,
+        `C ${controlOneX} ${y}`,
+        `${controlTwoX} ${y}`,
+        `${targetLeft} ${y}`,
+      ].join(" "),
+      labelX: (source.x + target.x) / 2,
+      labelY: y - source.height / 2 - 18,
+    });
+  }
+
+  return segments;
+}
