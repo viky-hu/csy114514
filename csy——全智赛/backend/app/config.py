@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         Path(__file__).resolve().parents[1] / "data" / "redteam.sqlite3"
     )
     redteam_bff_signing_secret: str | None = None
+    # In-process fixture adapters are strictly local development aids.
+    redteam_fixture_adapter_enabled: bool = False
     # Stage 3: LLM configuration (SiliconFlow / DeepSeek / any OpenAI-compatible)
     deepseek_api_key: str | None = None
     llm_model: str = "MiniMaxAI/MiniMax-M2.5"

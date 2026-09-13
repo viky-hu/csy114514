@@ -7,6 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
+from backend.app.config import settings
 from backend.app.domain.redteam_run import (
     CreateRedTeamConnectionRequest,
     CreateRedTeamRunRequest,
@@ -15,7 +16,11 @@ from backend.app.domain.redteam_run import (
 )
 from backend.app.persistence.redteam_store import SQLiteRedTeamStore
 from backend.app.redteam.mutator import STRATEGIES, AttackMutator
-from backend.app.services.redteam_adapter import HttpRedTeamAdapter
+from backend.app.services.redteam_adapter import (
+    FIXTURE_ADAPTER_ENDPOINT,
+    HttpRedTeamAdapter,
+    InProcessFixtureRedTeamAdapter,
+)
 from backend.app.services.redteam_runtime import redteam_conclusion, summarize_outcomes
 
 
@@ -49,8 +54,18 @@ class RedTeamCoordinator:
     def close(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)
 
+    def _adapter_for_endpoint(self, endpoint: str):
+        if endpoint == FIXTURE_ADAPTER_ENDPOINT:
+            if not (settings.debug and settings.redteam_fixture_adapter_enabled):
+                raise ValueError(
+                    "The in-process fixture adapter requires DEBUG=true and "
+                    "REDTEAM_FIXTURE_ADAPTER_ENABLED=true."
+                )
+            return InProcessFixtureRedTeamAdapter(endpoint)
+        return self._adapter_factory(endpoint)
+
     def create_connection(self, owner_id: str, request: CreateRedTeamConnectionRequest) -> RedTeamConnection:
-        adapter = self._adapter_factory(request.endpoint)
+        adapter = self._adapter_for_endpoint(request.endpoint)
         metadata = adapter.verify()
         return self.store.create_connection(
             owner_id=owner_id,

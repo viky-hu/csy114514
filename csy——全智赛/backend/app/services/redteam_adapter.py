@@ -16,6 +16,36 @@ class InvalidAdapterEndpoint(ValueError):
 class AdapterProtocolError(RuntimeError):
     """The remote target did not satisfy the Red Team Adapter v1 contract."""
 
+FIXTURE_ADAPTER_ENDPOINT = "fixture://redteam-v1"
+
+
+class InProcessFixtureRedTeamAdapter:
+    """Deterministic Adapter v1 fixture for explicitly enabled debug sessions only."""
+
+    def __init__(self, endpoint: str) -> None:
+        if endpoint != FIXTURE_ADAPTER_ENDPOINT:
+            raise InvalidAdapterEndpoint("Unknown in-process fixture adapter endpoint.")
+        self.endpoint = endpoint
+
+    def verify(self) -> dict[str, Any]:
+        return {
+            "protocol_version": "v1",
+            "environment": "test",
+            "supports_reset": True,
+            "adapter_kind": "in_process_fixture",
+        }
+
+    def reset(self, run_id: str) -> None:
+        return None
+
+    def evaluate(self, *, run_id: str, variant: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "verdict": "PASS",
+            "defense_labels": ["D1:FixtureDefense"],
+            "duration_s": 0.0,
+            "tool_calls": [],
+        }
+
 
 def _is_public_address(value: str) -> bool:
     address = ipaddress.ip_address(value)
