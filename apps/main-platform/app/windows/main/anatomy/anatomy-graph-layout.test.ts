@@ -11,6 +11,7 @@ import {
   ANATOMY_TOPOLOGY_PHASES,
   buildAnatomyRouteSegments,
   buildTopologyChainSegments,
+  createTopologyStageItems,
   createTopologyChainNodeLayout,
   getActiveAnatomyRouteNodeIds,
   getAnatomyNodeAnchor,
@@ -110,16 +111,30 @@ test("maps topology chains onto the five anatomy phase columns", () => {
     ANATOMY_TOPOLOGY_PHASES.map((phase) => phase.x),
     [160, 334, 504, 674, 832],
   );
-  assert.deepEqual(getTopologyStepPhaseXs(4), [160, 334, 674, 832]);
+  assert.deepEqual(getTopologyStepPhaseXs(4), [160, 334, 504, 674]);
   assert.deepEqual(getTopologyStepPhaseXs(5), [160, 334, 504, 674, 832]);
   assert.deepEqual(getTopologyStepPhaseXs(3), [160, 334, 504]);
   assert.deepEqual(getTopologyStepPhaseXs(0), []);
 });
 
-test("keeps topology chain nodes at the anatomy node size on the shared rail", () => {
+test("inserts a semantic R5 task-plan placeholder and leaves R6 fully real", () => {
+  assert.deepEqual(createTopologyStageItems("R5", ["web", "planner", "executor", "send"]), [
+    { kind: "node", nodeId: "web" },
+    { kind: "node", nodeId: "planner" },
+    { caption: "计划交接", kind: "placeholder", label: "TASK PLAN" },
+    { kind: "node", nodeId: "executor" },
+    { kind: "node", nodeId: "send" },
+  ]);
+  assert.deepEqual(
+    createTopologyStageItems("R6", ["docs", "kb", "retriever", "agent", "send"]).map((item) => item.kind),
+    ["node", "node", "node", "node", "node"],
+  );
+});
+
+test("keeps topology chain nodes compact enough to expose every connector on the shared rail", () => {
   assert.deepEqual(createTopologyChainNodeLayout(160), {
     height: 88,
-    width: 150,
+    width: 128,
     x: 160,
     y: 194,
   });
@@ -133,7 +148,7 @@ test("keeps topology chain nodes at the anatomy node size on the shared rail", (
       top: layout.y - layout.height / 2,
     };
 
-    assert.deepEqual(bounds, { bottom: 238, left: x - 75, right: x + 75, top: 150 });
+    assert.deepEqual(bounds, { bottom: 238, left: x - 64, right: x + 64, top: 150 });
     // The five-phase rail stays below the node band, exactly like the R1-R4 graph.
     assert.ok(bounds.bottom < ANATOMY_PHASE_LABEL_Y);
   }
@@ -148,33 +163,32 @@ test("joins topology chain nodes from edge center to edge center", () => {
   segments.forEach((segment, index) => {
     const numbers = getPathNumbers(segment.d);
 
-    assert.equal(numbers.length, 8);
+    assert.equal(numbers.length, 4);
     assert.deepEqual(
-      [numbers[0], numbers[1], numbers[6], numbers[7]],
-      [layouts[index].x + 75, 194, layouts[index + 1].x - 75, 194],
+      numbers,
+      [layouts[index].x + 64, 194, layouts[index + 1].x - 64, 194],
       `segment ${index} must attach to node edge centers on the shared rail`,
     );
-    assert.deepEqual([numbers[3], numbers[5]], [194, 194]);
     assert.equal(segment.labelX, (layouts[index].x + layouts[index + 1].x) / 2);
-    // Channel labels ride above the 150x88 node band so node surfaces never
+    // Channel labels ride above the 128x88 node band so node surfaces never
     // paint over them.
     assert.equal(segment.labelY, 132);
     assert.ok(segment.labelY < 150);
   });
 });
 
-test("keeps topology chain segments non-inverted even on the narrow 8px column gap", () => {
-  const layouts = getTopologyStepPhaseXs(4).map(createTopologyChainNodeLayout);
+test("keeps every topology line body visible between measured node boundaries", () => {
+  const layouts = getTopologyStepPhaseXs(5).map(createTopologyChainNodeLayout);
   const segments = buildTopologyChainSegments(layouts);
   const last = segments.at(-1);
   const numbers = getPathNumbers(last?.d ?? "");
 
-  // Columns 4 and 5 are 158 apart while nodes are 150 wide: the route must stay
-  // a short forward stroke instead of collapsing or crossing backwards.
+  // The tightest columns are 158 apart. Compact topology nodes preserve a
+  // visible line body while keeping the five stages on one row.
   assert.deepEqual(
-    [numbers[0], numbers[6]],
-    [layouts[2].x + 75, layouts[3].x - 75],
+    [numbers[0], numbers[2]],
+    [layouts[3].x + 64, layouts[4].x - 64],
   );
-  assert.ok(numbers[6] > numbers[0]);
+  assert.ok(numbers[2] - numbers[0] >= 30);
   assert.ok(segments[1].labelX > segments[0].labelX);
 });

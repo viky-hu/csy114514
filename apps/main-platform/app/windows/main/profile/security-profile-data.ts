@@ -3,6 +3,10 @@ import type {
   TopologyNode,
   TopologyNodeRole,
 } from "../topology/topology-types.ts";
+import type {
+  ProjectionAttackGraph,
+  ProjectionGraphNode,
+} from "../topology/topology-projection.ts";
 
 export type SecurityProfilePermission = "ALLOW" | "CONFIRM" | "DENY";
 
@@ -201,11 +205,12 @@ const TOPOLOGY_ROLE_LABELS: Record<TopologyNode["role"], string> = {
 
 function createTopologyProfileNode(node: TopologyNode): SecurityProfileNode {
   const isKnowledgeBase = node.role === "KNOWLEDGE_BASE";
+  const isExternal = node.trust_boundary === "external";
   const roleLabel = TOPOLOGY_ROLE_LABELS[node.role];
   const trustBoundary = node.trust_boundary.toUpperCase();
 
   return {
-    columnId: isKnowledgeBase ? "input-data" : "agent-core",
+    columnId: isKnowledgeBase || isExternal ? "input-data" : "agent-core",
     detail:
       node.role === "KNOWLEDGE_BASE"
         ? "知识库位于外部信任边界，存储的检索内容不可默认视为可信；进入主 Agent 前需按 retrieval 通道核验。"
@@ -217,7 +222,7 @@ function createTopologyProfileNode(node: TopologyNode): SecurityProfileNode {
       `tools: ${node.tools.join(" / ") || "无"}`,
     ],
     id: node.id,
-    kind: isKnowledgeBase ? "data" : "agent",
+    kind: isKnowledgeBase ? "data" : isExternal ? "source" : "agent",
     label: roleLabel,
     labels: isKnowledgeBase
       ? [node.role, "UNTRUSTED", "EXTERNAL"]
@@ -237,6 +242,7 @@ function createTopologyProfileNode(node: TopologyNode): SecurityProfileNode {
 export function createTopologySecurityProfileViewModel(
   viewModel: SecurityProfileViewModel,
   topology: AgentTopology,
+  attackGraph?: ProjectionAttackGraph | null,
 ): SecurityProfileViewModel {
   if (topology.topology_type === "single") {
     return viewModel;
@@ -261,7 +267,11 @@ export function createTopologySecurityProfileViewModel(
     ) {
       return true;
     }
-    if (node.kind === "source" && topology.topology_type === "planner_executor") {
+    if (
+      node.kind === "source" &&
+      topology.topology_type === "planner_executor" &&
+      !topology.nodes.some((topologyNode) => topologyNode.trust_boundary === "external")
+    ) {
       return true;
     }
     return false;
@@ -295,6 +305,71 @@ export function createTopologySecurityProfileViewModel(
     targetNodeId: edge.to_node,
     type: edge.channel,
   }));
+  const graphNodeToProfileNode = new Map<string, string>();
+
+  for (const topologyNode of topology.nodes) {
+    const graphNode = attackGraph?.nodes.find(
+      (node) =>
+        node.node_id === topologyNode.id ||
+        node.metadata.role?.toUpperCase() === topologyNode.role,
+    );
+    if (graphNode) {
+      graphNodeToProfileNode.set(graphNode.node_id, topologyNode.id);
+    }
+  }
+
+  for (const graphNode of attackGraph?.nodes ?? []) {
+    const mappedId = mapRouteNodeId(graphNode.node_id)
+      ?? findContextProfileNodeId(viewModel, graphNode);
+    if (mappedId) {
+      graphNodeToProfileNode.set(graphNode.node_id, mappedId);
+    }
+  }
+
+  const visibleNodeIds = new Set(nodes.map((node) => node.id));
+  const graphRoutes: SecurityProfileRoute[] = (attackGraph?.edges ?? []).flatMap(
+    (edge) => {
+      const sourceNodeId = graphNodeToProfileNode.get(edge.source_node_id);
+      const targetNodeId = graphNodeToProfileNode.get(edge.target_node_id);
+      if (
+        !sourceNodeId ||
+        !targetNodeId ||
+        !visibleNodeIds.has(sourceNodeId) ||
+        !visibleNodeIds.has(targetNodeId)
+      ) {
+        return [];
+      }
+
+      const topologyRoute = topologyRoutes.find(
+        (route) =>
+          route.sourceNodeId === sourceNodeId &&
+          route.targetNodeId === targetNodeId,
+      );
+      return [{
+        carriesUntrustedContent:
+          topologyRoute?.carriesUntrustedContent ??
+          edge.edge_type.toUpperCase().includes("UNTRUSTED"),
+        channel: topologyRoute?.channel ?? edge.edge_type.toLowerCase(),
+        description:
+          edge.metadata?.description ??
+          `${sourceNodeId} → ${targetNodeId}`,
+        id: topologyRoute?.id ?? `graph-${edge.edge_id}`,
+        sourceNodeId,
+        targetNodeId,
+        type: topologyRoute?.type ?? edge.edge_type.toLowerCase(),
+      }];
+    },
+  );
+  const graphRoutePairs = new Set(
+    graphRoutes.map((route) => `${route.sourceNodeId}->${route.targetNodeId}`),
+  );
+  const routes = [
+    ...graphRoutes,
+    ...topologyRoutes.filter(
+      (route) =>
+        !graphRoutePairs.has(`${route.sourceNodeId}->${route.targetNodeId}`),
+    ),
+  ];
 
   return {
     ...viewModel,
@@ -304,8 +379,34 @@ export function createTopologySecurityProfileViewModel(
       nodeIds: nodesByColumn.get(column.id) ?? [],
     })),
     nodes,
-    routes: topologyRoutes,
+    routes,
   };
+}
+
+function findContextProfileNodeId(
+  viewModel: SecurityProfileViewModel,
+  graphNode: ProjectionGraphNode,
+) {
+  const name = graphNode.metadata.name ?? "";
+  if (graphNode.node_type === "SOURCE") {
+    return viewModel.sources.find((node) =>
+      name.includes("browser") ? node.id.includes("browser") : true
+    )?.id;
+  }
+  if (graphNode.node_type === "MEMORY") {
+    return viewModel.memory[0]?.id;
+  }
+  if (graphNode.node_type === "TOOL") {
+    return viewModel.tools.find(
+      (node) =>
+        node.meta.some((item) => item.value === name) ||
+        (name === "email.send" && node.label === "发送邮件"),
+    )?.id;
+  }
+  if (graphNode.node_type === "DATA") {
+    return viewModel.data[0]?.id;
+  }
+  return undefined;
 }
 
 function createToolNode(

@@ -85,6 +85,14 @@ export const PROFILE_COLUMNS: ProfileColumnLayout[] = [
 ] as const;
 
 export const PROFILE_NODE_LAYOUTS = {
+  topologyExternalAgent: {
+    columnId: "input-data",
+    height: 84,
+    id: "browser",
+    width: 164,
+    x: 166,
+    y: 184,
+  },
   topologyAgent: {
     columnId: "agent-core",
     height: 92,

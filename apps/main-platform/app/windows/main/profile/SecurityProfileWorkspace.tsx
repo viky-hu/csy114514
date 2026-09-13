@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { SecurityProfileGraph } from "./SecurityProfileGraph";
-import { securityProfileFixtureViewModel } from "./profile-fixtures";
+import {
+  securityProfileFixtureInput,
+  securityProfileFixtureViewModel,
+} from "./profile-fixtures";
 import {
   ApiSecurityProfileRepository,
   MockSecurityProfileRepository,
@@ -20,6 +23,7 @@ type SecurityProfileWorkspaceProps = {
 
 const fallbackRepository = new MockSecurityProfileRepository(
   securityProfileFixtureViewModel,
+  securityProfileFixtureInput.attackGraph,
 );
 const defaultRepository = new ApiSecurityProfileRepository({
   fallback: fallbackRepository,
@@ -32,6 +36,7 @@ export function SecurityProfileWorkspace({
   topology,
 }: SecurityProfileWorkspaceProps) {
   const [result, setResult] = useState<SecurityProfileRepositoryResult>({
+    attackGraph: securityProfileFixtureInput.attackGraph,
     source: "mock",
     viewModel: securityProfileFixtureViewModel,
   });
@@ -48,13 +53,14 @@ export function SecurityProfileWorkspace({
     return () => {
       ignore = true;
     };
-  }, [agentId]);
+  }, [agentId, topology?.topology_type]);
 
   const viewModel = useMemo(() => result.viewModel, [result.viewModel]);
 
   return (
     <SecurityProfileGraph
       dataSource={result.source}
+      attackGraph={result.attackGraph}
       errorMessage={result.errorMessage}
       isGraphFrozen={isGraphFrozen}
       sidebarContentMetrics={sidebarContentMetrics}

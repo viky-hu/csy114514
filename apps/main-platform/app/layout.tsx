@@ -2,6 +2,7 @@ import "./globals.css";
 import "./styles/window-1-login.css";
 import "./styles/window-3-main.css";
 import "./styles/window-3-evaluation.css";
+import "./styles/window-3-redteam.css";
 import "cn-fontsource-ding-talk-jin-bu-ti-regular/font.css";
 import "react-easy-crop/react-easy-crop.css";
 import type { ReactNode } from "react";

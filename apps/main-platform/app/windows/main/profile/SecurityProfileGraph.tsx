@@ -18,6 +18,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { LINE_DRAW_EASE } from "../../shared/animation";
 import { createClockwiseRoundedRectPath } from "../shared/graph-svg-primitives.ts";
+import { useGraphNodeHoverOutline } from "../shared/useGraphNodeHoverOutline";
 import {
   useFrozenGraphInlineSize,
   type SidebarContentMetrics,
@@ -29,21 +30,21 @@ import {
   PROFILE_GRAPH_VIEWBOX,
   PROFILE_LAYOUT_BY_NODE_ID,
   buildProfileRouteSegments,
-  findProfileHoverColumnId,
   profileHoverBands,
 } from "./security-profile-graph-layout";
 import type {
-  SecurityProfileColumnId,
   SecurityProfileNode,
   SecurityProfileViewModel,
 } from "./security-profile-data";
 import { createTopologySecurityProfileViewModel } from "./security-profile-data";
 import { DefenseVisualizationStage } from "./DefenseVisualizationStage";
 import type { AgentTopology, TopologyNodeRole } from "../topology/topology-types";
+import type { ProjectionAttackGraph } from "../topology/topology-projection";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
 type SecurityProfileGraphProps = {
+  attackGraph?: ProjectionAttackGraph | null;
   /**
    * Where the rendered profile came from. `mock` means the Agent profile API was
    * not reachable and the page falls back to the fixture baseline, so the badge
@@ -61,27 +62,13 @@ type DrawSVGTweenVars = gsap.TweenVars & {
   drawSVG?: number | string;
 };
 
-type ProfileHotZoneStyleVars = CSSProperties &
-  Record<
-    | "--profile-hot-height"
-    | "--profile-hot-left"
-    | "--profile-hot-top"
-    | "--profile-hot-width",
-    string
-  >;
-
 type ProfileNodeOverlayStyleVars = CSSProperties &
   Record<"--node-height" | "--node-left" | "--node-top" | "--node-width", string>;
 
 const PROFILE_BOUNDARY_CLIP_ID = "security-profile-boundary-clip";
-const PROFILE_HOVER_NODE_DURATION = 0.26;
-const PROFILE_HOVER_NODE_SCALE_X = 1;
-const PROFILE_HOVER_NODE_SCALE_Y = 1.035;
-const PROFILE_HOVER_NODE_Y = -5;
 const PROFILE_COLLAPSED_GRAPH_GAP = 16;
 const PROFILE_COMPANION_MIN_INLINE_SIZE = 270;
 const PROFILE_STACK_INLINE_SIZE = 920;
-
 const PERMISSION_LABELS: Record<string, string> = {
   ALLOW: "允许",
   CONFIRM: "需确认",
@@ -141,36 +128,19 @@ function getProfileFallbackGraphInlineSize(openInlineSize: number) {
 
 function getNodeClassName(
   node: SecurityProfileNode,
-  activeColumnId: SecurityProfileColumnId | null,
   selectedNodeId: string,
+  hoveredNodeId: string | null,
 ) {
   const classes = [
     "security-profile-svg-node",
     `is-${node.kind}`,
-    node.columnId === activeColumnId ? "is-active" : "",
+    node.id === hoveredNodeId ? "is-active" : "",
     node.id === selectedNodeId ? "is-selected" : "",
     node.permission ? `has-${node.permission.toLowerCase()}` : "",
     ...node.labels.map((label) => `has-${label.toLowerCase()}`),
   ];
 
   return classes.filter(Boolean).join(" ");
-}
-
-function getProfileHotZoneStyle(
-  band: (typeof profileHoverBands)[number],
-): ProfileHotZoneStyleVars {
-  return {
-    "--profile-hot-height": `${
-      (PROFILE_GRAPH_BOUNDARY.height / PROFILE_GRAPH_VIEWBOX.height) * 100
-    }%`,
-    "--profile-hot-left": `${(band.xStart / PROFILE_GRAPH_VIEWBOX.width) * 100}%`,
-    "--profile-hot-top": `${
-      (PROFILE_GRAPH_BOUNDARY.y / PROFILE_GRAPH_VIEWBOX.height) * 100
-    }%`,
-    "--profile-hot-width": `${
-      ((band.xEnd - band.xStart) / PROFILE_GRAPH_VIEWBOX.width) * 100
-    }%`,
-  };
 }
 
 function getProfileNodeOverlayStyle(
@@ -247,6 +217,7 @@ function SecurityProfileInspector({ node }: { node: SecurityProfileNode }) {
 }
 
 export function SecurityProfileGraph({
+  attackGraph,
   dataSource = "mock",
   errorMessage,
   isGraphFrozen,
@@ -257,11 +228,8 @@ export function SecurityProfileGraph({
   const rootRef = useRef<HTMLElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<HTMLDivElement>(null);
-  const activeColumnRef = useRef<SecurityProfileColumnId | null>(null);
-  const animatedColumnRef = useRef<SecurityProfileColumnId | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState(viewModel.agent.id);
-  const [hoverColumnId, setHoverColumnId] =
-    useState<SecurityProfileColumnId | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [screen, setScreen] = useState<"profile" | "defense">("profile");
   const [isDefenseRevealed, setIsDefenseRevealed] = useState(false);
   const requestedScreenRef = useRef<"profile" | "defense">("profile");
@@ -282,9 +250,9 @@ export function SecurityProfileGraph({
   const displayViewModel = useMemo(
     () =>
       topology && topology.topology_type !== "single"
-        ? createTopologySecurityProfileViewModel(viewModel, topology)
+        ? createTopologySecurityProfileViewModel(viewModel, topology, attackGraph)
         : viewModel,
-    [topology, viewModel],
+    [attackGraph, topology, viewModel],
   );
 
   const nodesById = useMemo(
@@ -292,7 +260,6 @@ export function SecurityProfileGraph({
     [displayViewModel.nodes],
   );
   const selectedNode = nodesById.get(selectedNodeId) ?? displayViewModel.agent;
-  const activeColumnId = hoverColumnId;
   const routeSegments = useMemo(
     () =>
       topology && topology.topology_type !== "single"
@@ -301,52 +268,25 @@ export function SecurityProfileGraph({
     [displayViewModel.routes, topology],
   );
   const activeRouteIds = useMemo(() => {
-    if (!activeColumnId) {
+    if (!hoveredNodeId) {
       return new Set<string>();
     }
 
-    const activeColumns = new Set([activeColumnId]);
-
     return new Set(
       routeSegments
-        .filter((segment) => {
-          const source = nodesById.get(segment.sourceNodeId);
-          const target = nodesById.get(segment.targetNodeId);
-
-          return (
-            (source && activeColumns.has(source.columnId)) ||
-            (target && activeColumns.has(target.columnId))
-          );
-        })
+        .filter((segment) => segment.sourceNodeId === hoveredNodeId || segment.targetNodeId === hoveredNodeId)
         .map((segment) => segment.id),
     );
-  }, [activeColumnId, nodesById, routeSegments]);
+  }, [hoveredNodeId, routeSegments]);
+  const profileNodeKey = displayViewModel.nodes.map((node) => node.id).join("|");
 
-  const activateColumn = useCallback((nextColumnId: SecurityProfileColumnId | null) => {
-    if (activeColumnRef.current === nextColumnId) {
-      return;
-    }
-
-    activeColumnRef.current = nextColumnId;
-    setHoverColumnId(nextColumnId);
-  }, []);
-
-  const setActiveColumnFromClientX = useCallback(
-    (clientX: number) => {
-      const graphRoot = graphRef.current;
-
-      if (!graphRoot) {
-        return;
-      }
-
-      const bounds = graphRoot.getBoundingClientRect();
-      const viewBoxX =
-        ((clientX - bounds.left) / bounds.width) * PROFILE_GRAPH_VIEWBOX.width;
-
-      activateColumn(findProfileHoverColumnId(viewBoxX));
-    },
-    [activateColumn],
-  );
+  useGraphNodeHoverOutline({
+    activeNodeId: hoveredNodeId,
+    nodeKey: profileNodeKey,
+    nodeSelector: ".security-profile-svg-node",
+    outlineSelector: ".security-profile-hover-outline",
+    rootRef,
+  });
 
   useGSAP(
     () => {
@@ -387,21 +327,14 @@ export function SecurityProfileGraph({
             ".security-profile-hover-outline",
             root,
           );
-          const hotZones = gsap.utils.toArray<HTMLElement>(
-            ".security-profile-hot-zone",
-            root,
-          );
           const pageRevealTargets = gsap.utils.toArray<HTMLElement>(
             ".security-profile-reveal",
             root,
           );
           const boundaryTargets = boundary ? [boundary] : [];
 
-          gsap.set(hotZones, {
-            "--profile-hot-rail-alpha": 0,
-            autoAlpha: 0,
-          });
           gsap.set(hoverOutlines, {
+            autoAlpha: 0,
             drawSVG: "0% 0%",
           } as DrawSVGTweenVars);
 
@@ -506,120 +439,6 @@ export function SecurityProfileGraph({
     { scope: rootRef },
   );
 
-  useGSAP(
-    () => {
-      const root = rootRef.current;
-      const previousColumnId = animatedColumnRef.current;
-
-      if (!root || previousColumnId === activeColumnId) {
-        return;
-      }
-
-      const reduceMotion = isReducedMotion();
-      const hotZones = gsap.utils.toArray<HTMLElement>(
-        ".security-profile-hot-zone",
-        root,
-      );
-      const nodeGroups = gsap.utils.toArray<SVGGElement>(
-        ".security-profile-svg-node",
-        root,
-      );
-      const hoverOutlines = gsap.utils.toArray<SVGPathElement>(
-        ".security-profile-hover-outline",
-        root,
-      );
-      const columnIndexById = new Map(
-        profileHoverBands.map((band, index) => [band.id, index]),
-      );
-      const deactivateColumn = (columnId: SecurityProfileColumnId | null) => {
-        if (!columnId) {
-          return;
-        }
-
-        const columnIndex = columnIndexById.get(columnId);
-        const columnNodes = nodeGroups.filter(
-          (node) => node.dataset.profileColumnId === columnId,
-        );
-        const columnOutlines = hoverOutlines.filter(
-          (outline) => outline.dataset.profileColumnId === columnId,
-        );
-
-        if (columnIndex !== undefined) {
-          gsap.to(hotZones[columnIndex], {
-            "--profile-hot-rail-alpha": 0,
-            autoAlpha: 0,
-            duration: reduceMotion ? 0 : 0.2,
-            ease: "power2.out",
-            overwrite: "auto",
-          });
-        }
-        gsap.to(columnNodes, {
-          duration: reduceMotion ? 0 : 0.24,
-          ease: "power2.out",
-          overwrite: "auto",
-          scaleX: 1,
-          scaleY: 1,
-          y: 0,
-        });
-        gsap.set(columnOutlines, {
-          drawSVG: "0% 0%",
-        } as DrawSVGTweenVars);
-      };
-
-      const activateCurrentColumn = (columnId: SecurityProfileColumnId) => {
-        const columnIndex = columnIndexById.get(columnId);
-        const columnNodes = nodeGroups.filter(
-          (node) => node.dataset.profileColumnId === columnId,
-        );
-        const columnOutlines = hoverOutlines.filter(
-          (outline) => outline.dataset.profileColumnId === columnId,
-        );
-
-        if (columnIndex !== undefined) {
-          gsap.to(hotZones[columnIndex], {
-            "--profile-hot-rail-alpha": 1,
-            autoAlpha: 1,
-            duration: reduceMotion ? 0 : 0.24,
-            ease: "power2.out",
-            overwrite: "auto",
-          });
-        }
-        gsap.to(columnNodes, {
-          duration: reduceMotion ? 0 : PROFILE_HOVER_NODE_DURATION,
-          ease: "power2.out",
-          overwrite: "auto",
-          scaleX: PROFILE_HOVER_NODE_SCALE_X,
-          scaleY: PROFILE_HOVER_NODE_SCALE_Y,
-          y: PROFILE_HOVER_NODE_Y,
-        });
-
-        if (reduceMotion) {
-          gsap.set(columnOutlines, {
-            drawSVG: "0% 100%",
-          } as DrawSVGTweenVars);
-        } else {
-          gsap.fromTo(
-            columnOutlines,
-            { drawSVG: "0% 0%" } as DrawSVGTweenVars,
-            {
-              drawSVG: "0% 100%",
-              duration: 0.52,
-              ease: "power2.inOut",
-              overwrite: "auto",
-            } as DrawSVGTweenVars,
-          );
-        }
-      };
-
-      animatedColumnRef.current = activeColumnId;
-      deactivateColumn(previousColumnId);
-      if (activeColumnId) {
-        activateCurrentColumn(activeColumnId);
-      }
-    },
-    { dependencies: [activeColumnId], revertOnUpdate: false, scope: rootRef },
-  );
-
   const requestScreen = useCallback((nextScreen: "profile" | "defense") => {
     if (requestedScreenRef.current === nextScreen) {
       return;
@@ -718,9 +537,9 @@ export function SecurityProfileGraph({
             </span>
           </span>
           <h1>{displayViewModel.agent.label} 的能力边界</h1>
-          <p>
-            平台已识别外部来源、长期记忆、敏感数据与需确认工具；请逐项核对画像是否符合预期。
-          </p>
+          {topology?.topology_type === "single" ? (
+            <p>平台已识别外部来源、长期记忆、敏感数据与需确认工具。</p>
+          ) : null}
           {errorMessage ? (
             <p className="security-profile-source-note">{errorMessage}</p>
           ) : null}
@@ -743,23 +562,8 @@ export function SecurityProfileGraph({
           <div
             ref={graphRef}
             className="security-profile-map-stage"
-            onPointerEnter={(event) => setActiveColumnFromClientX(event.clientX)}
-            onPointerLeave={() => activateColumn(null)}
-            onPointerMove={(event) => setActiveColumnFromClientX(event.clientX)}
+            onPointerLeave={() => setHoveredNodeId(null)}
           >
-            <div className="security-profile-hot-zone-layer" aria-hidden="true">
-              {profileHoverBands.map((band) => (
-                <div
-                  key={band.id}
-                  className={`security-profile-hot-zone${
-                    band.id === activeColumnId ? " is-active" : ""
-                  }`}
-                  data-profile-column-id={band.id}
-                  style={getProfileHotZoneStyle(band)}
-                />
-              ))}
-            </div>
-
             <svg
               aria-label="Agent 外部来源、工具、数据与记忆边界关系图"
               className="security-profile-svg"
@@ -863,11 +667,27 @@ export function SecurityProfileGraph({
               </g>
               <g
                 className="security-profile-routes"
-                aria-hidden="true"
                 clipPath={`url(#${PROFILE_BOUNDARY_CLIP_ID})`}
               >
                 {routeSegments.map((segment) => (
-                  <g key={segment.id}>
+                  <g
+                    key={segment.id}
+                    aria-label={`${formatRouteChannelLabel(segment.channel ?? segment.id)} 通道`}
+                    className="security-profile-route-control"
+                    onClick={() => setSelectedNodeId(segment.sourceNodeId)}
+                    onFocus={() => setHoveredNodeId(segment.sourceNodeId)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedNodeId(segment.sourceNodeId);
+                      }
+                    }}
+                    onPointerEnter={() => setHoveredNodeId(segment.sourceNodeId)}
+                    onPointerLeave={() => setHoveredNodeId(null)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <path className="security-profile-route-hitbox" d={segment.d} fill="none" />
                     <path
                       className={`security-profile-route is-route-tone-${segment.routeTone} is-${segment.visualIntent} ${
                         activeRouteIds.has(segment.id) ? "is-active" : ""
@@ -918,9 +738,10 @@ export function SecurityProfileGraph({
                       aria-label={`${NODE_KIND_LABELS[node.kind]}：${node.label}`}
                       className={getNodeClassName(
                         node,
-                        activeColumnId,
                         selectedNodeId,
+                        hoveredNodeId,
                       )}
+                      data-hover-node-id={node.id}
                       data-profile-column-id={node.columnId}
                       data-profile-node-id={node.id}
                     >
@@ -929,10 +750,11 @@ export function SecurityProfileGraph({
                         d={rectPath}
                       />
                       <path
-                        className="security-profile-hover-outline"
+                        className="security-profile-hover-outline graph-hover-outline"
                         d={rectPath}
                         data-profile-column-id={node.columnId}
                         filter="url(#security-profile-outline-glow)"
+                        pathLength={1}
                         stroke="url(#security-profile-route-stroke)"
                       />
                       <Icon
@@ -984,9 +806,11 @@ export function SecurityProfileGraph({
                     }`}
                     data-profile-column-id={node.columnId}
                     data-profile-node-id={node.id}
-                    onBlur={() => activateColumn(null)}
+                    onBlur={() => setHoveredNodeId(null)}
                     onClick={() => setSelectedNodeId(node.id)}
-                    onFocus={() => activateColumn(node.columnId)}
+                    onFocus={() => setHoveredNodeId(node.id)}
+                    onPointerEnter={() => setHoveredNodeId(node.id)}
+                    onPointerLeave={() => setHoveredNodeId(null)}
                     style={getProfileNodeOverlayStyle(layout)}
                   />
                 );

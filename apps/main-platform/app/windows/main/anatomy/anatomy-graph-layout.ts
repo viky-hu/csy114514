@@ -352,10 +352,9 @@ export function getActiveAnatomyRouteNodeIds(pathId: string) {
 // The topology mode reuses the mature Anatomy five-stage rail, uniform 150x88
 // node rectangles, edge-center anchors and curved route strokes, but maps its
 // steps onto five semantic columns from the topology plan (5.5): 风险入口 ->
-// 内容处理 -> 状态交接 -> 决策执行 -> 危险动作. R5 is a four-node chain that
-// skips the handoff column (the task_plan channel crosses it), while R6 fills
-// all five columns. Short paths keep the same stable node size instead of
-// stretching nodes to fill space.
+// 内容处理 -> 状态交接 -> 决策执行 -> 危险动作. R5 places a semantic TASK PLAN
+// handoff component in the third column; R6 fills all five columns with real
+// nodes. The placeholder never enters the real graph data model.
 // ---------------------------------------------------------------------------
 
 export const ANATOMY_TOPOLOGY_PHASES = [
@@ -397,38 +396,40 @@ export const ANATOMY_TOPOLOGY_PHASES = [
 ] as const;
 
 export const ANATOMY_TOPOLOGY_NODE_Y = offsetY(166);
-export const ANATOMY_TOPOLOGY_NODE_WIDTH = ANATOMY_NODE_WIDTH;
+// The native topology rail has five simultaneous stages. Its node width is
+// intentionally narrower than the legacy R1-R4 cards so every measured
+// right-edge -> left-edge connector retains a visible line body.
+export const ANATOMY_TOPOLOGY_NODE_WIDTH = 128;
 export const ANATOMY_TOPOLOGY_NODE_HEIGHT = ANATOMY_NODE_HEIGHT;
 
 const TOPOLOGY_PHASE_CENTERS = ANATOMY_TOPOLOGY_PHASES.map((phase) => phase.x);
 
 /**
- * Maps a chain of `stepCount` topology steps onto the five phase column
- * centers. Four-node R5 chains occupy columns 1/2/4/5 (the task_plan handoff
- * column 3 stays empty and is crossed by a labelled edge); five-node R6 chains
- * fill all five columns.
+ * Maps a sequence onto the stable five-column rail.
  */
 export function getTopologyStepPhaseXs(stepCount: number): number[] {
-  if (stepCount === 4) {
-    return [
-      offsetX(112),
-      offsetX(286),
-      offsetX(626),
-      offsetX(784),
-    ];
-  }
-
-  if (stepCount === 5) {
-    return [
-      offsetX(112),
-      offsetX(286),
-      offsetX(456),
-      offsetX(626),
-      offsetX(784),
-    ];
-  }
-
   return TOPOLOGY_PHASE_CENTERS.slice(0, Math.max(0, Math.min(stepCount, 5)));
+}
+
+export type TopologyStageItem =
+  | { kind: "node"; nodeId: string }
+  | { caption: "计划交接"; kind: "placeholder"; label: "TASK PLAN" };
+
+export function createTopologyStageItems(
+  riskPatternId: "R5" | "R6",
+  nodeIds: string[],
+): TopologyStageItem[] {
+  if (riskPatternId === "R5" && nodeIds.length === 4) {
+    return [
+      { kind: "node", nodeId: nodeIds[0]! },
+      { kind: "node", nodeId: nodeIds[1]! },
+      { caption: "计划交接", kind: "placeholder", label: "TASK PLAN" },
+      { kind: "node", nodeId: nodeIds[2]! },
+      { kind: "node", nodeId: nodeIds[3]! },
+    ];
+  }
+
+  return nodeIds.map((nodeId) => ({ kind: "node", nodeId }));
 }
 
 export type TopologyChainNodeLayout = {
@@ -454,7 +455,7 @@ export type TopologyChainSegment = {
 };
 
 /**
- * Chains the projected steps with the mature curved route language. The channel
+ * Chains the projected steps with measured boundary-midpoint short lines. The channel
  * label rides above the node band (`y - height / 2 - 18`) because adjacent
  * topology columns are only 158-174 apart while nodes are 150 wide: a label on
  * the rail line itself would be painted over by the node surfaces.
@@ -469,18 +470,10 @@ export function buildTopologyChainSegments(
     const target = layouts[index + 1];
     const sourceRight = source.x + source.width / 2;
     const targetLeft = target.x - target.width / 2;
-    const span = targetLeft - sourceRight;
-    const controlOneX = sourceRight + span * 0.38;
-    const controlTwoX = targetLeft - span * 0.38;
     const y = source.y;
 
     segments.push({
-      d: [
-        `M ${sourceRight} ${y}`,
-        `C ${controlOneX} ${y}`,
-        `${controlTwoX} ${y}`,
-        `${targetLeft} ${y}`,
-      ].join(" "),
+      d: `M ${sourceRight} ${y} L ${targetLeft} ${y}`,
       labelX: (source.x + target.x) / 2,
       labelY: y - source.height / 2 - 18,
     });

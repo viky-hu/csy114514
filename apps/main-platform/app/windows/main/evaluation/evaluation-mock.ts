@@ -58,7 +58,8 @@ export function createMockTestCases() {
 
 export function isEvaluationMockEnabled(search: string) {
   const query = search.startsWith("?") ? search.slice(1) : search;
-  return new URLSearchParams(query).get("evaluationMock") === "1";
+  const params = new URLSearchParams(query);
+  return params.get("evaluationMock") === "1" || params.get("evaluationMode") === "1";
 }
 
 export function createMockRun(

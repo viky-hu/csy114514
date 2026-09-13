@@ -11,9 +11,12 @@ import {
 import { findActiveInference } from "./inference-status.ts";
 import { reduceEvaluationEvent } from "./evaluation-types.ts";
 
-test("evaluation mock is enabled only by evaluationMock=1", () => {
+test("evaluation mock is enabled by either supported evaluation development query", () => {
   assert.equal(isEvaluationMockEnabled("?evaluationMock=1"), true);
+  assert.equal(isEvaluationMockEnabled("?evaluationMode=1"), true);
+  assert.equal(isEvaluationMockEnabled("?evaluationMock=0&evaluationMode=1"), true);
   assert.equal(isEvaluationMockEnabled("?evaluationMock=0"), false);
+  assert.equal(isEvaluationMockEnabled("?evaluationMode=0"), false);
   assert.equal(isEvaluationMockEnabled("?evaluationMock=true"), false);
   assert.equal(isEvaluationMockEnabled(""), false);
 });

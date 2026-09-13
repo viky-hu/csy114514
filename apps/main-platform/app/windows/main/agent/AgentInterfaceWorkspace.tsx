@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RotateCcw, Save } from "lucide-react";
+import { Link2, RotateCcw, Save } from "lucide-react";
 import { saveAgentManifest } from "./agent-manifest-repository";
 import { AgentConnectDraft } from "../../login/AgentConnectDraft";
 import { useLoadingTip } from "../../shared/loading-tips";
@@ -13,6 +13,7 @@ import {
   type AgentProfilePayload,
   type AgentDraftState,
 } from "../../shared/agent-config";
+import { MIA_RAG_TOKEN_KEY } from "../../../lib/client/auth-adapter";
 
 type AgentInterfaceWorkspaceProps = {
   activeAgentId: string;
@@ -172,6 +173,48 @@ export function AgentInterfaceWorkspace({
       aria-label={`初始接口配置，当前 Agent ${activeAgentId}`}
     >
       <AgentConnectDraft draft={draft} footer={footer} onDraftChange={setDraft} />
+      <AdapterConnectionPanel agentId={manifest.agent_id} />
     </section>
   );
+}
+
+function AdapterConnectionPanel({ agentId }: { agentId: string }) {
+  const [endpoint, setEndpoint] = useState("");
+  const [authReference, setAuthReference] = useState("");
+  const [status, setStatus] = useState<"idle" | "verifying" | "ready">("idle");
+  const [message, setMessage] = useState("尚未配置专用红队测试连接。");
+
+  const headers = () => {
+    const next = new Headers({ "Content-Type": "application/json" });
+    const token = typeof window === "undefined" ? null : window.localStorage.getItem(MIA_RAG_TOKEN_KEY);
+    if (token) next.set("Authorization", `Bearer ${token}`);
+    return next;
+  };
+
+  const verify = async () => {
+    if (!agentId.trim() || !endpoint.trim() || status === "verifying") return;
+    setStatus("verifying");
+    try {
+      const response = await fetch("/api/redteam/connections", {
+        body: JSON.stringify({ agent_id: agentId, endpoint: endpoint.trim(), auth_reference: authReference.trim() || null }),
+        headers: headers(),
+        method: "POST",
+      });
+      const body = await response.json() as { adapter_metadata?: { protocol_version?: string }; error?: { message?: string } };
+      if (!response.ok) throw new Error(body.error?.message || "红队连接验证失败");
+      setStatus("ready");
+      setMessage(`已验证 Adapter ${body.adapter_metadata?.protocol_version ?? "v1"}；仅可用于测试环境。`);
+    } catch (error) {
+      setStatus("idle");
+      setMessage(error instanceof Error ? error.message : "红队连接验证失败");
+    }
+  };
+
+  return <aside className="agent-redteam-connection" aria-label="红队 HTTP Adapter 连接">
+    <div><span>RED TEAM ADAPTER</span><h2><Link2 size={16} />专用演练连接</h2><p>连接配置与 AgentManifest 分离保存；认证值只接受服务端密钥引用，页面不保存或回显密钥。</p></div>
+    <label>HTTPS 测试端点<input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://adapter.example.com" inputMode="url" /></label>
+    <label>认证引用（可选）<input value={authReference} onChange={(event) => setAuthReference(event.target.value)} placeholder="vault://team/agent-redteam" /></label>
+    <button type="button" disabled={!endpoint.trim() || status === "verifying"} onClick={() => void verify()}>{status === "verifying" ? "验证中…" : "验证并保存连接"}</button>
+    <small data-ready={status === "ready"}>{message}</small>
+  </aside>;
 }

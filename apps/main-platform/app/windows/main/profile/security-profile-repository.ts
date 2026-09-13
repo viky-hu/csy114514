@@ -3,8 +3,10 @@ import {
   type SecurityProfileInput,
   type SecurityProfileViewModel,
 } from "./security-profile-data";
+import type { ProjectionAttackGraph } from "../topology/topology-projection";
 
 export type SecurityProfileRepositoryResult = {
+  attackGraph: ProjectionAttackGraph | null;
   errorMessage?: string;
   source: "api" | "mock";
   viewModel: SecurityProfileViewModel;
@@ -57,14 +59,20 @@ function getErrorMessage(payload: unknown, fallback: string) {
 }
 
 export class MockSecurityProfileRepository implements SecurityProfileRepository {
+  private readonly attackGraph: ProjectionAttackGraph | null;
   private readonly fallbackViewModel: SecurityProfileViewModel;
 
-  constructor(fallbackViewModel: SecurityProfileViewModel) {
+  constructor(
+    fallbackViewModel: SecurityProfileViewModel,
+    attackGraph: ProjectionAttackGraph | null = null,
+  ) {
     this.fallbackViewModel = fallbackViewModel;
+    this.attackGraph = attackGraph;
   }
 
   async load(): Promise<SecurityProfileRepositoryResult> {
     return {
+      attackGraph: this.attackGraph,
       source: "mock",
       viewModel: this.fallbackViewModel,
     };
@@ -115,6 +123,7 @@ export class ApiSecurityProfileRepository implements SecurityProfileRepository {
       }
 
       return {
+        attackGraph: graphPayload,
         source: "api",
         viewModel: createSecurityProfileViewModel({
           agentProfile: profilePayload,

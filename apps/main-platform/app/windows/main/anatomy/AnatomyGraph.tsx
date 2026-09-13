@@ -39,6 +39,7 @@ import {
   ANATOMY_TOPOLOGY_PHASES,
   buildAnatomyRouteSegments,
   buildTopologyChainSegments,
+  createTopologyStageItems,
   createClockwiseRoundedRectPath,
   createTopologyChainNodeLayout,
   getActiveAnatomyRouteNodeIds,
@@ -50,8 +51,13 @@ import {
   type AnatomyRepository,
   type AnatomyRepositoryResult,
 } from "./anatomy-repository";
-import { planTopologyChain } from "./anatomy-topology-chain";
 import type { AgentTopology } from "../topology/topology-types";
+import {
+  createTopologyRiskChain,
+  type TopologyRiskChain,
+  type TopologyRiskChainNode,
+} from "../topology/topology-projection";
+import { useGraphNodeHoverOutline } from "../shared/useGraphNodeHoverOutline";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
 
@@ -80,6 +86,24 @@ type CanonicalNode = {
   nodeId: string;
   nodeType: string;
 };
+
+type InspectableNode = Pick<
+  CanonicalNode,
+  "description" | "displayName" | "labels" | "name" | "nodeId" | "nodeType"
+>;
+
+function createTopologyInspectorNode(
+  node: TopologyRiskChainNode,
+): InspectableNode {
+  return {
+    description: node.caption,
+    displayName: node.displayName,
+    labels: node.labels,
+    name: node.displayName,
+    nodeId: node.id,
+    nodeType: node.nodeType,
+  };
+}
 
 const NODE_ICONS: Record<AnatomyGraphNodeLayout["role"], LucideIcon> = {
   agent: Bot,
@@ -142,7 +166,7 @@ const NODE_DISPLAY_COPY: Record<string, { caption: string; displayName: string }
   },
 };
 
-function getNodeHitboxStyle(layout: AnatomyGraphNodeLayout): NodeHitboxStyleVars {
+function getNodeHitboxStyle(layout: Pick<AnatomyGraphNodeLayout, "height" | "width" | "x" | "y">): NodeHitboxStyleVars {
   return {
     "--node-height": `${(layout.height / ANATOMY_GRAPH_VIEWBOX.height) * 100}%`,
     "--node-left": `${
@@ -251,22 +275,34 @@ function getVisibleActiveNodeIds(selectedPath: AnatomyPath | null) {
 }
 
 function TopologyRiskPathStage({
-  graphNodes,
+  chain,
+  onSelectNode,
   path,
-  topology,
+  selectedNodeId,
 }: {
-  graphNodes: AnatomyInput["attackGraph"]["nodes"];
+  chain: TopologyRiskChain;
+  onSelectNode: (nodeId: string) => void;
   path: AnatomyPath | null;
-  topology: AgentTopology | undefined;
+  selectedNodeId: string;
 }) {
-  const plan = useMemo(
-    () => planTopologyChain({ graphNodes, path, topology }),
-    [graphNodes, path, topology],
-  );
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   const status = path?.status ?? "potential";
+  const nodeKey =
+    chain.dataState === "ready"
+      ? chain.nodes.map((node) => node.id).join("|")
+      : "insufficient";
 
-  if (plan.kind === "missing") {
+  useGraphNodeHoverOutline({
+    activeNodeId: hoveredNodeId,
+    nodeKey,
+    nodeSelector: ".anatomy-svg-node.graph-hover-node",
+    outlineSelector: ".anatomy-node-outline",
+    rootRef,
+  });
+
+  if (chain.dataState === "insufficient") {
     return (
       <div className="anatomy-map is-topology" aria-label="拓扑风险路径数据不足">
         <div className="anatomy-map-stage">
@@ -307,11 +343,7 @@ function TopologyRiskPathStage({
           <div className="anatomy-map-empty" role="status">
             <ShieldQuestion size={15} aria-hidden="true" />
             <span>
-              路径数据不足：{plan.reason}
-              {plan.missing.length > 0
-                ? `缺少真实节点：${plan.missing.join("、")}。`
-                : ""}
-              不会补造节点或连线。
+              路径数据不足：{chain.reason} 不会补造节点或连线。
             </span>
           </div>
         </div>
@@ -319,15 +351,20 @@ function TopologyRiskPathStage({
     );
   }
 
-  const chain = plan.nodes;
-  const phaseXs = getTopologyStepPhaseXs(chain.length);
-  const layouts = chain.map((_, index) =>
+  const stageItems = createTopologyStageItems(
+    chain.riskPatternId,
+    chain.nodes.map((node) => node.id),
+  );
+  const phaseXs = getTopologyStepPhaseXs(stageItems.length);
+  const layouts = stageItems.map((_, index) =>
     createTopologyChainNodeLayout(phaseXs[index]),
   );
   const segments = buildTopologyChainSegments(layouts);
-
+  const stageEdges = chain.riskPatternId === "R5"
+    ? [chain.edges[0] ?? null, null, null, chain.edges[2] ?? null]
+    : chain.edges;
   return (
-    <div className={`anatomy-map is-topology is-${status}`} aria-label={`${path?.id} 拓扑风险路径`}>
+    <div ref={rootRef} className={`anatomy-map is-topology is-${status}`} aria-label={`${path?.id} 拓扑风险路径`}>
       <div className="anatomy-map-stage">
           <svg
             className="anatomy-svg"
@@ -377,29 +414,32 @@ function TopologyRiskPathStage({
             ))}
             <g className="anatomy-routes" aria-hidden="true">
               {segments.map((segment, index) => {
-                const channel = plan.channels[index] ?? null;
+                const edge = stageEdges[index] ?? null;
+                const hoveredStageIndex = stageItems.findIndex(
+                  (item) => item.kind === "node" && item.nodeId === hoveredNodeId,
+                );
+                const isAdjacent =
+                  hoveredStageIndex >= 0 &&
+                  (index === hoveredStageIndex || index === hoveredStageIndex - 1);
 
                 return (
                   <g key={`topology-${index}`}>
                     <path
-                      className={`anatomy-route-stroke is-active is-${status}${channel ? " is-channel" : ""}`}
+                      className={`anatomy-route-stroke anatomy-topology-route${isAdjacent ? " is-hovered" : ""}`}
+                      data-topology-edge-id={edge?.id ?? `stage-${index}`}
                       d={segment.d}
                       fill="none"
                       pathLength={1}
-                      stroke={
-                        status === "verified"
-                          ? "url(#anatomy-verified-stroke)"
-                          : "url(#anatomy-route-stroke)"
-                      }
+                      stroke="url(#anatomy-route-stroke)"
                     />
-                    {channel ? (
+                    {edge ? (
                       <text
-                        className={`anatomy-topology-channel-label${channel.untrusted ? " is-untrusted" : ""}`}
+                        className={`anatomy-topology-channel-label${edge.carriesUntrustedContent ? " is-untrusted" : ""}`}
                         x={segment.labelX}
                         y={segment.labelY}
                         textAnchor="middle"
                       >
-                        {channel.label}
+                        {edge.label}
                       </text>
                     ) : null}
                   </g>
@@ -407,21 +447,43 @@ function TopologyRiskPathStage({
               })}
             </g>
             <g className="anatomy-nodes">
-              {chain.map((node, index) => {
+              {stageItems.map((item, index) => {
                 const layout = layouts[index];
-                const Icon = TOPOLOGY_NODE_ICONS[node.role];
                 const rectPath = createClockwiseRoundedRectPath(layout);
+
+                if (item.kind === "placeholder") {
+                  return (
+                    <g
+                      key="task-plan-placeholder"
+                      className="anatomy-topology-placeholder"
+                      data-topology-placeholder="task-plan"
+                    >
+                      <path className="anatomy-topology-placeholder-surface" d={rectPath} />
+                      <text className="anatomy-topology-placeholder-label" textAnchor="middle" x={layout.x} y={layout.y + 2}>
+                        {item.label}
+                      </text>
+                      <text className="anatomy-topology-placeholder-caption" textAnchor="middle" x={layout.x} y={layout.y + 25}>
+                        {item.caption}
+                      </text>
+                    </g>
+                  );
+                }
+
+                const node = chain.nodes.find((candidate) => candidate.id === item.nodeId);
+                if (!node) return null;
+                const Icon = TOPOLOGY_NODE_ICONS[node.role];
                 const iconX = layout.x - 12;
                 const iconY = layout.y - 34;
 
                 return (
                   <g
-                    key={`${node.nodeId}-${index}`}
-                    className={`anatomy-svg-node is-${node.role} is-active${node.trustBoundary === "external" ? " is-external" : ""}`}
-                    data-node-id={`topology-${node.nodeId}`}
+                    key={`${node.id}-${index}`}
+                    className={`anatomy-svg-node graph-hover-node is-${node.role}${node.id === selectedNodeId ? " is-selected" : ""}${node.trustBoundary === "external" ? " is-external" : ""}`}
+                    data-hover-node-id={node.id}
+                    data-node-id={`topology-${node.id}`}
                   >
                     <path className="anatomy-node-surface" d={rectPath} />
-                    <path className="anatomy-node-outline" d={rectPath} />
+                    <path className="anatomy-node-outline graph-hover-outline" d={rectPath} pathLength={1} />
                     <Icon
                       aria-hidden="true"
                       className="anatomy-node-icon"
@@ -452,6 +514,29 @@ function TopologyRiskPathStage({
               })}
             </g>
           </svg>
+          <div className="anatomy-node-hitbox-layer" aria-label="拓扑路径节点">
+            {stageItems.map((item, index) => {
+              if (item.kind === "placeholder") return null;
+              const node = chain.nodes.find((candidate) => candidate.id === item.nodeId);
+              if (!node) return null;
+              return (
+                <button
+                  key={`${node.id}-hitbox`}
+                  aria-label={`${node.displayName} 节点`}
+                  className="anatomy-node-hitbox"
+                  data-selected={node.id === selectedNodeId}
+                  onBlur={() => setHoveredNodeId(null)}
+                  onClick={() => onSelectNode(node.id)}
+                  onFocus={() => setHoveredNodeId(node.id)}
+                  onPointerEnter={() => setHoveredNodeId(node.id)}
+                  onPointerLeave={() => setHoveredNodeId(null)}
+                  style={getNodeHitboxStyle(layouts[index]!)}
+                  title={node.caption}
+                  type="button"
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
   );
@@ -470,7 +555,7 @@ function AnatomyInspector({
   mode: AnatomyMode;
   onVerify: () => void;
   path: AnatomyPath | null;
-  selectedNode: CanonicalNode | null;
+  selectedNode: InspectableNode | null;
 }) {
   if (!path) {
     return (
@@ -664,6 +749,21 @@ export function AttackGraphWorkspace({
         : null,
     [viewModel.paths, topologyPathId],
   );
+  const topologyRiskChain = useMemo(
+    () =>
+      createTopologyRiskChain({
+        attackGraph: {
+          ...viewModel.graph,
+          risk_path_ids: viewModel.paths.map((path) => path.id),
+        },
+        findings:
+          topologyPath?.status === "verified" && topologyPathId
+            ? [{ risk_pattern_id: topologyPathId }]
+            : [],
+        topology,
+      }),
+    [topology, topologyPath?.status, topologyPathId, viewModel.graph, viewModel.paths],
+  );
   const dataSourceLabel =
     repositoryResult.source === "api"
       ? "API 图谱"
@@ -700,13 +800,19 @@ export function AttackGraphWorkspace({
         .map((layoutId) => findGraphNode(viewModel, layoutId)),
     [viewModel],
   );
-  const selectedNode = useMemo(
-    () =>
+  const selectedNode = useMemo<InspectableNode | null>(() => {
+    if (isTopologyMode && topologyRiskChain.dataState === "ready") {
+      const node =
+        topologyRiskChain.nodes.find((item) => item.id === selectedNodeId) ??
+        topologyRiskChain.nodes[0];
+      return node ? createTopologyInspectorNode(node) : null;
+    }
+    return (
       graphNodes.find((node) => node.id === selectedNodeId) ??
       graphNodes[0] ??
-      null,
-    [graphNodes, selectedNodeId],
-  );
+      null
+    );
+  }, [graphNodes, isTopologyMode, selectedNodeId, topologyRiskChain]);
 
   useEffect(() => {
     let ignore = false;
@@ -732,7 +838,7 @@ export function AttackGraphWorkspace({
     return () => {
       ignore = true;
     };
-  }, [agentId, repository, selectedPathId]);
+  }, [agentId, repository, selectedPathId, topology?.topology_type]);
 
   const verifySelectedPath = useCallback(() => {
     const path = viewModel.selectedPath;
@@ -919,9 +1025,10 @@ export function AttackGraphWorkspace({
         <div className="anatomy-graph-column anatomy-reveal">
           {isTopologyMode ? (
             <TopologyRiskPathStage
-              graphNodes={viewModel.graph.nodes}
+              chain={topologyRiskChain}
+              onSelectNode={setSelectedNodeId}
               path={topologyPath}
-              topology={topology}
+              selectedNodeId={selectedNodeId}
             />
           ) : (
             <>
@@ -1045,7 +1152,7 @@ export function AttackGraphWorkspace({
                   key={`${node.id}-hitbox`}
                   aria-label={`${node.displayName} 节点`}
                   className="anatomy-node-hitbox"
-                  data-selected={node.id === selectedNode?.id}
+                  data-selected={node.id === selectedNodeId}
                   onClick={() => setSelectedNodeId(node.id)}
                   onFocus={() => setSelectedNodeId(node.id)}
                   style={getNodeHitboxStyle(node.layout)}

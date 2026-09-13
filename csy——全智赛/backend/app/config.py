@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     evaluation_database_path: Path = (
         Path(__file__).resolve().parents[1] / "data" / "evaluations.sqlite3"
     )
+    redteam_database_path: Path = (
+        Path(__file__).resolve().parents[1] / "data" / "redteam.sqlite3"
+    )
+    redteam_bff_signing_secret: str | None = None
     # Stage 3: LLM configuration (SiliconFlow / DeepSeek / any OpenAI-compatible)
     deepseek_api_key: str | None = None
     llm_model: str = "MiniMaxAI/MiniMax-M2.5"

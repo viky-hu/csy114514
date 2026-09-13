@@ -6,7 +6,11 @@ import {
   type SecurityProfileInput,
 } from "./security-profile-data";
 
-export const securityProfileFixtureViewModel = createSecurityProfileViewModel({
+export const securityProfileFixtureInput = {
   agentProfile: agentProfile as SecurityProfileInput["agentProfile"],
   attackGraph: attackGraph as SecurityProfileInput["attackGraph"],
-});
+};
+
+export const securityProfileFixtureViewModel = createSecurityProfileViewModel(
+  securityProfileFixtureInput,
+);

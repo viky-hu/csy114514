@@ -17,20 +17,17 @@ const mainStyles = readFileSync(
   "utf8",
 );
 
-test("security profile graph uses column hover and foreground SVG column text", () => {
-  assert.match(graphSource, /security-profile-hot-zone/);
-  assert.match(graphSource, /getProfileHotZoneStyle/);
-  assert.match(graphSource, /--profile-hot-left/);
-  assert.match(graphSource, /--profile-hot-width/);
-  assert.match(graphSource, /--profile-hot-rail-alpha/);
+test("security profile graph uses node-scoped hover and foreground SVG column text", () => {
+  assert.doesNotMatch(graphSource, /security-profile-hot-zone/);
+  assert.doesNotMatch(graphSource, /getProfileHotZoneStyle/);
   assert.match(graphSource, /security-profile-column-info-layer/);
   assert.match(graphSource, /security-profile-column-info/);
   assert.match(graphSource, /security-profile-column-band/);
   assert.match(graphSource, /security-profile-node-hitbox/);
   assert.match(graphSource, /security-profile-hover-outline/);
-  assert.match(graphSource, /activeColumnId/);
-  assert.match(graphSource, /activateColumn\(findProfileHoverColumnId\(viewBoxX\)\)/);
-  assert.match(graphSource, /findProfileHoverColumnId/);
+  assert.match(graphSource, /useGraphNodeHoverOutline/);
+  assert.match(graphSource, /hoveredNodeId/);
+  assert.doesNotMatch(graphSource, /activeColumnId/);
   assert.doesNotMatch(graphSource, /preserveAspectRatio="none"/);
   assert.doesNotMatch(graphSource, /left:\s*`\$\{band\.xStart\}px`/);
   assert.doesNotMatch(graphSource, /width:\s*`\$\{band\.xEnd - band\.xStart\}px`/);
@@ -38,9 +35,6 @@ test("security profile graph uses column hover and foreground SVG column text", 
   assert.match(layoutSource, /PROFILE_COLUMNS/);
   assert.match(layoutSource, /profileHoverBands/);
   assert.match(layoutSource, /getProfileColumnBounds/);
-  assert.match(mainStyles, /\.security-profile-hot-zone/);
-  assert.match(mainStyles, /left: var\(--profile-hot-left\)/);
-  assert.match(mainStyles, /width: var\(--profile-hot-width\)/);
   assert.match(mainStyles, /\.security-profile-column-info \{/);
   assert.match(
     mainStyles,
@@ -53,19 +47,15 @@ test("security profile graph uses column hover and foreground SVG column text", 
   assert.match(graphSource, /data-sidebar-graph-layout/);
 });
 
-test("security profile hover motion keeps node x coordinates stable", () => {
-  assert.match(graphSource, /PROFILE_HOVER_NODE_SCALE_X = 1/);
-  assert.match(graphSource, /PROFILE_HOVER_NODE_SCALE_Y = 1\.035/);
-  assert.match(graphSource, /PROFILE_HOVER_NODE_Y = -5/);
-  assert.match(graphSource, /PROFILE_HOVER_NODE_DURATION = 0\.26/);
-  assert.match(graphSource, /scaleX: PROFILE_HOVER_NODE_SCALE_X/);
-  assert.match(graphSource, /scaleY: PROFILE_HOVER_NODE_SCALE_Y/);
-  assert.match(graphSource, /y: PROFILE_HOVER_NODE_Y/);
-  assert.doesNotMatch(graphSource, /scale:\s*PROFILE_HOVER_NODE_SCALE/);
-  assert.doesNotMatch(graphSource, /scale:\s*1\.035/);
-  assert.doesNotMatch(graphSource, /PROFILE_HOVER_NODE_X/);
-  assert.doesNotMatch(graphSource, /translateX/);
-  assert.doesNotMatch(graphSource, /\bx:\s*PROFILE_HOVER_NODE/);
+test("security profile hover delegates to the no-scale shared node hook", () => {
+  assert.match(graphSource, /useGraphNodeHoverOutline\(\{/);
+  assert.match(graphSource, /activeNodeId:\s*hoveredNodeId/);
+  assert.match(graphSource, /nodeSelector:\s*"\.security-profile-svg-node"/);
+  assert.match(graphSource, /outlineSelector:\s*"\.security-profile-hover-outline"/);
+  assert.doesNotMatch(graphSource, /PROFILE_HOVER_NODE_/);
+  assert.doesNotMatch(graphSource, /scaleX: PROFILE_HOVER_NODE_SCALE_X/);
+  assert.doesNotMatch(graphSource, /scaleY: PROFILE_HOVER_NODE_SCALE_Y/);
+  assert.doesNotMatch(graphSource, /activeNodes\.has/);
 });
 
 test("security profile page reveal matches the overview page section choreography", () => {
@@ -198,9 +188,9 @@ test("security profile route styling keeps a unified blue-purple gradient while 
   assert.match(graphSource, /stopColor="#6d5ef7"/);
   assert.match(graphSource, /stopColor="#8b5cf6"/);
   assert.match(graphSource, /stopColor="#a855f7"/);
-  assert.match(mainStyles, /\.security-profile-route\s*\{[\s\S]*opacity:\s*0\.2;/);
+  assert.match(mainStyles, /\.security-profile-route\s*\{[\s\S]*opacity:\s*0\.54;/);
   assert.match(mainStyles, /\.security-profile-route\.is-active\s*\{[\s\S]*opacity:\s*0\.88;/);
-  assert.match(mainStyles, /\.security-profile-route\s*\{[\s\S]*stroke-opacity:\s*0\.72;/);
+  assert.match(mainStyles, /\.security-profile-route\s*\{[\s\S]*stroke-opacity:\s*0\.82;/);
   assert.match(mainStyles, /\.security-profile-route\.is-active\s*\{[\s\S]*stroke-opacity:\s*1;/);
   assert.match(mainStyles, /\.security-profile-hover-outline\s*\{[\s\S]*stroke-opacity:\s*0\.96;/);
   assert.doesNotMatch(mainStyles, /\.security-profile-route\.is-route-tone-red/);
@@ -234,7 +224,10 @@ test("security profile workspace loads the Agent profile through its repository 
   assert.match(repositorySource, /\/api\/agents\/\$\{encodeURIComponent\(agentId\)\}\/graph/);
   assert.match(repositorySource, /this\.fetcher\(`\/api\/agents\/\$\{encodeURIComponent\(agentId\)\}`, \{/);
   // The fixture stays a labelled fallback baseline instead of the only source.
-  assert.match(workspaceSource, /new MockSecurityProfileRepository\(\s*securityProfileFixtureViewModel,?\s*\)/);
+  assert.match(
+    workspaceSource,
+    /new MockSecurityProfileRepository\(\s*securityProfileFixtureViewModel,\s*securityProfileFixtureInput\.attackGraph,?\s*\)/,
+  );
   assert.match(workspaceSource, /dataSource=\{result\.source\}/);
   assert.match(graphSource, /security-profile-inline-badge is-\$\{dataSource\}/);
   assert.match(graphSource, /dataSource === "api" \? "真实接入" : "示例预览"/);
@@ -243,4 +236,5 @@ test("security profile workspace loads the Agent profile through its repository 
   assert.match(graphSource, /TopologyNodeRole/);
   assert.match(workspaceSource, /<SecurityProfileGraph[\s\S]*?isGraphFrozen=\{isGraphFrozen\}/);
   assert.match(workspaceSource, /topology=\{topology\}/);
+  assert.match(workspaceSource, /attackGraph=\{result\.attackGraph\}/);
 });

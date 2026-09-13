@@ -77,6 +77,35 @@ test("builds route segments from node boundary anchors without DOM measurement",
   assert.equal(segments.every((segment) => segment.d.includes(" C ")), true);
 });
 
+test("attaches projected topology routes to each node rectangle midpoint", () => {
+  const routes = [
+    { id: "browser-planner", sourceNodeId: "browser", targetNodeId: "planner", type: "CONTEXT" },
+    { id: "planner-executor", sourceNodeId: "planner", targetNodeId: "executor", type: "TASK_PLAN" },
+    { id: "executor-memory", sourceNodeId: "executor", targetNodeId: "memory-persistent", type: "READ_FROM" },
+    { id: "executor-tool", sourceNodeId: "executor", targetNodeId: "tool-email-send", type: "CALL" },
+  ];
+  const segments = buildProfileRouteSegments(routes);
+
+  assert.equal(segments.length, routes.length);
+  for (const segment of segments) {
+    const numbers = segment.d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+    const source = getProfileNodeAnchor(
+      Object.values(PROFILE_NODE_LAYOUTS).find((layout) => layout.id === segment.sourceNodeId)!,
+      segment.sourceAnchor,
+    );
+    const target = getProfileNodeAnchor(
+      Object.values(PROFILE_NODE_LAYOUTS).find((layout) => layout.id === segment.targetNodeId)!,
+      segment.targetAnchor,
+    );
+
+    assert.deepEqual(
+      [numbers[0], numbers[1], numbers.at(-2), numbers.at(-1)],
+      [source.x, source.y, target.x, target.y],
+      segment.id,
+    );
+  }
+});
+
 test("separates route visual priority so default lines do not read as a loop", () => {
   const segments = buildProfileRouteSegments();
 

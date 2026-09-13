@@ -43,6 +43,7 @@ test("topology mode navigation is an overlay and preserves warm responsive styli
   assert.match(source, /\.topology-mode-nav\s*\{[^}]*top:\s*clamp\(21px, 2\.7vh, 30px\);[^}]*opacity:\s*0;/s);
   assert.match(source, /\.topology-mode-nav-shell\s*\{[^}]*box-shadow:\s*0 5px 13px rgba\(67, 60, 42, 0\.05\);/s);
   assert.match(source, /\.topology-mode-nav-dialog\s*\{[^}]*border-top:\s*2px solid var\(--evaluation-blue, var\(--main-blue, #3152f4\)\);[^}]*border-radius:\s*0;/s);
+  assert.match(source, /\.topology-mode-nav-dialog\s*\{[^}]*font-family:\s*"DingTalk JinBuTi", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;/s);
   assert.match(source, /\.topology-mode-nav-dialog-actions button\s*\{[^}]*color:\s*var\(--evaluation-ink, #111622\);/s);
   assert.match(source, /\.topology-mode-nav-dialog-actions button:hover[^}]*background:\s*var\(--evaluation-blue, var\(--main-blue, #3152f4\)\);[^}]*color:\s*white;/s);
 });

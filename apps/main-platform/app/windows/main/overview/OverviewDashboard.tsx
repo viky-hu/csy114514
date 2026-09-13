@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import {
@@ -20,6 +20,11 @@ import {
 import { OverviewR4Graph } from "./OverviewR4Graph";
 import { createFallbackTopology } from "../topology/topology-repository";
 import type { AgentTopology } from "../topology/topology-types";
+import {
+  createTopologyRiskChain,
+  type ProjectionAttackGraph,
+} from "../topology/topology-projection";
+import { TopologyRiskChainGraph } from "../topology/TopologyRiskChainGraph";
 import {
   useFrozenGraphInlineSize,
   type SidebarContentMetrics,
@@ -156,6 +161,17 @@ export function OverviewDashboard({
         ? "R6"
         : null;
   const [viewModel, setViewModel] = useState(overviewFixtureViewModel);
+  const [attackGraph, setAttackGraph] = useState<ProjectionAttackGraph | null>(
+    overviewFixtureInput.attackGraph as ProjectionAttackGraph,
+  );
+  const topologyRiskChain = useMemo(
+    () =>
+      createTopologyRiskChain({
+        attackGraph,
+        topology: activeTopology,
+      }),
+    [activeTopology, attackGraph],
+  );
   const rootRef = useRef<HTMLElement>(null);
   const mapRef = useRef<HTMLElement>(null);
   const graphFreeze = useFrozenGraphInlineSize({
@@ -195,6 +211,7 @@ export function OverviewDashboard({
         ])) as [OverviewInput["agentProfile"], OverviewInput["attackGraph"]];
 
         if (!controller.signal.aborted) {
+          setAttackGraph(attackGraph as ProjectionAttackGraph);
           setViewModel(
             createOverviewViewModel({
               agentProfile,
@@ -210,6 +227,7 @@ export function OverviewDashboard({
         ) {
           return;
         }
+        setAttackGraph(overviewFixtureInput.attackGraph as ProjectionAttackGraph);
         setViewModel(overviewFixtureViewModel);
       }
     };
@@ -217,7 +235,7 @@ export function OverviewDashboard({
     void loadOverviewAgent();
 
     return () => controller.abort();
-  }, [activeAgentId]);
+  }, [activeAgentId, activeTopology.topology_type]);
 
   useGSAP(
     () => {
@@ -272,11 +290,9 @@ export function OverviewDashboard({
           <h1>
             {activeTopology.topology_type === "single"
               ? "R4 持久性间接提示注入已形成完整攻击链"
-              : activeTopology.topology_type === "planner_executor"
-                ? "R5 计划污染暴露多节点执行链"
-                : "R6 检索上下文投毒暴露知识流"}
+              : topologyLabel(activeTopology.topology_type)}
           </h1>
-          <p>{formatConclusion(viewModel.risk.conclusion)}</p>
+          {activeTopology.topology_type === "single" ? <p>{formatConclusion(viewModel.risk.conclusion)}</p> : null}
         </div>
         <div
           className="overview-score"
@@ -309,28 +325,20 @@ export function OverviewDashboard({
           {activeTopology.topology_type === "single" ? (
             <OverviewR4Graph nodes={viewModel.attackChain} />
           ) : (
-            <div className="topology-summary" aria-label={`${topologyLabel(activeTopology.topology_type)} 摘要`}>
-              <div className="topology-summary-heading">
-                <span>{topologyLabel(activeTopology.topology_type)}</span>
-                <strong>{recommendedRiskPattern} · 待验证</strong>
-              </div>
-              <p>
-                当前结构由后端返回的逻辑节点与通道构成；详细信任边界和风险传播请在对应图谱中查看。
-              </p>
-              <dl className="topology-summary-metrics">
-                <div>
-                  <dt>{activeTopology.nodes.length}</dt>
-                  <dd>真实逻辑节点</dd>
+            <div className="topology-overview-graph" aria-label={`${topologyLabel(activeTopology.topology_type)} 总图`}>
+              <span className="topology-overview-graph-badge">{recommendedRiskPattern} · 待验证</span>
+              {topologyRiskChain.dataState === "ready" ? (
+                <TopologyRiskChainGraph
+                  ariaLabel={`${topologyLabel(activeTopology.topology_type)} 完整真实风险链`}
+                  chain={topologyRiskChain}
+                />
+              ) : (
+                <div className="topology-risk-chain-empty" role="status">
+                  <Network size={20} aria-hidden="true" />
+                  <strong>拓扑数据不足</strong>
+                  <span>{topologyRiskChain.reason}</span>
                 </div>
-                <div>
-                  <dt>{untrustedChannelCount}</dt>
-                  <dd>不可信通道</dd>
-                </div>
-                <div>
-                  <dt>{recommendedRiskPattern}</dt>
-                  <dd>推荐验证</dd>
-                </div>
-              </dl>
+              )}
             </div>
           )}
 
@@ -338,7 +346,7 @@ export function OverviewDashboard({
             <p className="overview-path-caption">
               {activeTopology.topology_type === "single"
                 ? formatFindingDescription(viewModel.r4Finding.description)
-                : `发现潜在 ${recommendedRiskPattern}，尚未验证。总览不重复安全画像与攻击图谱的详细内容。`}
+                : `${recommendedRiskPattern} · ${activeTopology.nodes.length} 节点 · ${untrustedChannelCount} 不可信通道`}
             </p>
             <div className="overview-map-actions">
               {recommendedRiskPattern ? (

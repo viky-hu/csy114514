@@ -263,10 +263,11 @@ test("R4 graph paints layer info as an independent foreground text layer", () =>
   assert.match(mainStyles, /\.overview-r4-layer-subtitle \{[\s\S]*rgba\(17,\s*22,\s*34,\s*0\.66\)/);
 });
 
-test("non-single overview summarizes the truthful topology instead of duplicating a topology canvas", () => {
+test("non-single overview renders the complete same-Agent topology risk chain", () => {
   assert.doesNotMatch(dashboardSource, /TopologyFlow/);
-  assert.match(dashboardSource, /topology-summary/);
-  assert.match(dashboardSource, /真实逻辑节点/);
+  assert.match(dashboardSource, /TopologyRiskChainGraph/);
+  assert.match(dashboardSource, /createTopologyRiskChain/);
+  assert.match(dashboardSource, /完整真实风险链/);
   assert.match(dashboardSource, /不可信通道/);
   assert.match(dashboardSource, /开始拓扑测评/);
   assert.match(dashboardSource, /onNavigate\("anatomy"\)/);

@@ -12,8 +12,8 @@ const layoutSource = readFileSync(
   "utf8",
 );
 
-const chainSource = readFileSync(
-  new URL("./anatomy-topology-chain.ts", import.meta.url),
+const projectionSource = readFileSync(
+  new URL("../topology/topology-projection.ts", import.meta.url),
   "utf8",
 );
 
@@ -178,13 +178,14 @@ test("topology modes render the selected risk path instead of embedding the shar
 });
 
 test("topology risk paths reuse the anatomy SVG skeleton instead of text cards", () => {
-  assert.match(graphSource, /planTopologyChain\(\{ graphNodes, path, topology \}\)/);
-  assert.match(graphSource, /getTopologyStepPhaseXs\(chain\.length\)/);
+  assert.match(graphSource, /createTopologyRiskChain/);
+  assert.match(graphSource, /createTopologyStageItems/);
+  assert.match(graphSource, /getTopologyStepPhaseXs\(stageItems\.length\)/);
   assert.match(graphSource, /createTopologyChainNodeLayout\(phaseXs\[index\]\)/);
   assert.match(graphSource, /buildTopologyChainSegments\(layouts\)/);
   assert.match(graphSource, /anatomy-topology-channel-label/);
-  assert.match(graphSource, /anatomy-svg-node is-\$\{node\.role\} is-active/);
-  assert.match(graphSource, /graphNodes=\{viewModel\.graph\.nodes\}/);
+  assert.match(graphSource, /anatomy-svg-node graph-hover-node/);
+  assert.match(graphSource, /data-topology-placeholder="task-plan"/);
   assert.match(graphSource, /ANATOMY_TOPOLOGY_PHASES/);
   assert.match(graphSource, /ANATOMY_PHASE_RAIL_PATH/);
   assert.match(graphSource, /anatomy-map is-topology is-\$\{status\}/);
@@ -202,7 +203,7 @@ test("topology risk paths never fabricate nodes when the backend returns no path
   assert.match(graphSource, /anatomy-map-empty/);
   assert.match(graphSource, /路径数据不足/);
   assert.match(graphSource, /不会补造节点或连线/);
-  assert.match(graphSource, /plan\.missing\.join/);
+  assert.match(graphSource, /chain\.reason/);
   assert.match(graphSource, /ShieldQuestion/);
 });
 
@@ -218,13 +219,11 @@ test("topology chain layout stays inside the anatomy five-phase rail", () => {
 });
 
 test("topology chain is planned from real topology nodes and real topology edges", () => {
-  assert.match(chainSource, /export function planTopologyChain/);
-  assert.match(chainSource, /export function orderTopologyChainNodes/);
-  assert.match(chainSource, /kind: "missing"/);
-  assert.match(chainSource, /reason: "当前 Agent 未接入多节点拓扑。"/);
-  assert.match(chainSource, /reason: "拓扑与攻击图谱未同时返回完整节点。"/);
-  assert.match(chainSource, /carries_untrusted_content/);
-  assert.match(chainSource, /formatChannelLabel/);
-  assert.doesNotMatch(chainSource, /TASK PLAN|RETRIEVAL|External Documents|Knowledge Base/);
-  assert.doesNotMatch(chainSource, /stageLabel/);
+  assert.match(projectionSource, /export function createTopologyRiskChain/);
+  assert.match(projectionSource, /export function orderTopologyNodes/);
+  assert.match(projectionSource, /dataState: "insufficient"/);
+  assert.match(projectionSource, /reason: "当前 Agent 未接入多节点拓扑。"/);
+  assert.match(projectionSource, /reason: "拓扑与攻击图谱未同时返回完整节点。"/);
+  assert.match(projectionSource, /carries_untrusted_content/);
+  assert.doesNotMatch(projectionSource, /placeholder/);
 });

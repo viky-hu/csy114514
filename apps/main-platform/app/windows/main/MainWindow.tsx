@@ -12,6 +12,7 @@ import { MainLineSidebar, type MainLineSidebarItem } from "./MainLineSidebar";
 import { MainSidebarToggleButton } from "./MainSidebarToggleButton";
 import { OverviewDashboard } from "./overview/OverviewDashboard";
 import { SecurityProfileWorkspace } from "./profile/SecurityProfileWorkspace";
+import { RedTeamWorkspace } from "./redteam/RedTeamWorkspace";
 import { AccountSettingsWorkspace, type AccountIdentity } from "./settings/AccountSettingsWorkspace";
 import {
   EvaluationReportWorkspace,
@@ -310,7 +311,7 @@ function MainWindowContent({
   }
 
   if (activeNavKey === "redteam") {
-    return null;
+    return <RedTeamWorkspace activeAgentId={activeAgentId} />;
   }
 
   if (activeNavKey === "profile") {
@@ -373,6 +374,7 @@ export function MainWindow({
   const [isTopologyMenuOpen, setIsTopologyMenuOpen] = useState(false);
   const [isTopologyDialogClosing, setIsTopologyDialogClosing] = useState(false);
   const [isTopologySwitching, setIsTopologySwitching] = useState(false);
+  const [topologySwitchPhase, setTopologySwitchPhase] = useState<"idle" | "covering" | "covered">("idle");
   const [pendingTopologyType, setPendingTopologyType] = useState<TopologyType | null>(null);
   const [topologySwitchError, setTopologySwitchError] = useState<string | null>(null);
   const [isRestartCover, setIsRestartCover] = useState(false);
@@ -394,6 +396,8 @@ export function MainWindow({
   const isSidebarGraphFrozenRef = useRef(false);
   const navigationTargetRef = useRef<MainNavKey | null>(null);
   const topologyDialogTimeoutRef = useRef<number | null>(null);
+  const topologyCoverFrameRef = useRef<number | null>(null);
+  const topologyCommitFrameRef = useRef<number | null>(null);
   const topSurfaceRef = useRef<SVGRectElement>(null);
   const mainSurfaceRef = useRef<SVGRectElement>(null);
   const separatorRef = useRef<SVGRectElement>(null);
@@ -558,20 +562,25 @@ export function MainWindow({
         pendingTopologyType,
       );
 
-      // White out the workspace before anything changes, then swap the topology
-      // and nav content underneath the cover and replay the full entry intro.
+      // The next topology is committed only after the opaque warm surface has
+      // been painted. Two animation frames make this a visual-phase boundary,
+      // rather than racing a short timer against React's render work.
       setIsTopologySwitching(false);
       setIsTopologyDialogClosing(true);
       setIsRestartCover(true);
-      topologyDialogTimeoutRef.current = window.setTimeout(() => {
-        clearTopologyDialog();
-        clearEvaluationWorkspaceSession();
-        setTopology(nextTopology);
-        setActiveAgentId(nextAgentId);
-        setActiveNavKey("dashboard");
-        setRenderedNavKey("dashboard");
-        setRestartToken((value) => value + 1);
-      }, 180);
+      setTopologySwitchPhase("covering");
+      topologyCoverFrameRef.current = window.requestAnimationFrame(() => {
+        setTopologySwitchPhase("covered");
+        topologyCommitFrameRef.current = window.requestAnimationFrame(() => {
+          clearTopologyDialog();
+          clearEvaluationWorkspaceSession();
+          setTopology(nextTopology);
+          setActiveAgentId(nextAgentId);
+          setActiveNavKey("dashboard");
+          setRenderedNavKey("dashboard");
+          setRestartToken((value) => value + 1);
+        });
+      });
     } catch (error) {
       setIsTopologySwitching(false);
       setTopologySwitchError(error instanceof Error ? error.message : "切换模式失败，请重试。");
@@ -590,6 +599,12 @@ export function MainWindow({
   useEffect(() => () => {
     if (topologyDialogTimeoutRef.current !== null) {
       window.clearTimeout(topologyDialogTimeoutRef.current);
+    }
+    if (topologyCoverFrameRef.current !== null) {
+      window.cancelAnimationFrame(topologyCoverFrameRef.current);
+    }
+    if (topologyCommitFrameRef.current !== null) {
+      window.cancelAnimationFrame(topologyCommitFrameRef.current);
     }
   }, []);
 
@@ -776,6 +791,7 @@ export function MainWindow({
           hasSettled = true;
           renderSettledLayout(layout);
           setIsRestartCover(false);
+          setTopologySwitchPhase("idle");
           return;
         }
 
@@ -787,12 +803,14 @@ export function MainWindow({
             hasSettled = true;
             renderSettledLayout(getMainLayout());
             setIsRestartCover(false);
+            setTopologySwitchPhase("idle");
             introTimeline = null;
           },
           onInterrupt: () => {
             hasSettled = true;
             renderSettledLayout(getMainLayout());
             setIsRestartCover(false);
+            setTopologySwitchPhase("idle");
             introTimeline = null;
           },
         });
@@ -987,6 +1005,7 @@ export function MainWindow({
       data-sidebar-collapsed={isSidebarCollapsed}
       data-sidebar-graph-frozen={isSidebarGraphFrozen}
       data-topology-menu-open={isTopologyMenuOpen}
+      data-topology-switch-phase={topologySwitchPhase}
       aria-label="AgentProof Agent 安全评估平台"
     >
       <svg className="main-window-svg" aria-hidden="true" focusable="false">
