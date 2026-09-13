@@ -27,3 +27,10 @@ __pycache__/
 
 # Logs
 *.log
+
+# Agent/Probe runtime state
+.probe-env/
+
+# Playwright test artifacts
+apps/main-platform/test-results/
+apps/main-platform/playwright-report/

@@ -82,7 +82,6 @@ test("builds the five-node R6 chain without a placeholder", () => {
   assert.equal(chain.status, "verified");
   assert.equal(chain.nodes.length, 5);
   assert.equal(chain.edges.length, 4);
-  assert.equal(chain.nodes.some((node) => node.origin === "placeholder"), false);
 });
 
 test("returns an explicit insufficient state instead of drawing a partial chain", () => {

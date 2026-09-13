@@ -392,3 +392,13 @@
 - [ ] Confirming from 初始接口 saves the valid Agent Manifest before `POST /api/topology/[agentId]`; other modules save topology only. Cancel/backdrop/Escape write nothing. A failure retains the dialog/error state and does not update topology, navigation, evaluation session, or restart animation.
 - [ ] A successful switch updates the topology owner, clears the evaluation workspace session, navigates to 总览, and reuses the existing `restartToken` SVG transition. Reduced motion resolves directly to the final state.
 - [ ] The topology confirmation dialog mirrors the email confirmation visual system only: no `MODE SWITCH` eyebrow or rounded container, a square warm surface with blue top rule, and two neutral buttons that turn blue with white text on hover/focus. It keeps topology-owned confirmation/cancel/error semantics and does not inherit the email dialog's close control or delayed decision callback.
+
+## 2026-09-13 Red Team and Stage 4 End-to-End Integration
+
+- [ ] Keep `evaluationMock=1` and `evaluationMode=1` equivalent. Mock mode must enter the main workspace directly and must not request login, BFF, backend, or Adapter resources.
+- [ ] Keep mock and live source labels visible. A mock report is never represented as a live report; live failures show their error/unavailable state.
+- [ ] Keep red-team controls and data regions at 0–4px radii with neutral warm-white surfaces, grey-blue rules, and blue primary actions. Do not restore brown/yellow tokens or pill controls.
+- [ ] Topology uses the generated OpenAPI contract. API failures return `unavailable`; do not render a fallback topology as a confirmed persisted record.
+- [ ] Persist only complete `AgentTopology` documents through `SQLiteTopologyStore`; after a process restart, GET and graph reconstruction must use the saved topology.
+- [ ] R5/R6 fixture files must remain Loader-discoverable `security_testcases_r5.json` / `security_testcases_r6.json`, validate against `TestCase`, and emit traceable role/channel events plus a Judge finding in the controlled runtime.
+- [ ] The in-process red-team fixture Adapter requires both `DEBUG=true` and `REDTEAM_FIXTURE_ADAPTER_ENABLED=true`. Never relax the real Adapter's public-HTTPS target policy.

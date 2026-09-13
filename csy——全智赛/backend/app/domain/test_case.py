@@ -1,4 +1,6 @@
 """TestCase — 冻结契约 #5 + SECURITY_CONTRACTS §4: 完整测试场景 + 判定方式."""
+from typing import Literal
+
 from backend.app.domain.test_scenario import Scenario, SuccessCriteria
 from pydantic import BaseModel, Field, model_validator
 
@@ -25,6 +27,10 @@ class TestCase(BaseModel):
     success_criteria: SuccessCriteria = Field(..., description="判定条件")
     attack_seed_ids: list[str] = Field(default_factory=list, description="关联 AttackSeed ID")
     tags: list[str] = Field(default_factory=list, description="分类标签")
+    topology_type: Literal["planner_executor", "rag_agent"] | None = Field(
+        default=None,
+        description="Controlled topology required by an R5/R6 fixture",
+    )
 
     @model_validator(mode="after")
     def _validate_input_or_turns(self) -> "TestCase":

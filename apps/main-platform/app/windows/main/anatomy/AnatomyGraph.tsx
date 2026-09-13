@@ -962,34 +962,40 @@ export function AttackGraphWorkspace({
       );
       const nodes = gsap.utils.toArray<SVGGElement>(".anatomy-svg-node", root);
 
-      gsap.to(nodes, {
-        duration: reduceMotion ? 0 : 0.2,
-        ease: "power2.out",
-        overwrite: "auto",
-        scale: 1,
-        y: 0,
-      });
-      gsap.to(activeNodes, {
-        duration: reduceMotion ? 0 : ANATOMY_ACTIVE_NODE_DURATION,
-        ease: "power2.out",
-        overwrite: "auto",
-        scale: 1,
-        y: ANATOMY_ACTIVE_NODE_Y,
-      });
+      if (nodes.length > 0) {
+        gsap.to(nodes, {
+          duration: reduceMotion ? 0 : 0.2,
+          ease: "power2.out",
+          overwrite: "auto",
+          scale: 1,
+          y: 0,
+        });
+      }
+      if (activeNodes.length > 0) {
+        gsap.to(activeNodes, {
+          duration: reduceMotion ? 0 : ANATOMY_ACTIVE_NODE_DURATION,
+          ease: "power2.out",
+          overwrite: "auto",
+          scale: 1,
+          y: ANATOMY_ACTIVE_NODE_Y,
+        });
+      }
 
-      if (reduceMotion) {
-        gsap.set(activeRoutes, { drawSVG: "0% 100%" } as DrawSVGTweenVars);
-      } else {
-        gsap.fromTo(
-          activeRoutes,
-          { drawSVG: "0% 0%" } as DrawSVGTweenVars,
-          {
-            drawSVG: "0% 100%",
-            duration: 0.46,
-            ease: "power2.inOut",
-            overwrite: "auto",
-          } as DrawSVGTweenVars,
-        );
+      if (activeRoutes.length > 0) {
+        if (reduceMotion) {
+          gsap.set(activeRoutes, { drawSVG: "0% 100%" } as DrawSVGTweenVars);
+        } else {
+          gsap.fromTo(
+            activeRoutes,
+            { drawSVG: "0% 0%" } as DrawSVGTweenVars,
+            {
+              drawSVG: "0% 100%",
+              duration: 0.46,
+              ease: "power2.inOut",
+              overwrite: "auto",
+            } as DrawSVGTweenVars,
+          );
+        }
       }
     },
     {

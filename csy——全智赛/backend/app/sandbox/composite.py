@@ -9,6 +9,7 @@ from backend.app.domain.test_scenario import EnvDelta
 from backend.app.sandbox.base import SandboxBase
 from backend.app.sandbox.browser_sandbox import PAGE_FIXTURES, BrowserSandbox
 from backend.app.sandbox.email_sandbox import EmailSandbox
+from backend.app.sandbox.knowledge_base_sandbox import KnowledgeBaseSandbox
 from backend.app.sandbox.memory_sandbox import MemorySandbox
 
 if TYPE_CHECKING:
@@ -42,6 +43,7 @@ class CompositeSandbox(SandboxBase):
         self.email = EmailSandbox(enforce_confirmation=enforce_email_confirmation)
         self.memory = MemorySandbox()
         self.browser = BrowserSandbox()
+        self.knowledge_base = KnowledgeBaseSandbox()
         self._event_sink = event_sink
         self._fingerprint_value = fingerprint_value
         self._canary = canary
@@ -204,6 +206,7 @@ class CompositeSandbox(SandboxBase):
         self.email.reset(state)
         self.memory.reset(state)
         self.browser.reset(state)
+        self.knowledge_base.reset(state)
 
     def apply_delta(self, delta: EnvDelta) -> None:
         """L4: 增量合并 env_delta 到当前 Sandbox 状态 (不 reset, Memory 跨 turn 持久化)."""
@@ -224,9 +227,12 @@ class CompositeSandbox(SandboxBase):
         if delta.email_inbox:
             for fixture_id in delta.email_inbox:
                 self.email.append_email(fixture_id)
+        if delta.knowledge_base_docs:
+            self.knowledge_base.merge(delta.knowledge_base_docs)
     def snapshot(self) -> dict[str, Any]:
         return {
             "email": self.email.snapshot(),
             "memory": self.memory.snapshot(),
             "browser": self.browser.snapshot(),
+            "knowledge_base": self.knowledge_base.snapshot(),
         }

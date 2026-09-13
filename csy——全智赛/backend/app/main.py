@@ -18,7 +18,12 @@ from backend.app.exception_handlers import (
     generic_exception_handler,
     validation_exception_handler,
 )
-from backend.app.services import agent_service, evaluation_service, redteam_service
+from backend.app.services import (
+    agent_service,
+    evaluation_service,
+    redteam_service,
+    topology_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +66,7 @@ async def lifespan(_: FastAPI):
         start_worker=True,
     )
     redteam_service.configure(database_path=settings.redteam_database_path, start_worker=True)
+    topology_service.configure(database_path=settings.topology_database_path)
     # Auto-register CorpMate v0 so GET /agents/corpmate-v0/graph works immediately.
     agent_service.register_agent(_CORPMATE_MANIFEST)
     logger.info("Auto-registered CorpMate v0 (agent_id=corpmate-v0)")
@@ -92,6 +98,7 @@ async def lifespan(_: FastAPI):
     finally:
         evaluation_service.shutdown()
         redteam_service.shutdown()
+        topology_service.shutdown()
 
 app = FastAPI(
     title=settings.app_name,

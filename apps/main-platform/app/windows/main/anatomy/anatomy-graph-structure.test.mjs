@@ -209,7 +209,7 @@ test("topology risk paths never fabricate nodes when the backend returns no path
 
 test("topology chain layout stays inside the anatomy five-phase rail", () => {
   assert.match(layoutSource, /ANATOMY_TOPOLOGY_NODE_Y = offsetY\(166\)/);
-  assert.match(layoutSource, /ANATOMY_TOPOLOGY_NODE_WIDTH = ANATOMY_NODE_WIDTH/);
+  assert.match(layoutSource, /ANATOMY_TOPOLOGY_NODE_WIDTH = 128/);
   assert.match(layoutSource, /ANATOMY_TOPOLOGY_NODE_HEIGHT = ANATOMY_NODE_HEIGHT/);
   assert.match(layoutSource, /export function getTopologyStepPhaseXs/);
   assert.match(layoutSource, /export function createTopologyChainNodeLayout/);
@@ -226,4 +226,10 @@ test("topology chain is planned from real topology nodes and real topology edges
   assert.match(projectionSource, /reason: "拓扑与攻击图谱未同时返回完整节点。"/);
   assert.match(projectionSource, /carries_untrusted_content/);
   assert.doesNotMatch(projectionSource, /placeholder/);
+});
+
+test("anatomy motion skips empty legacy active collections in topology mode", () => {
+  assert.match(graphSource, /if \(nodes\.length > 0\)/);
+  assert.match(graphSource, /if \(activeNodes\.length > 0\)/);
+  assert.match(graphSource, /if \(activeRoutes\.length > 0\)/);
 });

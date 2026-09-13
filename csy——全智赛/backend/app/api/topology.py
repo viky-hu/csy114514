@@ -16,14 +16,9 @@ from backend.app.domain.topology_presets import (
     get_topology_preset,
     list_presets,
 )
-from backend.app.services import agent_service
+from backend.app.services import agent_service, topology_service
 
 router = APIRouter(prefix="/topology", tags=["topology"])
-
-# In-memory store: agent_id → AgentTopology
-# Sufficient for competition demo. No persistence needed.
-_TOPOLOGY_STORE: dict[str, AgentTopology] = {}
-
 
 class SetTopologyRequest(BaseModel):
     """Request body for setting agent topology."""
@@ -55,8 +50,9 @@ async def get_topology(agent_id: str):
 
     Returns the 'single' default topology if none has been set.
     """
-    if agent_id in _TOPOLOGY_STORE:
-        return _TOPOLOGY_STORE[agent_id]
+    stored = topology_service.get_topology(agent_id)
+    if stored is not None:
+        return stored
     return get_topology_preset("single", agent_id)
 
 
@@ -78,7 +74,7 @@ async def set_topology(agent_id: str, req: SetTopologyRequest):
                 f"Available: {', '.join(sorted(TOPOLOGY_PRESETS))}"
             ),
         )
-    _TOPOLOGY_STORE[agent_id] = topology
+    topology_service.set_topology(topology)
     # Rebuild the attack graph with the new topology
     agent_service.rebuild_graph(agent_id, topology)
     return topology
@@ -90,9 +86,6 @@ def get_topology_for_agent(agent_id: str) -> AgentTopology | None:
     Returns None if no topology has been explicitly set (caller should treat
     as 'single' default).
     """
-    return _TOPOLOGY_STORE.get(agent_id)
+    return topology_service.get_topology(agent_id)
 
 
-def clear_topology_store() -> None:
-    """Clear all stored topologies. For testing only."""
-    _TOPOLOGY_STORE.clear()

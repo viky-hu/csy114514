@@ -50,7 +50,7 @@ export function createMockRedTeamConnection(agentId: string): RedTeamConnection 
   };
 }
 
-export function createMockRedTeamRun(connection: RedTeamConnection, timestamp = 1_700_000_000_000): RedTeamRun {
+export function createMockRedTeamRun(connection: RedTeamConnection): RedTeamRun {
   return {
     run_id: `mock-redteam-run-${connection.agent_id}`,
     agent_id: connection.agent_id,

@@ -114,6 +114,20 @@ async function openMainWindow(page: Page) {
   });
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  const enteredMainWindow = await page
+    .locator(".main-window")
+    .waitFor({ state: "visible", timeout: 3_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (enteredMainWindow) {
+    await expect(page.locator(".main-window")).toHaveAttribute(
+      "data-main-window-stage",
+      "settled",
+      { timeout: 20_000 },
+    );
+    return { requests };
+  }
+
   const hitArea = page.locator(".login-placeholder-hitarea");
   const hitAreaBox = await hitArea.boundingBox();
   expect(hitAreaBox).not.toBeNull();

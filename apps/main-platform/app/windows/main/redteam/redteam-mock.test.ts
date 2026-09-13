@@ -9,7 +9,7 @@ import {
 
 test("red team mock playback has a deterministic connection, terminal run, ordered events, and report", () => {
   const connection = createMockRedTeamConnection("llm-agent-v0");
-  const run = createMockRedTeamRun(connection, 1_700_000_000_000);
+  const run = createMockRedTeamRun(connection);
   const events = buildMockRedTeamEvents(run, 1_700_000_000_000);
   const report = createMockRedTeamReport(run);
 

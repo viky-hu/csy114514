@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     redteam_database_path: Path = (
         Path(__file__).resolve().parents[1] / "data" / "redteam.sqlite3"
     )
+    topology_database_path: Path = (
+        Path(__file__).resolve().parents[1] / "data" / "topology.sqlite3"
+    )
     redteam_bff_signing_secret: str | None = None
     # In-process fixture adapters are strictly local development aids.
     redteam_fixture_adapter_enabled: bool = False

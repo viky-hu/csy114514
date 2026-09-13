@@ -11,6 +11,7 @@ test("MockTopologyRepository provides the existing single-agent topology", async
   const result = await repository.loadAgentTopology("corpmate-v0");
 
   assert.equal(result.source, "mock");
+  assert.ok(result.topology);
   assert.equal(result.topology.agent_id, "corpmate-v0");
   assert.equal(result.topology.topology_type, "single");
   assert.equal(result.topology.nodes.length, 1);
@@ -56,25 +57,26 @@ test("ApiTopologyRepository loads an agent topology through the same-origin BFF"
   });
 
   assert.equal(result.source, "api");
+  assert.ok(result.topology);
   assert.equal(result.topology.topology_type, "planner_executor");
   assert.equal(calls[0]?.input, "/api/topology/corpmate-v0");
   assert.equal(calls[0]?.init?.method, "GET");
   assert.equal(calls[0]?.init?.signal, controller.signal);
 });
 
-test("ApiTopologyRepository falls back to single topology for invalid backend payloads", async () => {
+test("ApiTopologyRepository labels invalid backend payloads unavailable instead of presenting a fallback as saved", async () => {
   const repository = new ApiTopologyRepository({
     fetcher: async () => Response.json({ nodes: "invalid" }),
   });
 
   const result = await repository.loadAgentTopology("corpmate-v0");
 
-  assert.equal(result.source, "mock");
-  assert.equal(result.topology.topology_type, "single");
+  assert.equal(result.source, "unavailable");
+  assert.equal(result.topology, null);
   assert.match(result.errorMessage ?? "", /Invalid topology payload/i);
 });
 
-test("ApiTopologyRepository loads fallback preset options when the backend is unavailable", async () => {
+test("ApiTopologyRepository leaves preset options unavailable when the backend is unavailable", async () => {
   const repository = new ApiTopologyRepository({
     fetcher: async () => {
       throw new Error("offline");
@@ -83,10 +85,7 @@ test("ApiTopologyRepository loads fallback preset options when the backend is un
 
   const presets = await repository.loadPresets();
 
-  assert.deepEqual(
-    presets.map((preset) => preset.topology_type),
-    ["single", "planner_executor", "rag_agent"],
-  );
+  assert.deepEqual(presets, []);
 });
 
 test("ApiTopologyRepository saves a selected preset without serializing graph structure", async () => {

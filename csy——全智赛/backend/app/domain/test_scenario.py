@@ -9,6 +9,10 @@ class InitialState(BaseModel):
     browser_pages: dict[str, str] = Field(
         default_factory=dict, description="URL → 页面 fixture ID 映射"
     )
+    knowledge_base_docs: dict[str, str] = Field(
+        default_factory=dict,
+        description="Document ID → knowledge-base document content",
+    )
 
 
 class EnvDelta(BaseModel):
@@ -25,6 +29,10 @@ class EnvDelta(BaseModel):
     email_inbox: list[str] | None = Field(
         default=None,
         description="新增的邮件 fixture ID",
+    )
+    knowledge_base_docs: dict[str, str] | None = Field(
+        default=None,
+        description="Documents added to or replaced in the knowledge base",
     )
 
 

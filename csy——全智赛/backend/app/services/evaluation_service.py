@@ -27,6 +27,7 @@ from backend.app.domain.judge_result import JudgeResult
 from backend.app.domain.risk_finding import FindingEvidence, RiskFinding
 from backend.app.domain.test_case import TestCase
 from backend.app.domain.test_scenario import ScenarioTurn
+from backend.app.domain.topology_presets import get_topology_preset
 from backend.app.judge.composite_judge import CompositeJudge
 from backend.app.judge.r4_judge import judge_r4_events
 from backend.app.knowledge.kb_loader import load_all_test_case_files
@@ -40,6 +41,7 @@ from backend.app.security.fingerprints import derive_canary, fingerprint_value
 from backend.app.services import agent_service
 from backend.app.services.preflight_service import PreflightError, PreflightService
 from backend.app.services.report_service import build_report
+from backend.app.services.topology_fixture_evaluator import TopologyFixtureEvaluator
 
 
 class EvaluationNotFoundError(LookupError):
@@ -819,6 +821,7 @@ class EvaluationCoordinator:
             agent = self._create_agent(run.agent_id, sandbox)
             adapter = ReferenceAgentAdapter(sandbox=sandbox, agent=agent)
             composite_judge = self._create_judge(run.agent_id)
+            topology_fixture_evaluator = TopologyFixtureEvaluator(event_sink=sink)
             for test_case in test_cases:
                 turns = self._resolve_turns(test_case)
                 total_turns = len(turns)
@@ -861,7 +864,10 @@ class EvaluationCoordinator:
                             },
                         )
                     )
-                    response = adapter.invoke(turn.input)
+                    if test_case.topology_type is None:
+                        response = adapter.invoke(turn.input)
+                    else:
+                        response = f"Controlled topology fixture step: {turn.turn_id}"
                     self.store.append_event(
                         _event(
                             run.run_id,
@@ -882,10 +888,20 @@ class EvaluationCoordinator:
                         )
                     )
 
-                # D11: CompositeJudge (Rule + LLM Mock)
-                judge_result = composite_judge.evaluate(
-                    adapter.get_trace(), test_case, tool_permissions=tool_permissions
-                )
+                if test_case.topology_type is None:
+                    # D11: CompositeJudge (Rule + LLM Mock)
+                    judge_result = composite_judge.evaluate(
+                        adapter.get_trace(), test_case, tool_permissions=tool_permissions
+                    )
+                else:
+                    _, judge_result = topology_fixture_evaluator.evaluate(
+                        test_case=test_case,
+                        topology=get_topology_preset(
+                            test_case.topology_type,
+                            run.agent_id,
+                        ),
+                        sandbox=sandbox,
+                    )
                 last_judge = judge_result
                 findings = self._findings_from_judge(run.run_id, test_case, judge_result)
                 all_findings.extend(findings)
@@ -932,12 +948,21 @@ class EvaluationCoordinator:
 
                 # D13: 记录每条结果用于统计
                 # 优先从 tags 提取 risk_pattern (精确), fallback 到 risk_type 映射 (宽泛)
-                _TAG_TO_PATTERN = {"r1": "R1", "r2": "R2", "r3": "R3", "r4": "R4"}
+                _TAG_TO_PATTERN = {
+                    "r1": "R1",
+                    "r2": "R2",
+                    "r3": "R3",
+                    "r4": "R4",
+                    "r5": "R5",
+                    "r6": "R6",
+                }
                 _RISK_TYPE_TO_PATTERN = {
                     "indirect_prompt_injection": "R1",
                     "memory_poisoning": "R2",
                     "privacy_leakage": "R3",
                     "persistent_indirect_prompt_injection": "R4",
+                    "plan_contamination": "R5",
+                    "rag_context_poisoning": "R6",
                 }
                 risk_pattern = next(
                     (_TAG_TO_PATTERN[t] for t in test_case.tags if t in _TAG_TO_PATTERN),
@@ -1005,6 +1030,8 @@ class EvaluationCoordinator:
                     "memory_poisoning": "R2",
                     "privacy_leakage": "R3",
                     "persistent_indirect_prompt_injection": "R4",
+                    "plan_contamination": "R5",
+                    "rag_context_poisoning": "R6",
                 }.get(test_case.risk_type, "OTHER")
                 tc_results.append({
                     "test_case_id": test_case.id,

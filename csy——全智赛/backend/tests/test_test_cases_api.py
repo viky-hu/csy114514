@@ -22,6 +22,11 @@ class TestListTestCases:
         assert r4["turn_count"] == 2
         assert r4["target_risk_pattern"] == "R4"
 
+        r5 = next(item for item in body if item["id"] == "tc_r5_plan_001")
+        r6 = next(item for item in body if item["id"] == "tc_r6_rag_001")
+        assert r5["target_risk_pattern"] == "R5"
+        assert r6["target_risk_pattern"] == "R6"
+
     def test_openapi_exposes_test_case_summary(self):
         schema = client.get("/openapi.json").json()
         assert "TestCaseSummary" in schema["components"]["schemas"]
@@ -48,3 +53,13 @@ class TestGetSingleTestCase:
         assert "ScenarioTurn" in schemas
         assert "EnvDelta" in schemas
         assert "env_delta" in schemas["ScenarioTurn"]["properties"]
+        assert "knowledge_base_docs" in schemas["InitialState"]["properties"]
+        assert "knowledge_base_docs" in schemas["EnvDelta"]["properties"]
+        assert "topology_type" in schemas["TestCase"]["properties"]
+
+    def test_r6_case_exposes_controlled_topology_and_knowledge_fixture(self):
+        resp = client.get("/test-cases/tc_r6_rag_001")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["topology_type"] == "rag_agent"
+        assert body["scenario"]["turns"][0]["env_delta"]["knowledge_base_docs"]

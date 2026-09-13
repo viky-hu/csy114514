@@ -3,8 +3,7 @@
 Covers:
   - RedTeamReport Pydantic model serialization round-trip
   - generate_json_report() with synthetic data
-  - GET /redteam/report (404 + success)
-  - POST /redteam/start parameter validation
+  - owner-scoped connection, run, event and report endpoints
 """
 from __future__ import annotations
 
@@ -347,6 +346,7 @@ class TestPersistentRedTeamRuns:
         report_response = client.get(f"/redteam/runs/{run_id}/report", headers=headers("alice"))
         assert report_response.status_code == 200
         assert report_response.json()["conclusion"] == "no_bypass_observed"
+
     def test_fixture_connection_requires_both_debug_and_explicit_fixture_gate(self, tmp_path, monkeypatch):
         from backend.app.config import settings
         from backend.app.services import redteam_service
@@ -377,6 +377,7 @@ class TestPersistentRedTeamRuns:
             "supports_reset": True,
             "adapter_kind": "in_process_fixture",
         }
+
     def test_fixture_connection_is_rejected_when_debug_is_disabled(self, tmp_path, monkeypatch):
         from backend.app.config import settings
         from backend.app.services import redteam_service

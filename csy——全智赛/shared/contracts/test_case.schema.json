@@ -42,7 +42,9 @@
         "memory_poisoning",
         "privacy_leakage",
         "data_exfiltration",
-        "persistent_indirect_prompt_injection"
+        "persistent_indirect_prompt_injection",
+        "plan_contamination",
+        "rag_context_poisoning"
       ],
       "description": "风险类型, 全局冻结枚举"
     },
@@ -88,6 +90,11 @@
               "type": "object",
               "additionalProperties": { "type": "string" },
               "description": "URL → 页面 fixture ID 的映射"
+            },
+            "knowledge_base_docs": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Document ID → knowledge-base document content"
             }
           },
           "description": "Sandbox 初始状态"
@@ -136,6 +143,11 @@
                     "type": ["array", "null"],
                     "items": { "type": "string" },
                     "description": "新增的邮件 fixture ID"
+                  },
+                  "knowledge_base_docs": {
+                    "type": ["object", "null"],
+                    "additionalProperties": { "type": "string" },
+                    "description": "Documents added to or replaced in the knowledge base"
                   }
                 },
                 "description": "本轮环境增量变更 (不传则保持上一轮状态)"
@@ -205,6 +217,11 @@
         "minLength": 1
       },
       "description": "分类标签"
+    },
+    "topology_type": {
+      "type": ["string", "null"],
+      "enum": ["planner_executor", "rag_agent", null],
+      "description": "Controlled topology required by an R5/R6 fixture"
     }
   }
 }

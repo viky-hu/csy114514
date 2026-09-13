@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_topology.schema.json",
+  "title": "AgentTopology",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent_id", "topology_type", "nodes", "edges"],
+  "properties": {
+    "agent_id": {"type": "string"},
+    "topology_type": {
+      "type": "string",
+      "enum": ["single", "planner_executor", "rag_agent"]
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "role", "trust_boundary", "tools"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "role": {
+            "type": "string",
+            "enum": ["PLANNER", "EXECUTOR", "RETRIEVER", "KNOWLEDGE_BASE", "AGENT"]
+          },
+          "trust_boundary": {
+            "type": "string",
+            "enum": ["internal", "external"]
+          },
+          "tools": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from_node", "to_node", "channel", "carries_untrusted_content"],
+        "properties": {
+          "from_node": {"type": "string", "minLength": 1},
+          "to_node": {"type": "string", "minLength": 1},
+          "channel": {"type": "string", "minLength": 1},
+          "carries_untrusted_content": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

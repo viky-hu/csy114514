@@ -16,8 +16,8 @@ export type TopologyRequestOptions = {
 
 export type TopologyRepositoryResult = {
   errorMessage?: string;
-  source: "api" | "mock";
-  topology: AgentTopology;
+  source: "api" | "mock" | "unavailable";
+  topology: AgentTopology | null;
 };
 
 export interface TopologyRepository {
@@ -35,10 +35,7 @@ export interface TopologyRepository {
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
-type ApiTopologyRepositoryOptions = {
-  fallback?: TopologyRepository;
-  fetcher?: Fetcher;
-};
+type ApiTopologyRepositoryOptions = { fetcher?: Fetcher };
 
 const FALLBACK_PRESETS: TopologyPreset[] = [
   {
@@ -267,14 +264,11 @@ export class MockTopologyRepository implements TopologyRepository {
 }
 
 export class ApiTopologyRepository implements TopologyRepository {
-  private readonly fallback: TopologyRepository;
   private readonly fetcher: Fetcher;
 
   constructor({
-    fallback = new MockTopologyRepository(),
     fetcher = (input, init) => fetch(input, init),
   }: ApiTopologyRepositoryOptions = {}) {
-    this.fallback = fallback;
     this.fetcher = fetcher;
   }
 
@@ -294,22 +288,20 @@ export class ApiTopologyRepository implements TopologyRepository {
       const payload = (await response.json()) as unknown;
 
       if (!response.ok) {
-        return this.loadFallback(
-          agentId,
+        return this.unavailable(
           getErrorMessage(payload, "Topology backend is not connected."),
         );
       }
 
       if (!isAgentTopology(payload)) {
-        return this.loadFallback(
-          agentId,
+        return this.unavailable(
           "Invalid topology payload returned by backend.",
         );
       }
 
       return { source: "api", topology: payload };
     } catch {
-      return this.loadFallback(agentId, "Topology backend is not connected.");
+      return this.unavailable("Topology backend is not connected.");
     }
   }
 
@@ -331,7 +323,7 @@ export class ApiTopologyRepository implements TopologyRepository {
       // The local presets keep the configuration workspace usable offline.
     }
 
-    return this.fallback.loadPresets(options);
+    return [];
   }
 
   async saveAgentTopology(
@@ -365,17 +357,14 @@ export class ApiTopologyRepository implements TopologyRepository {
     return payload;
   }
 
-  private async loadFallback(
-    agentId: string,
+  private unavailable(
     errorMessage: string,
   ): Promise<TopologyRepositoryResult> {
-    const result = await this.fallback.loadAgentTopology(agentId);
-
-    return {
-      ...result,
+    return Promise.resolve({
       errorMessage,
-      source: "mock",
-    };
+      source: "unavailable",
+      topology: null,
+    });
   }
 }
 

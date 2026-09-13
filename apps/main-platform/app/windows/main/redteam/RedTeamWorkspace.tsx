@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CircleDashed, Play, RadioTower, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CircleDashed, Play, RadioTower, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { MIA_RAG_TOKEN_KEY } from "../../../lib/client/auth-adapter";
 import {
@@ -144,7 +144,7 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
   const weightRows = useMemo(() => report?.weight_snapshots?.flatMap((snapshot) => Object.entries(snapshot.weights_after).map(([strategy, weight]) => ({ round: snapshot.round, strategy, weight }))) ?? [], [report]);
 
   return <section className={`redteam-page is-${view}`} aria-label="红队演练工作区">
-    <header className="redteam-header"><div><span>ADAPTIVE RED TEAM</span><h1>{view === "entry" ? "红队演练" : view === "running" ? "演练进程" : "演练报告"}</h1><p>{view === "entry" ? "固定种子集，按每轮权重最高的三种策略持续变异与验证。" : activeRun ? `${activeRun.agent_id} · ${activeRun.run_id.slice(-8)}` : "运行专属证据与覆盖度结论"}</p></div><div className="redteam-header-actions"><span className={`redteam-mode-label ${mockMode ? "is-mock" : "is-live"}`}>{mockMode ? "MOCK · 无认证回放" : "LIVE · BFF 连接"}</span>{view !== "entry" && <button type="button" className="redteam-ghost" onClick={() => setView("entry")}>返回入口</button>}<button type="button" className="redteam-ghost" onClick={() => void refresh()}>刷新历史</button></div></header>
+    <header className="redteam-header"><div><span>ADAPTIVE RED TEAM</span><h1>{view === "entry" ? "红队演练" : view === "running" ? "演练进程" : "演练报告"}</h1><p>{view === "entry" ? "固定种子集，按每轮权重最高的三种策略持续变异与验证。" : activeRun ? `${activeRun.agent_id} · ${activeRun.run_id.slice(-8)}` : "运行专属证据与覆盖度结论"}</p></div><div className="redteam-header-actions"><span className={`redteam-mode-label ${mockMode ? "is-mock" : "is-live"}`}>{mockMode ? "MOCK · 无认证回放" : "LIVE · BFF 连接"}</span>{view !== "entry" && <button type="button" className="redteam-ghost" onClick={() => setView("entry")}><ArrowLeft size={15} />返回入口</button>}<button type="button" className="redteam-icon-command" title="刷新历史" aria-label="刷新历史" onClick={() => void refresh()}><RefreshCw size={15} /></button></div></header>
     {error && <div className="redteam-error"><AlertTriangle size={16} />{error}</div>}
     {view === "entry" && <div className="redteam-entry">
       <article className="redteam-command-card"><span className="redteam-kicker">TARGET CONNECTION</span><h2>{activeConnection ? activeConnection.agent_id : "尚未配置演练连接"}</h2><p>{activeConnection ? `${activeConnection.adapter_metadata.environment ?? "unknown"} · Adapter ${activeConnection.adapter_metadata.protocol_version ?? "unknown"}` : "请先在初始接口登记并验证专用测试环境的 HTTP Adapter。"}</p><dl><div><dt>种子选择</dt><dd>仅在运行开始时选择一次</dd></div><div><dt>策略规则</dt><dd>每轮固定取权重最高三种</dd></div><div><dt>目标范围</dt><dd>专用测试环境，不连接生产或内网</dd></div></dl></article>

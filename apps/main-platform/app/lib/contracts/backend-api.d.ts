@@ -149,6 +149,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evaluations/comparisons/{comparison_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Evaluation Comparison */
+        post: operations["start_evaluation_comparison_evaluations_comparisons__comparison_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/evaluations/comparisons/{comparison_id}/report": {
         parameters: {
             query?: never;
@@ -285,6 +302,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evaluations/{evaluation_id}/confirmations/{call_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Confirmation
+         * @description D3 确认闭环: 前端回传用户对 email.send 的授权决定.
+         */
+        post: operations["submit_confirmation_evaluations__evaluation_id__confirmations__call_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/test-cases": {
         parameters: {
             query?: never;
@@ -294,7 +331,7 @@ export interface paths {
         };
         /**
          * List Test Cases
-         * @description ����ȫ�� TestCase ժҪ (��ǰ��ѡ���� + OpenAPI types ����).
+         * @description 返回全部 TestCase 摘要 (供前端选择器 + OpenAPI types 生成).
          */
         get: operations["list_test_cases_test_cases_get"];
         put?: never;
@@ -314,10 +351,10 @@ export interface paths {
         };
         /**
          * Get Test Case
-         * @description ���ص������� TestCase (�� scenario.turns + env_delta), ��ǰ��/��������.
+         * @description 返回单个完整 TestCase (含 scenario.turns + env_delta), 供前端/联调消费.
          *
-         *     L4 ǩ�ֱ�ע: Frontend �� OpenAPI schema Ϊ׼, ���� ScenarioTurn.input /
-         *     ScenarioTurn.env_delta / turn_count ���ֶΡ�
+         *     L4 签字备注: Frontend 以 OpenAPI schema 为准, 消费 ScenarioTurn.input /
+         *     ScenarioTurn.env_delta / turn_count 等字段。
          */
         get: operations["get_test_case_test_cases__test_case_id__get"];
         put?: never;
@@ -328,17 +365,136 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/evaluations/comparisons/{comparison_id}/start": {
+    "/redteam/connections": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Connections */
+        get: operations["list_connections_redteam_connections_get"];
         put?: never;
-        /** Start Evaluation Comparison */
-        post: operations["start_evaluation_comparison_evaluations_comparisons__comparison_id__start_post"];
+        /** Create Connection */
+        post: operations["create_connection_redteam_connections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/redteam/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Runs */
+        get: operations["list_runs_redteam_runs_get"];
+        put?: never;
+        /** Create Run */
+        post: operations["create_run_redteam_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/redteam/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run */
+        get: operations["get_run_redteam_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/redteam/runs/{run_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run Report */
+        get: operations["get_run_report_redteam_runs__run_id__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/redteam/runs/{run_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Run Events */
+        get: operations["stream_run_events_redteam_runs__run_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/topology/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Topology Presets
+         * @description List available topology presets.
+         */
+        get: operations["list_topology_presets_topology_presets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/topology/{agent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Topology
+         * @description Get topology configuration for an agent.
+         *
+         *     Returns the 'single' default topology if none has been set.
+         */
+        get: operations["get_topology_topology__agent_id__get"];
+        put?: never;
+        /**
+         * Set Topology
+         * @description Set topology configuration for an agent.
+         *
+         *     Accepts a preset_name and expands it to a full AgentTopology.
+         *     Returns 422 if preset_name is unknown.
+         */
+        post: operations["set_topology_topology__agent_id__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -351,49 +507,75 @@ export interface components {
     schemas: {
         /**
          * AgentManifest
-         * @description �û����� Agent ʱ�ύ�������ļ�.
+         * @description 用户接入 Agent 时提交的声明文件.
          */
         AgentManifest: {
             /**
              * Agent Id
-             * @description Agent Ψһ��ʶ
+             * @description Agent 唯一标识
              */
             agent_id: string;
             /**
              * Name
-             * @description Agent ����
+             * @description Agent 名称
              */
             name: string;
             /**
              * Version
-             * @description �汾��
+             * @description 版本号
              * @default 0.1.0
              */
             version: string;
             /**
              * Capabilities
-             * @description �����嵥(������)
+             * @description 能力清单(工具名)
              */
             capabilities?: string[];
             /**
              * Data Sources
-             * @description ����Դ�б�
+             * @description 数据源列表
              */
             data_sources?: string[];
             /**
              * Memory
-             * @description ��������
+             * @description 记忆配置
              */
             memory?: {
                 [key: string]: unknown;
             };
             /**
              * Tool Permissions
-             * @description ����Ȩ��ӳ��, tool_name �� ALLOW|CONFIRM|DENY
+             * @description 工具权限映射, tool_name → ALLOW|CONFIRM|DENY
              */
             tool_permissions?: {
                 [key: string]: string;
             };
+        };
+        /**
+         * AgentTopology
+         * @description Optional topology description for an agent under test.
+         *
+         *     Linked to an AgentManifest via agent_id.
+         *     When no topology is provided, the system defaults to 'single'
+         *     (equivalent to current Stage 3 behavior).
+         */
+        AgentTopology: {
+            /**
+             * Agent Id
+             * @description Associated Agent ID (empty for presets)
+             * @default
+             */
+            agent_id: string;
+            /**
+             * Topology Type
+             * @description Topology type: single|planner_executor|rag_agent
+             * @enum {string}
+             */
+            topology_type: "single" | "planner_executor" | "rag_agent";
+            /** Nodes */
+            nodes?: components["schemas"]["TopologyNode"][];
+            /** Edges */
+            edges?: components["schemas"]["TopologyEdge"][];
         };
         /** ApiErrorDetail */
         ApiErrorDetail: {
@@ -426,28 +608,50 @@ export interface components {
             /** Test Case Ids */
             test_case_ids: string[];
         };
+        /** CreateRedTeamConnectionRequest */
+        CreateRedTeamConnectionRequest: {
+            /** Agent Id */
+            agent_id: string;
+            /** Endpoint */
+            endpoint: string;
+            /** Auth Reference */
+            auth_reference?: string | null;
+        };
+        /** CreateRedTeamRunRequest */
+        CreateRedTeamRunRequest: {
+            /** Connection Id */
+            connection_id: string;
+            config?: components["schemas"]["RedTeamRunConfig"];
+        };
         /**
          * EnvDelta
-         * @description L4 ���� (SECURITY_CONTRACTS ��3.2) �� ���ֻ����������, �����ϲ�����ȫ���滻.
+         * @description L4 新增 (SECURITY_CONTRACTS §3.2) — 单轮环境增量变更, 增量合并而非全量替换.
          */
         EnvDelta: {
             /**
              * Browser Pages
-             * @description ����/���µ������ҳ�� (URL �� fixture_id ��ҳ��ԭʼ HTML ����)
+             * @description 新增/更新的浏览器页面 (URL → fixture_id 或页面原始 HTML 内容)
              */
             browser_pages?: {
                 [key: string]: string;
             } | null;
             /**
              * Memory
-             * @description �����ļ�����Ŀ (key=value ��ʽ, Runner Ӧ��ʱд�� MemorySandbox)
+             * @description 新增的记忆条目 (key=value 格式, Runner 应用时写入 MemorySandbox)
              */
             memory?: string[] | null;
             /**
              * Email Inbox
-             * @description �������ʼ� fixture ID
+             * @description 新增的邮件 fixture ID
              */
             email_inbox?: string[] | null;
+            /**
+             * Knowledge Base Docs
+             * @description Documents added to or replaced in the knowledge base
+             */
+            knowledge_base_docs?: {
+                [key: string]: string;
+            } | null;
         };
         /** EvaluationComparisonReport */
         EvaluationComparisonReport: {
@@ -523,49 +727,49 @@ export interface components {
         };
         /**
          * EvaluationReport
-         * @description ��ȫ�������߱���.
+         * @description 安全测评上线报告.
          */
         EvaluationReport: {
             /**
              * Report Id
-             * @description ����Ψһ��ʶ
+             * @description 报告唯一标识
              */
             report_id: string;
             /**
              * Evaluation Id
-             * @description ������ Evaluation ID
+             * @description 关联的 Evaluation ID
              */
             evaluation_id: string;
             /**
              * Agent Id
-             * @description ���� Agent ID
+             * @description 被测 Agent ID
              */
             agent_id: string;
             /**
              * Overall Score
-             * @description �ۺ�����
+             * @description 综合评分
              * @default 0
              */
             overall_score: number;
             /**
              * Severity
-             * @description ������صȼ�
+             * @description 最高严重等级
              * @default LOW
              */
             severity: string;
             /**
              * Findings
-             * @description ���շ����б�
+             * @description 风险发现列表
              */
             findings?: components["schemas"]["RiskFinding"][];
             /**
              * Conclusion
-             * @description ��������
+             * @description 测评结论
              * @default
              */
             conclusion: string;
             score_breakdown: components["schemas"]["ScoreBreakdown"];
-            /** @description L6: ����ͳ��ժҪ (��ѡ) */
+            /** @description L6: 批量统计摘要 (可选) */
             summary?: components["schemas"]["ReportSummary"] | null;
             /**
              * Created At
@@ -575,27 +779,27 @@ export interface components {
         };
         /**
          * EvaluationRun
-         * @description һ�ΰ�ȫ����������ʵ��.
+         * @description 一次安全测评的运行实例.
          */
         EvaluationRun: {
             /**
              * Run Id
-             * @description Run Ψһ��ʶ
+             * @description Run 唯一标识
              */
             run_id: string;
             /**
              * Agent Id
-             * @description ���� Agent ID
+             * @description 被测 Agent ID
              */
             agent_id: string;
             /**
              * Test Case Ids
-             * @description ִ�е� TestCase ID �б�
+             * @description 执行的 TestCase ID 列表
              */
             test_case_ids: string[];
             /**
              * Status
-             * @description ����״̬
+             * @description 运行状态
              * @enum {string}
              */
             status: "preflighting" | "ready" | "preflight_failed" | "queued" | "running" | "completed" | "failed" | "interrupted";
@@ -624,36 +828,36 @@ export interface components {
         };
         /**
          * EventType
-         * @description �¼����� �� ��2.1 ����.
+         * @description 事件类型 — §2.1 冻结.
          * @enum {string}
          */
-        EventType: "RUN_STARTED" | "ANATOMY_READY" | "RISK_PATH_FOUND" | "TEST_STARTED" | "SEED_SELECTED" | "MUTATION_CREATED" | "TOOL_CALLED" | "MEMORY_WRITTEN" | "JUDGE_DECISION" | "FINDING_CREATED" | "RUN_FINISHED" | "PREFLIGHT_COMPLETED" | "PREFLIGHT_FAILED" | "AGENT_INVOKED" | "AGENT_RESPONDED" | "TOOL_RESULT" | "RUN_FAILED" | "TEST_COMPLETED";
+        EventType: "RUN_STARTED" | "ANATOMY_READY" | "RISK_PATH_FOUND" | "TEST_STARTED" | "SEED_SELECTED" | "MUTATION_CREATED" | "TOOL_CALLED" | "MEMORY_WRITTEN" | "JUDGE_DECISION" | "FINDING_CREATED" | "RUN_FINISHED" | "PREFLIGHT_COMPLETED" | "PREFLIGHT_FAILED" | "AGENT_INVOKED" | "AGENT_RESPONDED" | "TOOL_RESULT" | "RUN_FAILED" | "TEST_COMPLETED" | "CONFIRMATION_REQUESTED" | "CONFIRMATION_DECIDED" | "TOPOLOGY_ROLE_INVOKED" | "TOPOLOGY_CHANNEL_TRANSFER";
         /**
          * ExecutionEvent
-         * @description ����ʱͳһ�¼�, ���� Trace �� SSE.
+         * @description 运行时统一事件, 用于 Trace 和 SSE.
          */
         ExecutionEvent: {
             /**
              * Event Id
-             * @description �¼�Ψһ��ʶ
+             * @description 事件唯一标识
              */
             event_id: string;
             /**
              * Run Id
-             * @description ���� Run ID
+             * @description 所属 Run ID
              */
             run_id: string;
             /**
              * Timestamp
              * Format: date-time
-             * @description �¼�ʱ���
+             * @description 事件时间戳
              */
             timestamp: string;
-            /** @description �¼�����, �� EventType ö�� */
+            /** @description 事件类型, 见 EventType 枚举 */
             type: components["schemas"]["EventType"];
             /**
              * Payload
-             * @description �¼�����
+             * @description 事件负载
              */
             payload?: {
                 [key: string]: unknown;
@@ -661,17 +865,17 @@ export interface components {
         };
         /**
          * ExecutionTrace
-         * @description һ�� Agent ִ�е������¼��켣.
+         * @description 一次 Agent 执行的完整事件轨迹.
          */
         ExecutionTrace: {
             /**
              * Trace Id
-             * @description Trace Ψһ��ʶ
+             * @description Trace 唯一标识
              */
             trace_id: string;
             /**
              * Run Id
-             * @description ���� Run ID
+             * @description 所属 Run ID
              */
             run_id: string;
             /**
@@ -681,23 +885,23 @@ export interface components {
             agent_id: string;
             /**
              * Events
-             * @description �¼�����
+             * @description 事件序列
              */
             events?: components["schemas"]["ExecutionEvent"][];
         };
         /**
          * FindingEvidence
-         * @description RiskFinding �е�֤����Ŀ.
+         * @description RiskFinding 中的证据条目.
          */
         FindingEvidence: {
             /**
              * Event Id
-             * @description ֤���¼� ID
+             * @description 证据事件 ID
              */
             event_id: string;
             /**
              * Description
-             * @description ֤������
+             * @description 证据描述
              */
             description: string;
         };
@@ -708,32 +912,142 @@ export interface components {
         };
         /**
          * InitialState
-         * @description Sandbox ��ʼ״̬.
+         * @description Sandbox 初始状态.
          */
         InitialState: {
             /**
              * Email Inbox
-             * @description ���� fixture ID �б�
+             * @description 邮箱 fixture ID 列表
              */
             email_inbox?: string[];
             /**
              * Memory
-             * @description Ԥд������ֵ��
+             * @description 预写入记忆键值对
              */
             memory?: {
                 [key: string]: string;
             }[];
             /**
              * Browser Pages
-             * @description URL �� ҳ�� fixture ID ӳ��
+             * @description URL → 页面 fixture ID 映射
              */
             browser_pages?: {
                 [key: string]: string;
             };
+            /**
+             * Knowledge Base Docs
+             * @description Document ID → knowledge-base document content
+             */
+            knowledge_base_docs?: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * PresetSummary
+         * @description Summary info for a topology preset.
+         */
+        PresetSummary: {
+            /** Topology Type */
+            topology_type: string;
+            /** Description */
+            description: string;
+            /** Node Count */
+            node_count: number;
+            /** Edge Count */
+            edge_count: number;
+        };
+        /** RedTeamConnection */
+        RedTeamConnection: {
+            /** Connection Id */
+            connection_id: string;
+            /** Agent Id */
+            agent_id: string;
+            /** Endpoint */
+            endpoint: string;
+            /** Adapter Metadata */
+            adapter_metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** RedTeamRun */
+        RedTeamRun: {
+            /** Run Id */
+            run_id: string;
+            /** Agent Id */
+            agent_id: string;
+            /** Connection Id */
+            connection_id: string;
+            /** Random Seed */
+            random_seed: number;
+            /** Adapter Metadata Snapshot */
+            adapter_metadata_snapshot?: {
+                [key: string]: unknown;
+            };
+            config: components["schemas"]["RedTeamRunConfig"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Current Round
+             * @default 0
+             */
+            current_round: number;
+            /**
+             * Last Event Seq
+             * @default 0
+             */
+            last_event_seq: number;
+            /**
+             * Report Available
+             * @default false
+             */
+            report_available: boolean;
+            /** Error Message */
+            error_message?: string | null;
+            /** Selected Seed Ids */
+            selected_seed_ids?: string[];
+            /** Selected Seed Snapshot */
+            selected_seed_snapshot?: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** RedTeamRunConfig */
+        RedTeamRunConfig: {
+            /**
+             * Rounds
+             * @default 2
+             */
+            rounds: number;
+            /**
+             * Seed Count
+             * @default 4
+             */
+            seed_count: number;
+            /**
+             * Variants Per Seed
+             * @default 2
+             */
+            variants_per_seed: number;
         };
         /**
          * ReportSummary
-         * @description L6: ����ִ��ͳ��ժҪ (Optional, ������).
+         * @description L6: 批量执行统计摘要 (Optional, 向后兼容).
          */
         ReportSummary: {
             /**
@@ -787,57 +1101,57 @@ export interface components {
         };
         /**
          * RiskFinding
-         * @description һ��ȷ�ϵķ��շ���.
+         * @description 一条确认的风险发现.
          */
         RiskFinding: {
             /**
              * Finding Id
-             * @description Finding Ψһ��ʶ
+             * @description Finding 唯一标识
              */
             finding_id: string;
             /**
              * Evaluation Id
-             * @description ���� Evaluation ID
+             * @description 所属 Evaluation ID
              */
             evaluation_id: string;
             /**
              * Risk Type
-             * @description ��������ö��ֵ
+             * @description 风险类型枚举值
              */
             risk_type: string;
             /**
              * Severity
-             * @description ���صȼ�
+             * @description 严重等级
              */
             severity: string;
             /**
              * Risk Pattern Id
-             * @description ������ RiskPattern ID
+             * @description 关联的 RiskPattern ID
              */
             risk_pattern_id: string;
             /**
              * Attack Path Id
-             * @description ������ AttackPath ID
+             * @description 关联的 AttackPath ID
              */
             attack_path_id?: string | null;
             /**
              * Description
-             * @description ��������
+             * @description 风险描述
              */
             description: string;
             /**
              * Evidence
-             * @description ֤���б�
+             * @description 证据列表
              */
             evidence?: components["schemas"]["FindingEvidence"][];
             /**
              * Rule Types
-             * @description ���еĹ�������
+             * @description 命中的规则类型
              */
             rule_types?: string[];
             /**
              * Remediation
-             * @description ���ý���
+             * @description 处置建议
              */
             remediation?: string | null;
             /**
@@ -848,30 +1162,30 @@ export interface components {
         };
         /**
          * Scenario
-         * @description ���Գ���.
+         * @description 测试场景.
          */
         Scenario: {
             /**
              * Summary
-             * @description ��������
+             * @description 场景概述
              */
             summary: string;
-            /** @description Sandbox ��ʼ״̬ */
+            /** @description Sandbox 初始状态 */
             initial_state: components["schemas"]["InitialState"];
             /**
              * Target Agent
-             * @description Ŀ�� Agent ����
+             * @description 目标 Agent 名称
              */
             target_agent: string;
             /**
              * Turns
-             * @description ��ѡ���ֻỰ��ȱʧʱִ�� TestCase ���� input
+             * @description 可选多轮会话；缺失时执行 TestCase 顶层 input
              */
             turns?: components["schemas"]["ScenarioTurn"][];
         };
         /**
          * ScenarioTurn
-         * @description һ����ʵ Agent �Ự����.
+         * @description 一次真实 Agent 会话调用.
          */
         ScenarioTurn: {
             /** Turn Id */
@@ -880,7 +1194,7 @@ export interface components {
             input: string;
             /** Starts New Session */
             starts_new_session: boolean;
-            /** @description ���ֻ���������� (L4 ����, �����򱣳���һ��״̬) */
+            /** @description 本轮环境增量变更 (L4 新增, 不传则保持上一轮状态) */
             env_delta?: components["schemas"]["EnvDelta"] | null;
         };
         /** ScoreBreakdown */
@@ -941,6 +1255,17 @@ export interface components {
              */
             security: 55;
         };
+        /**
+         * SetTopologyRequest
+         * @description Request body for setting agent topology.
+         */
+        SetTopologyRequest: {
+            /**
+             * Preset Name
+             * @description Preset name: single|planner_executor|rag_agent
+             */
+            preset_name: string;
+        };
         /** SeverityCap */
         SeverityCap: {
             /**
@@ -954,127 +1279,194 @@ export interface components {
              */
             maximum_score: 39 | 59;
         };
+        /** SubmitConfirmationRequest */
+        SubmitConfirmationRequest: {
+            /** Decision */
+            decision: string;
+        };
         /**
          * SuccessCriteria
-         * @description ͨ��/ʧ���ж�����.
+         * @description 通过/失败判定条件.
          */
         SuccessCriteria: {
             /**
              * Pass If
-             * @description PASS ����(ȫ������)
+             * @description PASS 条件(全部满足)
              */
             pass_if: string[];
             /**
              * Fail If
-             * @description FAIL ����(��һ����)
+             * @description FAIL 条件(任一命中)
              */
             fail_if: string[];
         };
         /**
          * TestCase
-         * @description һ���ɶ���ִ�еİ�ȫ����.
+         * @description 一条可独立执行的安全测试.
          */
         TestCase: {
             /**
              * Id
-             * @description ȫ��ĿΨһ��ʶ (tc_{type}[_{subtype}]_{n})
+             * @description 全项目唯一标识 (tc_{type}[_{subtype}]_{n})
              */
             id: string;
             /**
              * Name
-             * @description �˶�����
+             * @description 人读名称
              */
             name: string;
             /**
              * Description
-             * @description ��������
+             * @description 测试描述
              */
             description: string;
             /**
              * Risk Type
-             * @description ��������ö��ֵ
+             * @description 风险类型枚举值
              */
             risk_type: string;
             /**
              * Severity
-             * @description ���صȼ�
+             * @description 严重等级
              */
             severity: string;
-            /** @description ���Գ��� */
+            /** @description 测试场景 */
             scenario: components["schemas"]["Scenario"];
             /**
              * Input
-             * @description �������� (L4: �� scenario.turns �ǿ�ʱ��ʡ��)
+             * @description 单轮输入 (L4: 当 scenario.turns 非空时可省略)
              */
             input?: string | null;
             /**
              * Expected Behavior
-             * @description �����İ�ȫ��Ϊ
+             * @description 期望的安全行为
              */
             expected_behavior: string;
             /**
              * Forbidden Actions
-             * @description ��ִֹ�еĶ���
+             * @description 禁止执行的动作
              */
             forbidden_actions: string[];
             /**
              * Judge Policy
-             * @description �ж�����
+             * @description 判定策略
              */
             judge_policy: string;
-            /** @description �ж����� */
+            /** @description 判定条件 */
             success_criteria: components["schemas"]["SuccessCriteria"];
             /**
              * Attack Seed Ids
-             * @description ���� AttackSeed ID
+             * @description 关联 AttackSeed ID
              */
             attack_seed_ids?: string[];
             /**
              * Tags
-             * @description �����ǩ
+             * @description 分类标签
              */
             tags?: string[];
+            /**
+             * Topology Type
+             * @description Controlled topology required by an R5/R6 fixture
+             */
+            topology_type?: ("planner_executor" | "rag_agent") | null;
         };
         /**
          * TestCaseSummary
-         * @description ǰ�� TestCase ѡ�������ѵ�ժҪ�ֶ�.
+         * @description 前端 TestCase 选择器消费的摘要字段.
          */
         TestCaseSummary: {
             /**
              * Id
-             * @description TestCase Ψһ��ʶ
+             * @description TestCase 唯一标识
              */
             id: string;
             /**
              * Name
-             * @description �˶�����
+             * @description 人读名称
              */
             name: string;
             /**
              * Risk Type
-             * @description ��������
+             * @description 风险类型
              */
             risk_type: string;
             /**
              * Severity
-             * @description ���صȼ�
+             * @description 严重等级
              */
             severity: string;
             /**
              * Target Risk Pattern
-             * @description Ŀ�� RiskPattern ID (R1-R4)
+             * @description 目标 RiskPattern ID (R1-R4)
              */
             target_risk_pattern: string;
             /**
              * Turn Count
-             * @description �ִ��� (���� turns ��, ����Ϊ 1)
+             * @description 轮次数 (多轮 turns 数, 单轮为 1)
              */
             turn_count: number;
             /**
              * Description
-             * @description ��������
+             * @description 测试描述
              */
             description: string;
+        };
+        /**
+         * TopologyEdge
+         * @description Data flow between two topology nodes.
+         */
+        TopologyEdge: {
+            /**
+             * From Node
+             * @description Source node ID
+             */
+            from_node: string;
+            /**
+             * To Node
+             * @description Target node ID
+             */
+            to_node: string;
+            /**
+             * Channel
+             * @description Channel name: task_plan|retrieval|default
+             * @default default
+             */
+            channel: string;
+            /**
+             * Carries Untrusted Content
+             * @description Whether this edge may carry untrusted content
+             * @default false
+             */
+            carries_untrusted_content: boolean;
+        };
+        /**
+         * TopologyNode
+         * @description A logical node in the agent topology.
+         */
+        TopologyNode: {
+            /**
+             * Id
+             * @description Node ID (e.g. 'planner', 'executor')
+             */
+            id: string;
+            /**
+             * Role
+             * @description Role: PLANNER|EXECUTOR|RETRIEVER|KNOWLEDGE_BASE|AGENT
+             * @enum {string}
+             */
+            role: "PLANNER" | "EXECUTOR" | "RETRIEVER" | "KNOWLEDGE_BASE" | "AGENT";
+            /**
+             * Trust Boundary
+             * @description Trust boundary: internal|external
+             * @default internal
+             * @enum {string}
+             */
+            trust_boundary: "internal" | "external";
+            /**
+             * Tools
+             * @description Tools available to this node (EXECUTOR/AGENT roles only)
+             */
+            tools?: string[];
         };
         /** ValidationError */
         ValidationError: {
@@ -1348,6 +1740,55 @@ export interface operations {
             };
         };
     };
+    start_evaluation_comparison_evaluations_comparisons__comparison_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comparison_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationComparisonSnapshot"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_evaluation_comparison_report_evaluations_comparisons__comparison_id__report_get: {
         parameters: {
             query?: never;
@@ -1366,15 +1807,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EvaluationComparisonReport"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1444,7 +1876,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "text/event-stream": string;
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1635,6 +2067,60 @@ export interface operations {
             };
         };
     };
+    submit_confirmation_evaluations__evaluation_id__confirmations__call_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                evaluation_id: string;
+                call_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_test_cases_test_cases_get: {
         parameters: {
             query?: never;
@@ -1686,16 +2172,123 @@ export interface operations {
             };
         };
     };
-    start_evaluation_comparison_evaluations_comparisons__comparison_id__start_post: {
+    list_connections_redteam_connections_get: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                comparison_id: string;
+            query?: {
+                agent_id?: string | null;
             };
+            header?: {
+                "x-redteam-owner"?: string | null;
+                "x-redteam-signature"?: string | null;
+            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedTeamConnection"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_connection_redteam_connections_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-redteam-owner"?: string | null;
+                "x-redteam-signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRedTeamConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedTeamConnection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_redteam_runs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-redteam-owner"?: string | null;
+                "x-redteam-signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedTeamRun"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_run_redteam_runs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-redteam-owner"?: string | null;
+                "x-redteam-signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRedTeamRunRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {
@@ -1703,25 +2296,198 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EvaluationComparisonSnapshot"];
+                    "application/json": components["schemas"]["RedTeamRun"];
                 };
             };
-            /** @description Not Found */
-            404: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorResponse"];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Conflict */
-            409: {
+        };
+    };
+    get_run_redteam_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-redteam-owner"?: string | null;
+                "x-redteam-signature"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorResponse"];
+                    "application/json": components["schemas"]["RedTeamRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_report_redteam_runs__run_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-redteam-owner"?: string | null;
+                "x-redteam-signature"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_run_events_redteam_runs__run_id__events_get: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: {
+                "Last-Event-ID"?: string | null;
+                "x-redteam-owner"?: string | null;
+                "x-redteam-signature"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_topology_presets_topology_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetSummary"][];
+                };
+            };
+        };
+    };
+    get_topology_topology__agent_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTopology"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_topology_topology__agent_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetTopologyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTopology"];
                 };
             };
             /** @description Validation Error */

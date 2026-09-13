@@ -282,7 +282,11 @@ class TestGraphBuilderTopology:
             assert e.target_node_id in node_ids
 
     def test_unsupported_topology_raises(self):
-        bad_topo = AgentTopology(agent_id="x", topology_type="supervisor_worker")
+        # The public contract rejects unknown types.  Construct an invalid object
+        # deliberately so graph_builder keeps its defensive branch covered too.
+        bad_topo = AgentTopology.model_construct(
+            agent_id="x", topology_type="supervisor_worker", nodes=[], edges=[]
+        )
         with pytest.raises(ValueError, match="Unsupported topology"):
             build_attack_graph(_CORPMATE, topology=bad_topo)
 
