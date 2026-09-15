@@ -266,6 +266,8 @@ test("R4 graph paints layer info as an independent foreground text layer", () =>
 test("non-single overview renders the complete same-Agent topology risk chain", () => {
   assert.doesNotMatch(dashboardSource, /TopologyFlow/);
   assert.match(dashboardSource, /TopologyRiskChainGraph/);
+  assert.match(dashboardSource, /TopologyRiskRail/);
+  assert.match(dashboardSource, /createTopologyRiskRailModel/);
   assert.match(dashboardSource, /createTopologyRiskChain/);
   assert.match(dashboardSource, /完整真实风险链/);
   assert.match(dashboardSource, /不可信通道/);

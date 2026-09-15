@@ -2,6 +2,7 @@ import {
   createClockwiseRoundedRectPath,
   getCenteredRectBounds,
 } from "../shared/graph-svg-primitives.ts";
+import { createSmoothEdgePath } from "../topology/topology-graph-geometry.ts";
 
 export { createClockwiseRoundedRectPath };
 
@@ -349,12 +350,9 @@ export function getActiveAnatomyRouteNodeIds(pathId: string) {
 // ---------------------------------------------------------------------------
 // Topology risk-path projection (R5 planner_executor / R6 rag_agent)
 //
-// The topology mode reuses the mature Anatomy five-stage rail, uniform 150x88
-// node rectangles, edge-center anchors and curved route strokes, but maps its
-// steps onto five semantic columns from the topology plan (5.5): 风险入口 ->
-// 内容处理 -> 状态交接 -> 决策执行 -> 危险动作. R5 places a semantic TASK PLAN
-// handoff component in the third column; R6 fills all five columns with real
-// nodes. The placeholder never enters the real graph data model.
+// The topology mode reuses the mature Anatomy five-stage rail and maps real
+// topology nodes onto semantic columns. Channels remain edge labels; there are
+// no synthetic handoff nodes in the risk graph.
 // ---------------------------------------------------------------------------
 
 export const ANATOMY_TOPOLOGY_PHASES = [
@@ -411,24 +409,12 @@ export function getTopologyStepPhaseXs(stepCount: number): number[] {
   return TOPOLOGY_PHASE_CENTERS.slice(0, Math.max(0, Math.min(stepCount, 5)));
 }
 
-export type TopologyStageItem =
-  | { kind: "node"; nodeId: string }
-  | { caption: "计划交接"; kind: "placeholder"; label: "TASK PLAN" };
+export type TopologyStageItem = { kind: "node"; nodeId: string };
 
 export function createTopologyStageItems(
-  riskPatternId: "R5" | "R6",
+  _riskPatternId: "R5" | "R6",
   nodeIds: string[],
 ): TopologyStageItem[] {
-  if (riskPatternId === "R5" && nodeIds.length === 4) {
-    return [
-      { kind: "node", nodeId: nodeIds[0]! },
-      { kind: "node", nodeId: nodeIds[1]! },
-      { caption: "计划交接", kind: "placeholder", label: "TASK PLAN" },
-      { kind: "node", nodeId: nodeIds[2]! },
-      { kind: "node", nodeId: nodeIds[3]! },
-    ];
-  }
-
   return nodeIds.map((nodeId) => ({ kind: "node", nodeId }));
 }
 
@@ -468,14 +454,16 @@ export function buildTopologyChainSegments(
   for (let index = 0; index < layouts.length - 1; index += 1) {
     const source = layouts[index];
     const target = layouts[index + 1];
-    const sourceRight = source.x + source.width / 2;
-    const targetLeft = target.x - target.width / 2;
-    const y = source.y;
+    const route = createSmoothEdgePath(
+      { id: `stage-${index}`, ...source },
+      { id: `stage-${index + 1}`, ...target },
+      (index % 3) - 1,
+    );
 
     segments.push({
-      d: `M ${sourceRight} ${y} L ${targetLeft} ${y}`,
-      labelX: (source.x + target.x) / 2,
-      labelY: y - source.height / 2 - 18,
+      d: route.d,
+      labelX: route.labelX,
+      labelY: Math.min(route.labelY - 8, 138),
     });
   }
 

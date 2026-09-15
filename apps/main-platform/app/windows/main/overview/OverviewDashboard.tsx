@@ -25,6 +25,11 @@ import {
   type ProjectionAttackGraph,
 } from "../topology/topology-projection";
 import { TopologyRiskChainGraph } from "../topology/TopologyRiskChainGraph";
+import { TopologyRiskRail } from "../topology/TopologyRiskRail";
+import {
+  createTopologyRiskRailModel,
+  type TopologyRiskRailSegment,
+} from "../topology/topology-risk-rail";
 import {
   useFrozenGraphInlineSize,
   type SidebarContentMetrics,
@@ -151,9 +156,6 @@ export function OverviewDashboard({
   topology,
 }: OverviewDashboardProps) {
   const activeTopology = topology ?? createFallbackTopology(activeAgentId);
-  const untrustedChannelCount = activeTopology.edges.filter(
-    (edge) => edge.carries_untrusted_content,
-  ).length;
   const recommendedRiskPattern =
     activeTopology.topology_type === "planner_executor"
       ? "R5"
@@ -161,6 +163,7 @@ export function OverviewDashboard({
         ? "R6"
         : null;
   const [viewModel, setViewModel] = useState(overviewFixtureViewModel);
+  const [isLoadingOverview, setIsLoadingOverview] = useState(true);
   const [attackGraph, setAttackGraph] = useState<ProjectionAttackGraph | null>(
     overviewFixtureInput.attackGraph as ProjectionAttackGraph,
   );
@@ -171,6 +174,19 @@ export function OverviewDashboard({
         topology: activeTopology,
       }),
     [activeTopology, attackGraph],
+  );
+  const topologyRiskRailModel = topologyRiskChain.dataState === "ready"
+    ? createTopologyRiskRailModel(topologyRiskChain)
+    : null;
+  const [activeRailSegmentId, setActiveRailSegmentId] = useState<TopologyRiskRailSegment["id"] | null>(null);
+  const activeRailSegment = topologyRiskRailModel?.segments.find((segment) => segment.id === activeRailSegmentId) ?? null;
+  const activeRailNodeIds = useMemo(
+    () => new Set(activeRailSegment?.relatedNodeIds ?? []),
+    [activeRailSegment],
+  );
+  const activeRailEdgeIds = useMemo(
+    () => new Set(activeRailSegment?.relatedEdgeIds ?? []),
+    [activeRailSegment],
   );
   const rootRef = useRef<HTMLElement>(null);
   const mapRef = useRef<HTMLElement>(null);
@@ -219,6 +235,7 @@ export function OverviewDashboard({
               evaluationReport: overviewFixtureInput.evaluationReport,
             }),
           );
+          setIsLoadingOverview(false);
         }
       } catch (error) {
         if (
@@ -229,6 +246,7 @@ export function OverviewDashboard({
         }
         setAttackGraph(overviewFixtureInput.attackGraph as ProjectionAttackGraph);
         setViewModel(overviewFixtureViewModel);
+        setIsLoadingOverview(false);
       }
     };
 
@@ -281,9 +299,11 @@ export function OverviewDashboard({
       ref={rootRef}
       aria-label="总览页"
       className="overview-dashboard"
+      data-graph-loading={isLoadingOverview}
       data-sidebar-graph-layout={graphFreeze.layout}
       style={graphFreeze.graphStyle}
     >
+      {isLoadingOverview ? <div className="topology-loading-bar" role="status" aria-label="正在读取拓扑数据" /> : null}
       <header className="overview-brief overview-animate">
         <div className="overview-brief-copy">
           <span className="overview-kicker">CorpMate v0 示例评估</span>
@@ -325,10 +345,15 @@ export function OverviewDashboard({
           {activeTopology.topology_type === "single" ? (
             <OverviewR4Graph nodes={viewModel.attackChain} />
           ) : (
-            <div className="topology-overview-graph" aria-label={`${topologyLabel(activeTopology.topology_type)} 总图`}>
+            <div
+              className="topology-overview-graph"
+              aria-label={`${topologyLabel(activeTopology.topology_type)} 总图与不可信通道解释；开始拓扑测评；进入攻击图谱`}
+            >
               <span className="topology-overview-graph-badge">{recommendedRiskPattern} · 待验证</span>
               {topologyRiskChain.dataState === "ready" ? (
                 <TopologyRiskChainGraph
+                  activeEdgeIds={activeRailEdgeIds}
+                  activeNodeIds={activeRailNodeIds}
                   ariaLabel={`${topologyLabel(activeTopology.topology_type)} 完整真实风险链`}
                   chain={topologyRiskChain}
                 />
@@ -339,36 +364,33 @@ export function OverviewDashboard({
                   <span>{topologyRiskChain.reason}</span>
                 </div>
               )}
+              {topologyRiskRailModel ? (
+                <TopologyRiskRail
+                  model={topologyRiskRailModel}
+                  onNavigate={(key) => onNavigate(key)}
+                  onSegmentHover={(segment) => setActiveRailSegmentId(segment?.id ?? null)}
+                />
+              ) : null}
             </div>
           )}
 
-          <div className="overview-map-footer">
-            <p className="overview-path-caption">
-              {activeTopology.topology_type === "single"
-                ? formatFindingDescription(viewModel.r4Finding.description)
-                : `${recommendedRiskPattern} · ${activeTopology.nodes.length} 节点 · ${untrustedChannelCount} 不可信通道`}
-            </p>
-            <div className="overview-map-actions">
-              {recommendedRiskPattern ? (
+          {activeTopology.topology_type === "single" ? (
+            <div className="overview-map-footer">
+              <p className="overview-path-caption">
+                {formatFindingDescription(viewModel.r4Finding.description)}
+              </p>
+              <div className="overview-map-actions">
                 <button
-                  className="overview-icon-command is-secondary"
-                  onClick={() => onNavigate("run")}
+                  className="overview-icon-command"
+                  onClick={() => onNavigate("anatomy")}
                   type="button"
                 >
-                  <Activity size={17} aria-hidden="true" />
-                  <span>开始拓扑测评</span>
+                  <Network size={17} aria-hidden="true" />
+                  <span>进入攻击图谱</span>
                 </button>
-              ) : null}
-              <button
-                className="overview-icon-command"
-                onClick={() => onNavigate("anatomy")}
-                type="button"
-              >
-                <Network size={17} aria-hidden="true" />
-                <span>进入攻击图谱</span>
-              </button>
+              </div>
             </div>
-          </div>
+          ) : null}
         </section>
 
         <aside className="overview-side-stack">

@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["ui-components"],
+  serverExternalPackages: ["@playwright/test", "playwright", "playwright-core", "chromium-bidi"],
   experimental: {
     proxyClientMaxBodySize: 50 * 1024 * 1024
   },

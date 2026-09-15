@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Check, CircleDashed, Play, RadioTower, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, CircleDashed, Play, RadioTower, RefreshCw, ShieldAlert, ShieldCheck, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MIA_RAG_TOKEN_KEY } from "../../../lib/client/auth-adapter";
 import {
@@ -14,6 +14,8 @@ import {
   type RedTeamRun as Run,
 } from "./redteam-mock";
 import { deriveRedTeamSteps, formatRedTeamEvent } from "./redteam-running";
+import { RedTeamVisualizations } from "./RedTeamVisualizations";
+import { ReportExportMenu } from "../../shared/ReportExportMenu";
 
 function authHeaders() {
   const token = typeof window === "undefined" ? null : window.localStorage.getItem(MIA_RAG_TOKEN_KEY);
@@ -49,9 +51,14 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
   const [report, setReport] = useState<Report | null>(null);
   const [view, setView] = useState<"entry" | "running" | "report">("entry");
   const [error, setError] = useState<string | null>(null);
+  const [errorDismissed, setErrorDismissed] = useState(false);
   const [starting, setStarting] = useState(false);
   const [config, setConfig] = useState({ rounds: 2, seed_count: 4, variants_per_seed: 2 });
   const activeConnection = connections.find((item) => item.agent_id === activeAgentId) ?? connections[0] ?? null;
+  const setGlobalError = (message: string | null) => {
+    setError(message);
+    if (message) setErrorDismissed(false);
+  };
 
   const refresh = async () => {
     if (mockMode) {
@@ -68,7 +75,7 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
     setRuns(nextRuns);
   };
 
-  useEffect(() => { void refresh().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "读取红队资源失败")); }, [activeAgentId, mockMode]);
+  useEffect(() => { void refresh().catch((cause: unknown) => setGlobalError(cause instanceof Error ? cause.message : "读取红队资源失败")); }, [activeAgentId, mockMode]);
 
   useEffect(() => {
     if (!mockMode || !activeRun || view !== "running") return;
@@ -108,10 +115,10 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
         void readJson<Run>(`/api/redteam/runs/${encodeURIComponent(activeRun.run_id)}`).then((nextRun) => {
         setActiveRun(nextRun);
         if (nextRun.report_available) void openReport(nextRun.run_id);
-        }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "实时事件流暂时中断"));
+        }).catch((cause: unknown) => setGlobalError(cause instanceof Error ? cause.message : "实时事件流暂时中断"));
       };
     };
-    void connect().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "无法建立实时事件流"));
+    void connect().catch((cause: unknown) => setGlobalError(cause instanceof Error ? cause.message : "无法建立实时事件流"));
     return () => { closed = true; source?.close(); };
   }, [activeRun?.run_id, activeRun?.status]);
 
@@ -119,7 +126,7 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
     if (mockMode) {
       const connection = activeConnection ?? createMockRedTeamConnection(activeAgentId);
       const nextRun = runs.find((item) => item.run_id === runId) ?? createMockRedTeamRun(connection);
-      setActiveRun(nextRun); setEvents(buildMockRedTeamEvents(nextRun)); setReport(createMockRedTeamReport(nextRun)); setView("report"); setError(null);
+      setActiveRun(nextRun); setEvents(buildMockRedTeamEvents(nextRun)); setReport(createMockRedTeamReport(nextRun)); setView("report"); setGlobalError(null);
       return;
     }
     try {
@@ -127,13 +134,13 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
         readJson<Run>(`/api/redteam/runs/${encodeURIComponent(runId)}`),
         readJson<Report>(`/api/redteam/runs/${encodeURIComponent(runId)}/report`),
       ]);
-      setActiveRun(nextRun); setReport(nextReport); setView("report"); setError(null);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "读取演练报告失败"); }
+      setActiveRun(nextRun); setReport(nextReport); setView("report"); setGlobalError(null);
+    } catch (cause) { setGlobalError(cause instanceof Error ? cause.message : "读取演练报告失败"); }
   };
 
   const start = async () => {
     if (!activeConnection) return;
-    setStarting(true); setError(null);
+    setStarting(true); setGlobalError(null);
     try {
       if (mockMode) {
         const run = { ...createMockRedTeamRun(activeConnection), status: "running" as const, current_round: 0, report_available: false };
@@ -142,7 +149,7 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
       }
       const run = await readJson<Run>("/api/redteam/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ connection_id: activeConnection.connection_id, config }) });
       setRuns((current) => [run, ...current]); setActiveRun(run); setEvents([]); setReport(null); setView("running");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "启动红队演练失败"); }
+    } catch (cause) { setGlobalError(cause instanceof Error ? cause.message : "启动红队演练失败"); }
     finally { setStarting(false); }
   };
 
@@ -151,9 +158,10 @@ export function RedTeamWorkspace({ activeAgentId, mockMode = false }: { activeAg
   const outcome = report?.outcome_summary ?? {};
   const weightRows = useMemo(() => report?.weight_snapshots?.flatMap((snapshot) => Object.entries(snapshot.weights_after).map(([strategy, weight]) => ({ round: snapshot.round, strategy, weight }))) ?? [], [report]);
 
+  const errorVisible = Boolean(error && !errorDismissed);
+
   return <section className={`redteam-page is-${view}`} aria-label="红队演练工作区">
-    <header className="redteam-header"><div><span>ADAPTIVE RED TEAM</span><h1>{view === "entry" ? "红队演练" : view === "running" ? "演练进程" : "演练报告"}</h1><p>{view === "entry" ? "固定种子集，按每轮权重最高的三种策略持续变异与验证。" : activeRun ? `${activeRun.agent_id} · ${activeRun.run_id.slice(-8)}` : "运行专属证据与覆盖度结论"}</p></div><div className="redteam-header-actions"><span className={`redteam-mode-label ${mockMode ? "is-mock" : "is-live"}`}>{mockMode ? "MOCK · 无认证回放" : "LIVE · BFF 连接"}</span>{activeRun?.report_available && view === "running" && <button className="redteam-primary redteam-header-report" type="button" onClick={() => void openReport(activeRun.run_id)}><Check size={16} />查看运行报告</button>}{view !== "entry" && <button type="button" className="redteam-ghost" onClick={() => setView("entry")}><ArrowLeft size={15} />返回入口</button>}<button type="button" className="redteam-icon-command" title="刷新历史" aria-label="刷新历史" onClick={() => void refresh()}><RefreshCw size={15} /></button></div></header>
-    {error && <div className="redteam-error"><AlertTriangle size={16} />{error}</div>}
+    <header className="redteam-header"><div><span>ADAPTIVE RED TEAM</span><h1>{view === "entry" ? "红队演练" : view === "running" ? "演练进程" : "演练报告"}</h1><p>{view === "entry" ? "固定种子集，按每轮权重最高的三种策略持续变异与验证。" : activeRun ? `${activeRun.agent_id} · ${activeRun.run_id.slice(-8)}` : "运行专属证据与覆盖度结论"}</p></div><div className="redteam-header-actions"><span className={`redteam-mode-label ${mockMode ? "is-mock" : "is-live"}`}>{mockMode ? "MOCK · 无认证回放" : "LIVE · BFF 连接"}</span>{view === "report" && report && activeRun?.report_available && <ReportExportMenu kind="redteam" id={activeRun.run_id} ready={Boolean(report)} />}{activeRun?.report_available && view === "running" && <button className="redteam-primary redteam-header-report" type="button" onClick={() => void openReport(activeRun.run_id)}><Check size={16} />查看运行报告</button>}{view !== "entry" && <button type="button" className="redteam-ghost" onClick={() => setView("entry")}><ArrowLeft size={15} />返回入口</button>}<button type="button" className="redteam-icon-command" title="刷新历史" aria-label="刷新历史" onClick={() => void refresh()}><RefreshCw size={15} /></button></div>{error && <div className={`redteam-error-overlay ${errorVisible ? "is-visible" : "is-hidden"}`} role="status" aria-live="polite" aria-hidden={!errorVisible}><AlertTriangle size={16} aria-hidden="true" /><span>{error}</span><button type="button" title="关闭错误提示" aria-label="关闭错误提示" onClick={() => setErrorDismissed(true)}><X size={14} aria-hidden="true" /></button></div>}</header>
     {view === "entry" && <div className="redteam-entry">
       <article className="redteam-command-card"><span className="redteam-kicker">TARGET CONNECTION</span><h2>{activeConnection ? activeConnection.agent_id : "尚未配置演练连接"}</h2><p>{activeConnection ? `${activeConnection.adapter_metadata.environment ?? "unknown"} · Adapter ${activeConnection.adapter_metadata.protocol_version ?? "unknown"}` : "请先在初始接口登记并验证专用测试环境的 HTTP Adapter。"}</p><dl><div><dt>种子选择</dt><dd>仅在运行开始时选择一次</dd></div><div><dt>策略规则</dt><dd>每轮固定取权重最高三种</dd></div><div><dt>目标范围</dt><dd>专用测试环境，不连接生产或内网</dd></div></dl></article>
       <form className="redteam-config" onSubmit={(event) => { event.preventDefault(); void start(); }}><label>变异轮次<input type="number" min="1" max="10" value={config.rounds} onChange={(event) => setConfig({ ...config, rounds: Number(event.target.value) })} /></label><label>固定种子数<input type="number" min="1" max="20" value={config.seed_count} onChange={(event) => setConfig({ ...config, seed_count: Number(event.target.value) })} /></label><label>每种子变体<input type="number" min="1" max="5" value={config.variants_per_seed} onChange={(event) => setConfig({ ...config, variants_per_seed: Number(event.target.value) })} /></label><button className="redteam-primary" disabled={!activeConnection || starting} type="submit">{starting ? <CircleDashed className="redteam-spin" size={17} /> : <Play size={17} />}{starting ? "正在创建运行" : "开始红队演练"}</button></form>
@@ -175,18 +183,4 @@ function RedTeamEventFeed({ events }: { events: RunEvent[] }) {
 
 function RunHistory({ runs, onOpen }: { runs: Run[]; onOpen: (run: Run) => void }) {
   return <section className="redteam-history"><header><span>RUN HISTORY</span><h2>我的演练记录</h2></header>{runs.length ? runs.slice(0, 5).map((run) => <button key={run.run_id} type="button" onClick={() => onOpen(run)}><span>{run.agent_id}</span><b>{run.status === "completed" ? "已完成" : run.status === "failed" ? "失败" : "进行中"}</b><small>{run.run_id.slice(-8)}</small></button>) : <p>尚无运行记录。</p>}</section>;
-}
-
-function RedTeamVisualizations({ report }: { report: Report }) {
-  const strategies = report.strategy_effectiveness ?? [];
-  const rounds = report.round_evolution ?? [];
-  const snapshots = report.weight_snapshots ?? [];
-  const defenseSuccess = report.outcome_summary.defense_success ?? 0;
-  const bypasses = report.outcome_summary.confirmed_bypass ?? 0;
-  return <section className="redteam-visual-grid" aria-label="红队演练可视化">
-    <figure><figcaption><span>STRATEGY MAP</span><b>策略覆盖</b></figcaption><svg viewBox="0 0 240 116" role="img" aria-label="策略覆盖图"><path className="rt-viz-grid" d="M18 94H222M18 63H222M18 32H222" />{strategies.map((item, index) => <g key={item.strategy}><path className="rt-viz-strategy" d={`M28 ${90 - index * 24}H${62 + item.weight_final * 220}L${78 + item.weight_final * 220} ${82 - index * 24}`} /><text x="28" y={108 - index * 24}>{item.strategy.slice(0, 10)}</text></g>)}</svg></figure>
-    <figure><figcaption><span>ROUND COVERAGE</span><b>轮次覆盖</b></figcaption><svg viewBox="0 0 240 116" role="img" aria-label="轮次覆盖图"><circle className="rt-viz-ring" cx="62" cy="58" r="33" /><circle className="rt-viz-ring is-filled" cx="62" cy="58" r="33" pathLength="100" strokeDasharray={`${Math.min(100, (rounds.length / 3) * 100)} 100`} /><text x="48" y="62">{rounds.length}R</text>{rounds.map((round, index) => <g key={round.round}><rect className="rt-viz-block" x={116 + index * 44} y={80 - round.variants * 5} width="28" height={round.variants * 5} /><text x={118 + index * 44} y="104">R{round.round}</text></g>)}</svg></figure>
-    <figure><figcaption><span>DEFENSE INTERCEPTION</span><b>防守截获</b></figcaption><svg viewBox="0 0 240 116" role="img" aria-label="防守截获图"><path className="rt-viz-route" d="M20 72H82L104 48H214" /><path className="rt-viz-intercept" d="M138 28V82M126 40L138 28L150 40" /><circle className="rt-viz-node" cx="82" cy="72" r="6" /><circle className="rt-viz-node is-danger" cx="194" cy="48" r="6" /><text x="20" y="100">{defenseSuccess} BLOCKED</text><text x="151" y="100">{bypasses} BYPASS</text></svg></figure>
-    <figure><figcaption><span>WEIGHT EVOLUTION</span><b>权重演进</b></figcaption><svg viewBox="0 0 240 116" role="img" aria-label="策略权重演进图"><path className="rt-viz-grid" d="M18 94H222M18 56H222M18 18H222" />{snapshots.map((snapshot, index) => <g key={snapshot.round}>{Object.values(snapshot.weights_after).slice(0, 3).map((weight, strategyIndex) => <circle key={strategyIndex} className={`rt-viz-weight w-${strategyIndex}`} cx={56 + index * 104} cy={94 - weight * 110} r="4" />)}<text x={48 + index * 104} y="108">R{snapshot.round}</text></g>)}<path className="rt-viz-weight-line" d="M56 34L160 27" /></svg></figure>
-  </section>;
 }

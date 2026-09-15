@@ -360,9 +360,7 @@ function TopologyRiskPathStage({
     createTopologyChainNodeLayout(phaseXs[index]),
   );
   const segments = buildTopologyChainSegments(layouts);
-  const stageEdges = chain.riskPatternId === "R5"
-    ? [chain.edges[0] ?? null, null, null, chain.edges[2] ?? null]
-    : chain.edges;
+  const stageEdges = chain.edges;
   return (
     <div ref={rootRef} className={`anatomy-map is-topology is-${status}`} aria-label={`${path?.id} 拓扑风险路径`}>
       <div className="anatomy-map-stage">
@@ -451,24 +449,6 @@ function TopologyRiskPathStage({
                 const layout = layouts[index];
                 const rectPath = createClockwiseRoundedRectPath(layout);
 
-                if (item.kind === "placeholder") {
-                  return (
-                    <g
-                      key="task-plan-placeholder"
-                      className="anatomy-topology-placeholder"
-                      data-topology-placeholder="task-plan"
-                    >
-                      <path className="anatomy-topology-placeholder-surface" d={rectPath} />
-                      <text className="anatomy-topology-placeholder-label" textAnchor="middle" x={layout.x} y={layout.y + 2}>
-                        {item.label}
-                      </text>
-                      <text className="anatomy-topology-placeholder-caption" textAnchor="middle" x={layout.x} y={layout.y + 25}>
-                        {item.caption}
-                      </text>
-                    </g>
-                  );
-                }
-
                 const node = chain.nodes.find((candidate) => candidate.id === item.nodeId);
                 if (!node) return null;
                 const Icon = TOPOLOGY_NODE_ICONS[node.role];
@@ -516,7 +496,6 @@ function TopologyRiskPathStage({
           </svg>
           <div className="anatomy-node-hitbox-layer" aria-label="拓扑路径节点">
             {stageItems.map((item, index) => {
-              if (item.kind === "placeholder") return null;
               const node = chain.nodes.find((candidate) => candidate.id === item.nodeId);
               if (!node) return null;
               return (
@@ -1006,7 +985,8 @@ export function AttackGraphWorkspace({
   );
 
   return (
-    <section ref={rootRef} className="anatomy-page" aria-label="攻击图谱工作台">
+    <section ref={rootRef} className="anatomy-page" data-graph-loading={isLoadingGraph} aria-label="攻击图谱工作台">
+      {isLoadingGraph ? <div className="topology-loading-bar" role="status" aria-label="正在读取攻击图谱" /> : null}
       <header className="anatomy-header anatomy-reveal">
         <div className="anatomy-header-copy">
           <div className="anatomy-heading-line">

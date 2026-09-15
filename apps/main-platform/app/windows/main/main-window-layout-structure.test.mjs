@@ -259,7 +259,14 @@ test("main workspace registers an empty red team navigation destination", () => 
 test("main workspace constrains sidebar overflow and keeps all eight items reachable", () => {
   assert.match(mainStyles, /\.main-line-sidebar\s*\{[\s\S]*?overflow-x:\s*hidden;/s);
   assert.match(mainSidebarSource, /itemGap = 36/);
-  assert.match(mainStyles, /.main-line-sidebar\s*\{[\s\S]*?overflow-y:\s*auto;/s);
+  assert.match(
+    mainStyles,
+    /\.main-line-sidebar\s*\{[\s\S]*?overflow-y:\s*hidden;/s,
+  );
+  assert.match(
+    mainStyles,
+    /\.main-window\[data-main-window-stage="settled"\]\s+\.main-line-sidebar\s*\{[\s\S]*?overflow-y:\s*auto;/s,
+  );
   assert.match(
     mainStyles,
     /@media \(max-width:\s*720px\)[\s\S]*?\.main-line-sidebar-list\s*\{[\s\S]*?display:\s*flex;[\s\S]*?overflow-x:\s*auto;/s,

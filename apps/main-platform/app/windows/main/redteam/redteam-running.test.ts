@@ -42,7 +42,21 @@ test("queued and prematurely completed runs do not bypass event-count gates", ()
 test("red-team events have readable Chinese labels and restrained categories", () => {
   const run = createMockRedTeamRun(createMockRedTeamConnection("agent"));
   const event = buildMockRedTeamEvents(run).find((item) => item.type === "VARIANT_EVALUATED")!;
-  assert.equal(formatRedTeamEvent(event).label, "变体测评完成");
+  assert.equal(formatRedTeamEvent(event).label, "VARIANT_EVALUATED");
   assert.equal(redTeamEventKind(event), "agent");
-  assert.equal(formatRedTeamEvent(event).detail, "注入策略 · 防御层已拦截");
+  assert.equal(formatRedTeamEvent(event).detail, "变体测评完成 · 注入策略 · 防御层已拦截");
+});
+
+test("unknown red-team events keep a stable English event label", () => {
+  const run = createMockRedTeamRun(createMockRedTeamConnection("agent"));
+  const event = { ...buildMockRedTeamEvents(run)[0], type: "CUSTOM_BACKEND_EVENT", payload: { message: "后端自定义事件" } };
+  assert.equal(formatRedTeamEvent(event).label, "CUSTOM_BACKEND_EVENT");
+  assert.match(formatRedTeamEvent(event).detail, /后端自定义事件/);
+});
+
+test("missing red-team event types fall back to BACKEND_EVENT", () => {
+  const run = createMockRedTeamRun(createMockRedTeamConnection("agent"));
+  const event = { ...buildMockRedTeamEvents(run)[0], type: undefined, payload: { message: "未命名后端事件" } } as never;
+  assert.equal(formatRedTeamEvent(event).label, "BACKEND_EVENT");
+  assert.match(formatRedTeamEvent(event).detail, /未命名后端事件/);
 });

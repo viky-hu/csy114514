@@ -13,6 +13,7 @@ import {
   type ComparisonReportSummary,
 } from "./comparison-report-summary";
 import type { ComparisonTransition } from "./comparison-types";
+import { ReportExportMenu } from "../../shared/ReportExportMenu";
 
 gsap.registerPlugin(useGSAP);
 
@@ -210,7 +211,7 @@ export function EvaluationComparisonWorkspace({ onNavigate }: { onNavigate?: Eva
           <h1>对比测评报告</h1>
           <p>同一组 TestCase 下的 Bare 基线与 Defended 防御结果。安全通过率仅以两侧均为明确 PASS/FAIL 的可比 Case 为分母。</p>
         </div>
-        <button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}>
+        <ReportExportMenu kind="comparison" id={comparison.comparison_id} ready={Boolean(comparisonReport && comparison.status === "completed")} /><button type="button" className="evaluation-secondary-button" onClick={() => onNavigate?.("run")}>
           <ArrowLeft size={15} />返回测评运行
         </button>
       </header>

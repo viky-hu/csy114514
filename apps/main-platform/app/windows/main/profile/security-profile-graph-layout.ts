@@ -1,5 +1,6 @@
 import type { SecurityProfileColumnId } from "./security-profile-data";
 import { getCenteredRectBounds } from "../shared/graph-svg-primitives.ts";
+import { createSmoothEdgePath } from "../topology/topology-graph-geometry.ts";
 
 export const PROFILE_GRAPH_VIEWBOX = {
   height: 500,
@@ -195,6 +196,41 @@ export const PROFILE_LAYOUT_BY_NODE_ID = Object.fromEntries(
   Object.values(PROFILE_NODE_LAYOUTS).map((layout) => [layout.id, layout]),
 ) as Record<string, ProfileGraphLayout>;
 
+/** Build stable positions for topology-projected nodes using their semantic column. */
+export function createProfileLayoutByNodeId(
+  nodes: Array<Pick<ProfileGraphLayout, "id" | "columnId">>,
+) {
+  const result: Record<string, ProfileGraphLayout> = { ...PROFILE_LAYOUT_BY_NODE_ID };
+  const columnX: Record<SecurityProfileColumnId, number> = {
+    "input-data": 166,
+    "agent-core": 397,
+    "persistent-memory": 632,
+    "tool-sink": 862,
+  };
+  const grouped = new Map<SecurityProfileColumnId, string[]>();
+  for (const node of nodes) {
+    if (result[node.id]) continue;
+    const ids = grouped.get(node.columnId) ?? [];
+    ids.push(node.id);
+    grouped.set(node.columnId, ids);
+  }
+  for (const [columnId, ids] of grouped) {
+    const step = Math.min(132, 360 / Math.max(ids.length, 1));
+    const start = 178 - ((ids.length - 1) * step) / 2;
+    ids.forEach((id, index) => {
+      result[id] = {
+        columnId,
+        height: 88,
+        id,
+        width: 164,
+        x: columnX[columnId],
+        y: start + index * step,
+      };
+    });
+  }
+  return result;
+}
+
 const PROFILE_BASE_LAYOUT_IDS = new Set([
   "agent-corpmate",
   "data-email",
@@ -349,19 +385,27 @@ function getProfileCurveControls(
   );
 }
 
-export function buildProfileCurvePath(route: ProfileRouteDefinition) {
-  const sourceLayout = PROFILE_LAYOUT_BY_NODE_ID[route.sourceNodeId];
-  const targetLayout = PROFILE_LAYOUT_BY_NODE_ID[route.targetNodeId];
+export function buildProfileCurvePath(
+  route: ProfileRouteDefinition,
+  layouts: Record<string, ProfileGraphLayout> = PROFILE_LAYOUT_BY_NODE_ID,
+  branchOffset = 0,
+) {
+  const sourceLayout = layouts[route.sourceNodeId];
+  const targetLayout = layouts[route.targetNodeId];
   const source = getProfileNodeAnchor(sourceLayout, route.sourceAnchor);
   const target = getProfileNodeAnchor(targetLayout, route.targetAnchor);
-  const { controlOne, controlTwo } = getProfileCurveControls(route, source, target);
-
-  return [
-    `M ${source.x} ${source.y}`,
-    `C ${controlOne.x} ${controlOne.y}`,
-    `${controlTwo.x} ${controlTwo.y}`,
-    `${target.x} ${target.y}`,
-  ].join(" ");
+  const explicit = getProfileCurveControls(route, source, target);
+  const usesExplicit = route.id in {
+    "agent-to-email-read": true,
+    "agent-to-email-send": true,
+    "agent-to-memory": true,
+    "data-email-to-email-read": true,
+    "source-browser-to-agent": true,
+  };
+  if (usesExplicit) {
+    return `M ${source.x} ${source.y} C ${explicit.controlOne.x} ${explicit.controlOne.y} ${explicit.controlTwo.x} ${explicit.controlTwo.y} ${target.x} ${target.y}`;
+  }
+  return createSmoothEdgePath(sourceLayout, targetLayout, branchOffset).d;
 }
 
 function createProfileRouteDefinition(route: {
@@ -371,9 +415,9 @@ function createProfileRouteDefinition(route: {
   sourceNodeId: string;
   targetNodeId: string;
   type: string;
-}): ProfileRouteDefinition | null {
-  const source = PROFILE_LAYOUT_BY_NODE_ID[route.sourceNodeId];
-  const target = PROFILE_LAYOUT_BY_NODE_ID[route.targetNodeId];
+}, layouts: Record<string, ProfileGraphLayout>): ProfileRouteDefinition | null {
+  const source = layouts[route.sourceNodeId];
+  const target = layouts[route.targetNodeId];
 
   if (!source || !target) {
     return null;
@@ -403,23 +447,22 @@ export function buildProfileRouteSegments(
     targetNodeId: string;
     type: string;
   }>,
+  layouts: Record<string, ProfileGraphLayout> = PROFILE_LAYOUT_BY_NODE_ID,
 ): ProfileRouteSegment[] {
   const definitions = routes
     ? routes
-        .map(createProfileRouteDefinition)
+        .map((route) => createProfileRouteDefinition(route, layouts))
         .filter((route): route is ProfileRouteDefinition => Boolean(route))
     : PROFILE_ROUTE_DEFINITIONS;
 
-  return definitions.map((route) => ({
+  return definitions.map((route, index) => ({
     ...route,
-    d: buildProfileCurvePath(route),
+    d: buildProfileCurvePath(route, layouts, (index % 3) - 1),
     labelX:
-      (PROFILE_LAYOUT_BY_NODE_ID[route.sourceNodeId].x +
-        PROFILE_LAYOUT_BY_NODE_ID[route.targetNodeId].x) /
+      (layouts[route.sourceNodeId].x + layouts[route.targetNodeId].x) /
       2,
     labelY:
-      (PROFILE_LAYOUT_BY_NODE_ID[route.sourceNodeId].y +
-        PROFILE_LAYOUT_BY_NODE_ID[route.targetNodeId].y) /
+      (layouts[route.sourceNodeId].y + layouts[route.targetNodeId].y) /
       2 -
       10,
   }));

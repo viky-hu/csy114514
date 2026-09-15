@@ -22,7 +22,18 @@
   scrollbar-width: thin;
 }
 
-.evaluation-page-header { position: relative; display: flex; align-items: end; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--evaluation-line); padding: 0 0 11px; }
+.evaluation-page-header { position: relative; z-index: 3; display: flex; align-items: end; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--evaluation-line); padding: 0 0 11px; }
+.evaluation-page .report-export-menu { position: relative; display: inline-flex; }
+.evaluation-page .report-export-trigger { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; gap: 6px; border: 1px solid var(--evaluation-blue); border-radius: 3px; padding: 0 10px; background: var(--evaluation-blue); color: #fff; cursor: pointer; font: 500 11px var(--main-body-font, sans-serif); }
+.evaluation-page .report-export-trigger:hover, .evaluation-page .report-export-trigger:focus-visible { background: #2443d5; }
+.evaluation-page .report-export-trigger:focus-visible, .evaluation-page .report-export-popover button:focus-visible { outline: 2px solid rgba(49,82,244,.45); outline-offset: 2px; }
+.evaluation-page .report-export-trigger:disabled { cursor: wait; opacity: .6; }
+.evaluation-page .report-export-popover { position: absolute; top: calc(100% + 5px); right: 0; z-index: 20; display: grid; min-width: 142px; border: 1px solid var(--evaluation-line); background: #fff; box-shadow: 0 8px 20px rgba(17,22,34,.14); }
+.evaluation-page .report-export-popover button { display: flex; align-items: center; gap: 7px; min-height: 34px; border: 0; border-bottom: 1px solid rgba(17,22,34,.08); padding: 0 10px; background: transparent; color: var(--evaluation-ink); cursor: pointer; text-align: left; font: 11px var(--main-body-font, sans-serif); }
+.evaluation-page .report-export-popover button:hover { background: rgba(49,82,244,.06); color: var(--evaluation-blue); }
+.evaluation-page .report-export-check { color: transparent; }
+.evaluation-page .report-export-error { position: absolute; top: calc(100% + 6px); right: 0; z-index: 21; width: max-content; max-width: 260px; margin: 0; border: 1px solid rgba(182,50,58,.3); padding: 7px 9px; background: #fff7f7; color: #b6323a; font-size: 10px; }
+.evaluation-page .report-export-error button { margin-left: 8px; border: 0; background: transparent; color: inherit; cursor: pointer; text-decoration: underline; }
 .evaluation-run-header-actions { display: flex; align-items: end; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .evaluation-run-header-actions.is-comparison { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .evaluation-page-header h1 { margin: 4px 0 0; font-size: 30px; font-weight: 400; line-height: 1; }
@@ -319,7 +330,7 @@
 
 .evaluation-report-page { grid-template-rows: auto auto minmax(0, 1fr); }
 .evaluation-report-page.has-summary { grid-template-rows: auto auto auto minmax(280px, 1fr); }
-.evaluation-report-actions { display: inline-flex; align-items: center; gap: 8px; }
+.evaluation-report-actions { position: relative; z-index: 4; display: inline-flex; align-items: center; gap: 8px; }
 .evaluation-severity-badge { display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(17,22,34,.22); padding: 5px 9px; font-family: var(--main-body-font, system-ui, sans-serif); font-size: 10px; }
 .evaluation-severity-badge.is-critical, .evaluation-severity-mark.is-critical { border-color: rgba(191, 55, 61, .5); color: #b6323a; background: rgba(191, 55, 61, .08); }.evaluation-severity-badge.is-high, .evaluation-severity-mark.is-high { border-color: rgba(178, 118, 24, .5); color: var(--evaluation-amber); background: rgba(178, 118, 24, .08); }.evaluation-severity-badge.is-medium, .evaluation-severity-mark.is-medium { color: #8c671b; }.evaluation-severity-badge.is-low, .evaluation-severity-mark.is-low { color: var(--evaluation-green); }
 .evaluation-score-panel { display: grid; grid-template-columns: minmax(190px, .8fr) 1.2fr; gap: 18px; align-items: center; border-bottom: 1px solid var(--evaluation-line); padding: 8px 0 14px; }

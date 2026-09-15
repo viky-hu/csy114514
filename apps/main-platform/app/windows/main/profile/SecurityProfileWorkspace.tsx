@@ -40,6 +40,7 @@ export function SecurityProfileWorkspace({
     source: "mock",
     viewModel: securityProfileFixtureViewModel,
   });
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   useEffect(() => {
     let ignore = false;
@@ -48,6 +49,8 @@ export function SecurityProfileWorkspace({
       if (!ignore) {
         setResult(nextResult);
       }
+    }).finally(() => {
+      if (!ignore) setIsLoadingProfile(false);
     });
 
     return () => {
@@ -66,6 +69,7 @@ export function SecurityProfileWorkspace({
       sidebarContentMetrics={sidebarContentMetrics}
       topology={topology}
       viewModel={viewModel}
+      isLoading={isLoadingProfile}
     />
   );
 }

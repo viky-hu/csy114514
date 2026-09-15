@@ -34,6 +34,7 @@
 - [ ] Keep `TopologyModeNav` and its existing mode-switch animation independent from the topology visual projection.
 - [ ] Overview is an entry summary only for non-single topology; do not append a second generic topology canvas there. Its risk heading may name the recommended topology pattern (`plan_contamination` / `rag_context_poisoning`) while `OverviewR4Graph` remains the only overview SVG.
 - [ ] Security Profile must render topology nodes, channels, and untrusted-channel treatment inside its existing boundary graph; Anatomy must render the selected `risk_path_ids` path inside its existing risk-path workbench.
+- [ ] Non-single topology connectors must use the shared `topology-graph-geometry.ts` boundary-anchor/Bézier core; review SVG endpoint coordinates and branch offsets instead of accepting page-local hardcoded paths.
 - [ ] Use topology API data as the source of architecture truth; use Attack Graph/report data only as same-Agent risk context. Missing graph/path data must be labelled as insufficient rather than filled with fabricated nodes or edges.
 - [ ] `anatomy-topology-chain.ts` is the only place that builds an R5/R6 chain: the middle nodes come from `AgentTopology.nodes` walked along real `edges`, the two end nodes come from the attack-graph nodes the selected path starts and ends with, and channel labels come from real `TopologyEdges.channel` values. Never key topology copy off guessed step labels, and resolve to `{ kind: "missing" }` with the offending node names when data is incomplete.
 - [ ] The anatomy topology chain reuses the mature five-phase rail (`ANATOMY_TOPOLOGY_PHASES`, `getTopologyStepPhaseXs`, `ANATOMY_TOPOLOGY_NODE_WIDTH/HEIGHT`) and must keep channel labels above the 88px node band, because adjacent column centers are only 158-174 apart.
@@ -239,7 +240,7 @@
 ## 2026-08-14 Backend One-Click Startup Repair
 
 - Ownership: `csy——全智赛/一键启动.bat` owns local Windows process startup; backend application behavior remains in `backend/app/**`.
-- Boundary: the launcher invokes `python -m uvicorn backend.app.main:app`, checks that `fastapi.sse` and the attack-graph `networkx` runtime are available before printing the service banner, and does not add a frontend or BFF dependency. The development fingerprint key is injected only into the local process and is not exposed through frontend environment variables.
+- Boundary: the launcher invokes `python -m uvicorn backend.app.main:app`, checks that `fastapi.sse` and the attack-graph `networkx` runtime are available before printing the service banner, verifies the frontend Playwright Chromium executable and installs it only when missing, and does not add a frontend or BFF dependency. The development fingerprint key is injected only into the local process and is not exposed through frontend environment variables.
 - Extensibility: copied virtual environments with stale machine-specific paths are detected and bypassed through the machine Python executable while retaining the project venv site-packages path for this local workspace.
 - Validation: run the launcher from `csy——全智赛`, confirm `http://127.0.0.1:8000/health` returns `{"status":"ok"}`, and confirm the console remains open with the full error if dependency validation or application startup fails.
 
@@ -323,7 +324,7 @@
 - [ ] The UI-only bridge sits between displayed D2 and D3, has the same navigable workspace status as a defense detail, and has no canonical D ID or backend/report field. Left/right navigation and branch navigation always use display indices.
 - [ ] The bridge graph models `DefendedLLMAgent.chat()` tool-call handling in order: LLM inference returns tool calls, then D5 chain detection, D6 intent classification, D7 for `memory.write` only, D8 for `email.send` only, D2 output filtering as the last pre-sandbox tool-call defense, then Sandbox execution. D3 confirmation is represented only in the Sandbox `email.send` path.
 - [ ] Every bridge defense branch is a keyboard-operable button with a visible focus state and its label/scope in `aria-label`. It navigates through the uniform detail fade lifecycle to display D3-D8 as appropriate; each blocked branch names the retained defense label/reason outcome. Sandbox remains a distinct green execution module in the right lane, and D8 is a separate keyboard-operable button below it.
-- [ ] The flow SVG, bridge routes, and panel motion retain the existing profile/overview/anatomy visual language: `xMidYMid meet`, dotted paths, active outlines, short GSAP reveals, and direct stable reduced-motion states. No chart library or new navigation workspace is introduced.
+- [ ] The flow SVG, bridge routes, and panel motion retain the existing profile/overview/anatomy visual language: `xMidYMid meet`, dotted paths, active outlines, short GSAP reveals, and direct stable reduced-motion states. Each D1-D8/BRIDGE node unit is keyboard-focusable and clickable, exposes an accessible label plus `aria-current="step"` for the selected display index, and routes activation through `DefenseVisualizationStage`'s existing navigation state. No chart library or new navigation workspace is introduced.
 - [ ] The frontend defense rail order is D1 `输入过滤`, D2 `指令隔离`, D3 `因果链监测`, D4 `意图分类`, D5 `记忆审计`, D6 `会话监控`, D7 `输出过滤`, D8 `确认门控`; this display order is independent from the bridge panel's backend tool-call execution order.
 - [ ] The shared D2/bridge detail shell establishes the fixed outer storage region first, gives the upper flow visualization a bounded roughly 42% track with an explicit narrow-width floor, anchors the lower split to the bottom edge, and allows its panels to move downward when the flow needs room.
 - [ ] Explanation rows are data-count-driven, do not assume five entries, remain visible without list scrolling, and use readable type/row sizing within the available lower region. Only source-code readers may scroll; page, panel, flow, and explanation surfaces remain fixed.
@@ -374,6 +375,7 @@
 - Report semantics: `FAIL` without defense labels is the only confirmed bypass. `PASS` with labels is a defense success; `PASS` without labels is unexercised; `ERROR` is an execution error; `FAIL` with labels is inconclusive. Zero confirmed bypasses must never render as an unconditional safety claim.
 - Validation: cover owner isolation, signed-owner rejection, target policy, seed reuse, strategy/weight snapshots, SSE replay, terminal failure, BFF error proxying, entry-to-live-to-report transition, and report denominators at desktop/narrow/reduced-motion sizes.
 - Running-view validation: keep the fixed Evaluation Run shell geometry, render all four process rows before events arrive, advance rows from waiting to running to complete from replayed events, mark the first incomplete row red on failure, keep the white event feed readable with Chinese labels and dark semantic colors, and place the report action in the page header without changing the red-team API boundary.
+- Error and terminal validation: render request-level errors as a dismissible, absolute header overlay without layout reflow; preserve run-level failure context in the process area; show backend event types in English with Chinese details; and use only `var(--main-body-font)` throughout the red-team event feed.
 
 
 ## 2026-09-09 Stage 4 Agent Topology
@@ -383,6 +385,9 @@
 - [ ] `single` preserves existing Stage 3/R4 behavior; invalid, unavailable, and save-failure states remain local and retryable.
 - [ ] Non-single topology uses native SVG/HTML with fixed positions, no third-party graph library, keyboard-reachable node buttons, visible focus, responsive layout, and reduced-motion final state.
 - [ ] R5/R6 paths reuse Anatomy path list, inspector, handoff, finding, and evidence semantics; graph structure never changes potential to verified.
+- [ ] Non-single Overview keeps the topology risk explanation rail inside the graph canvas: four short segments for entry, untrusted channel, impact, and verification; no duplicate node cards or second topology graph; `potential` must remain `待验证` until a report finding exists.
+- [ ] Rail hover/focus highlights only its related SVG nodes and edges, preserves keyboard access, and keeps existing `run` / `anatomy` navigation actions. R4 does not inherit this rail.
+- [ ] Rail layout remains within the fixed overview viewport, uses the warm topology surface and thin divider, and reflows to two columns below the narrow container breakpoint without overflow.
 - [ ] Run/report additions preserve Provider reducer, SSE events, scoring, evidence redaction, and sessionStorage behavior.
 
 ### 2026-09-11 Topology Mode Navigation
@@ -397,9 +402,23 @@
 ## 2026-09-13 Red Team and Stage 4 End-to-End Integration
 
 - [ ] Keep `evaluationMock=1` and `evaluationMode=1` equivalent. Mock mode must enter the main workspace directly and must not request login, BFF, backend, or Adapter resources.
+- [ ] The Windows launcher may bootstrap a missing backend venv from `requirements.txt` on first run; subsequent launches reuse it and only verify runtime dependencies and the PDF Chromium binary.
 - [ ] Keep mock and live source labels visible. A mock report is never represented as a live report; live failures show their error/unavailable state.
 - [ ] Keep red-team controls and data regions at 0–4px radii with neutral warm-white surfaces, grey-blue rules, and blue primary actions. Do not restore brown/yellow tokens or pill controls.
 - [ ] Topology uses the generated OpenAPI contract. API failures return `unavailable`; do not render a fallback topology as a confirmed persisted record.
 - [ ] Persist only complete `AgentTopology` documents through `SQLiteTopologyStore`; after a process restart, GET and graph reconstruction must use the saved topology.
 - [ ] R5/R6 fixture files must remain Loader-discoverable `security_testcases_r5.json` / `security_testcases_r6.json`, validate against `TestCase`, and emit traceable role/channel events plus a Judge finding in the controlled runtime.
 - [ ] The in-process red-team fixture Adapter requires both `DEBUG=true` and `REDTEAM_FIXTURE_ADAPTER_ENABLED=true`. Never relax the real Adapter's public-HTTPS target policy.
+
+- [ ] 红队报告新增或调整图表时，保持 ECharts 为唯一渲染引擎并复用纯数据归一化；页面动效不得直接修改图表内部 SVG/Canvas，实例必须随组件生命周期清理。
+- [ ] 在宽屏、窄桌面和移动单列下检查四图无文字/图形重叠、无 Grid 子项撑破；图表容器初始化前必须有非零尺寸，并通过 `ResizeObserver` 调用 `resize()`、卸载时 `dispose()`。
+- [ ] 每个坐标轴必须写明观察维度、数值含义和单位；HTML tooltip 必须限制在卡片内并转义报告数据，不能让策略名、风险或标签直接注入 HTML。
+- [ ] 防守截获保持防守成功、已证实绕过、其他结果的横向结果分布 MVP，不回退为依赖绝对像素路径与红绿文字叠放的装饰图。
+## 2026-09-14 Report Export
+
+- [ ] Export routes accept only `evaluation|comparison|redteam` and `txt|markdown|pdf`, re-read authoritative server data, and return correct attachment headers; report-page menu items remain clickable above the report content layer.
+- [ ] TXT, Markdown, and PDF are renderings of one `ReportSnapshot`; deterministic template/scoring versions are included and zero findings/bypasses never become an absolute safety claim.
+- [ ] In `evaluationMock=1`, export requests for `mock-*` IDs explicitly set `mock=1` and use the deterministic server fixture adapter; live export must continue to re-read owner-scoped backend records.
+- [ ] Red-team evidence uses the owner-scoped read-only aggregation endpoint and an allowlist; tokens, keys, payloads, paths, stack traces, and control characters are excluded.
+- [ ] The shared export menu is present only on completed single, comparison, and red-team reports; failed downloads remain retryable.
+- [ ] The evaluation export trigger remains blue with white text on hover; keyboard focus uses an outline without changing the button fill.

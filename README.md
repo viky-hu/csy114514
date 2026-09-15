@@ -238,6 +238,14 @@ RUN_FINISHED
 
 ## 常用命令
 
+### 队友首次拉取后的最短启动流程（Windows）
+
+1. 安装 Node.js 20+（建议使用 LTS）和 Python 3.11+，确保 `node`、`corepack`/`pnpm`、`python` 可在终端找到。
+2. 双击 `csy——全智赛/一键启动.bat`。脚本会在首次运行时自动安装工作区前端依赖、创建 `backend/venv`、安装 `backend/requirements.txt`，并检查/安装 PDF 所需的 Chromium。
+3. 如果已经手动执行 `pnpm -C apps/main-platform dev`，BAT 会检测 3000 端口并复用现有前端，只启动后端；否则会同时启动前后端。
+
+之后通常只需双击 `一键启动.bat`；只有依赖或锁文件变化导致脚本提示安装失败时，才需要手动执行 `corepack pnpm install`。
+
 在仓库根目录执行：
 
 ```bash

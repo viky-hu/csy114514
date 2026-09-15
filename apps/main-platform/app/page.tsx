@@ -13,8 +13,10 @@ type AccountIdentity = {
 };
 
 export default function HomePage() {
-  const [mockMode, setMockMode] = useState(() => typeof window !== "undefined" && isEvaluationMockEnabled(window.location.search));
-  const [isMainWindowVisible, setIsMainWindowVisible] = useState(() => typeof window !== "undefined" && isEvaluationMockEnabled(window.location.search));
+  // Keep the first render identical on the server and client. URL-dependent
+  // mock mode is applied after hydration so the initial tree cannot diverge.
+  const [mockMode, setMockMode] = useState(false);
+  const [isMainWindowVisible, setIsMainWindowVisible] = useState(false);
   const [activeAgentId, setActiveAgentId] = useState(DEFAULT_AGENT_ID);
   const [accountIdentity, setAccountIdentity] = useState<AccountIdentity | null>(null);
 

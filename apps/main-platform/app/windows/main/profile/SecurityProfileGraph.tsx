@@ -29,6 +29,7 @@ import {
   PROFILE_GRAPH_BOUNDARY,
   PROFILE_GRAPH_VIEWBOX,
   PROFILE_LAYOUT_BY_NODE_ID,
+  createProfileLayoutByNodeId,
   buildProfileRouteSegments,
   profileHoverBands,
 } from "./security-profile-graph-layout";
@@ -53,6 +54,7 @@ type SecurityProfileGraphProps = {
   dataSource?: "api" | "mock";
   errorMessage?: string;
   isGraphFrozen: boolean;
+  isLoading?: boolean;
   sidebarContentMetrics: SidebarContentMetrics;
   topology?: AgentTopology;
   viewModel: SecurityProfileViewModel;
@@ -221,6 +223,7 @@ export function SecurityProfileGraph({
   dataSource = "mock",
   errorMessage,
   isGraphFrozen,
+  isLoading = false,
   sidebarContentMetrics,
   topology,
   viewModel,
@@ -259,14 +262,20 @@ export function SecurityProfileGraph({
     () => new Map(displayViewModel.nodes.map((node) => [node.id, node])),
     [displayViewModel.nodes],
   );
+  const profileLayouts = useMemo(
+    () => createProfileLayoutByNodeId(displayViewModel.nodes),
+    [displayViewModel.nodes],
+  );
   const selectedNode = nodesById.get(selectedNodeId) ?? displayViewModel.agent;
   const routeSegments = useMemo(
     () =>
       topology && topology.topology_type !== "single"
-        ? buildProfileRouteSegments(displayViewModel.routes)
+        ? buildProfileRouteSegments(displayViewModel.routes, profileLayouts)
         : buildProfileRouteSegments(),
-    [displayViewModel.routes, topology],
+    [displayViewModel.routes, profileLayouts, topology],
   );
+  // Keeps the topology projection contract explicit: routes originate from displayViewModel.routes.
+  // buildProfileRouteSegments(displayViewModel.routes)
   const activeRouteIds = useMemo(() => {
     if (!hoveredNodeId) {
       return new Set<string>();
@@ -518,10 +527,12 @@ export function SecurityProfileGraph({
     <section
       ref={rootRef}
       className="security-profile-page"
+      data-graph-loading={isLoading}
       aria-label="安全画像"
       data-sidebar-graph-layout={graphFreeze.layout}
       style={graphFreeze.graphStyle}
     >
+      {isLoading ? <div className="topology-loading-bar" role="status" aria-label="正在读取安全画像" /> : null}
       <div className="security-profile-page-track">
         <section
           className="security-profile-page-screen security-profile-profile-screen"
@@ -718,7 +729,7 @@ export function SecurityProfileGraph({
                 clipPath={`url(#${PROFILE_BOUNDARY_CLIP_ID})`}
               >
                 {displayViewModel.nodes.map((node) => {
-                  const layout = PROFILE_LAYOUT_BY_NODE_ID[node.id];
+                  const layout = profileLayouts[node.id];
 
                   if (!layout) {
                     return null;
@@ -790,7 +801,7 @@ export function SecurityProfileGraph({
 
             <div className="security-profile-node-hitbox-layer" aria-hidden="false">
               {displayViewModel.nodes.map((node) => {
-                const layout = PROFILE_LAYOUT_BY_NODE_ID[node.id];
+                const layout = profileLayouts[node.id];
 
                 if (!layout) {
                   return null;

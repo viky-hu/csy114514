@@ -46,6 +46,6 @@ test("overview keeps the existing R4 SVG for single topology and summarizes alte
   assert.match(source, /topology\?: AgentTopology/);
   assert.match(source, /activeTopology\.topology_type === "single"/);
   assert.doesNotMatch(source, /TopologyFlow/);
-  assert.match(source, /topology-summary/);
+  assert.match(source, /topology-overview-graph/);
   assert.match(source, /<OverviewR4Graph/);
 });

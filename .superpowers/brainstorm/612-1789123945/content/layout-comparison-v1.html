@@ -1,0 +1,79 @@
+<h2>总览页下方空间：三种“风险解释带”布局</h2>
+<p class="subtitle">请重点比较信息带与上方图谱的关系：哪一种最能把留白转化为“结构 → 风险 → 下一步”的连续阅读路径？</p>
+
+<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start">
+  <div class="card" data-choice="inside" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#0b1220">
+      <div style="padding:14px 14px 10px;color:#94a3b8;font:600 11px/1.2 ui-monospace,monospace;letter-spacing:.08em">A · 图谱内部承接</div>
+      <div style="margin:0 14px 14px;border:1px solid #24324a;border-radius:10px;background:#101a2d;padding:16px 12px 12px">
+        <div style="height:120px;position:relative">
+          <svg viewBox="0 0 320 120" width="100%" height="120" aria-hidden="true">
+            <path d="M35 61 C80 61 82 28 128 28 S180 61 218 61 S268 88 300 88" fill="none" stroke="#4f8cff" stroke-width="2" opacity=".9"/>
+            <path d="M35 61 C80 61 82 94 128 94 S180 61 218 61" fill="none" stroke="#e2b35b" stroke-width="2" opacity=".8"/>
+          </svg>
+          <div style="position:absolute;left:2%;top:44px;width:54px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">外部输入</div>
+          <div style="position:absolute;left:31%;top:12px;width:62px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">Planner</div>
+          <div style="position:absolute;left:31%;top:77px;width:62px;height:32px;border:1px solid #e2b35b;border-radius:7px;background:#3b2c14;color:#fef3c7;font-size:10px;display:grid;place-items:center">task_plan</div>
+          <div style="position:absolute;left:65%;top:44px;width:62px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">Executor</div>
+          <div style="position:absolute;right:0;top:72px;width:58px;height:32px;border:1px solid #ef7878;border-radius:7px;background:#3c1f2a;color:#fee2e2;font-size:10px;display:grid;place-items:center">危险工具</div>
+        </div>
+        <div style="border-top:1px solid #24324a;padding-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div><div style="color:#64748b;font-size:9px">入口</div><div style="color:#e2e8f0;font-size:11px">外部输入</div></div>
+          <div><div style="color:#64748b;font-size:9px">不可信通道</div><div style="color:#f8d38c;font-size:11px">task_plan</div></div>
+          <div><div style="color:#64748b;font-size:9px">状态</div><div style="color:#f8d38c;font-size:11px">待验证</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>图谱内部承接</h3><p>把风险解释带作为同一张结构画布的底部轨道，阅读最连贯，整体高度最可控。</p></div>
+  </div>
+
+  <div class="card" data-choice="outside" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#0b1220">
+      <div style="padding:14px 14px 10px;color:#94a3b8;font:600 11px/1.2 ui-monospace,monospace;letter-spacing:.08em">B · 图谱外独立带</div>
+      <div style="margin:0 14px 14px;border:1px solid #24324a;border-radius:10px;background:#101a2d;padding:16px 12px 12px">
+        <div style="height:120px;position:relative">
+          <svg viewBox="0 0 320 120" width="100%" height="120" aria-hidden="true"><path d="M35 61 C85 61 90 32 140 32 S192 61 230 61 S270 86 300 86" fill="none" stroke="#4f8cff" stroke-width="2"/></svg>
+          <div style="position:absolute;left:2%;top:44px;width:54px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">输入</div>
+          <div style="position:absolute;left:35%;top:16px;width:62px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">Planner</div>
+          <div style="position:absolute;left:68%;top:44px;width:62px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">Executor</div>
+          <div style="position:absolute;right:0;top:72px;width:58px;height:32px;border:1px solid #ef7878;border-radius:7px;background:#3c1f2a;color:#fee2e2;font-size:10px;display:grid;place-items:center">工具</div>
+        </div>
+      </div>
+      <div style="margin:0 14px 14px;border:1px solid #2d496e;border-radius:10px;background:#12233d;padding:12px;display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:10px">
+        <div><div style="color:#60a5fa;font-size:9px;letter-spacing:.08em">R5 风险模式</div><div style="color:#f8fafc;font-size:11px;margin-top:4px">计划污染</div></div>
+        <div><div style="color:#64748b;font-size:9px">证据状态</div><div style="color:#f8d38c;font-size:11px;margin-top:4px">结构命中 · 待验证</div></div>
+        <div><div style="color:#64748b;font-size:9px">下一步</div><div style="color:#dbeafe;font-size:11px;margin-top:4px">进入攻击图谱 →</div></div>
+      </div>
+    </div>
+    <div class="card-body"><h3>图谱外独立带</h3><p>图谱保持纯结构，解释信息单独成段，强调“看完结构后再读结论”。</p></div>
+  </div>
+
+  <div class="card" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#0b1220">
+      <div style="padding:14px 14px 10px;color:#94a3b8;font:600 11px/1.2 ui-monospace,monospace;letter-spacing:.08em">C · 混合带（推荐）</div>
+      <div style="margin:0 14px 14px;border:1px solid #24324a;border-radius:10px;background:#101a2d;padding:16px 12px 12px">
+        <div style="height:120px;position:relative">
+          <svg viewBox="0 0 320 120" width="100%" height="120" aria-hidden="true"><path d="M35 61 C85 61 90 32 140 32 S192 61 230 61 S270 86 300 86" fill="none" stroke="#4f8cff" stroke-width="2"/></svg>
+          <div style="position:absolute;left:2%;top:44px;width:54px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">输入</div>
+          <div style="position:absolute;left:35%;top:16px;width:62px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">Planner</div>
+          <div style="position:absolute;left:68%;top:44px;width:62px;height:32px;border:1px solid #4f8cff;border-radius:7px;background:#172a4e;color:#dbeafe;font-size:10px;display:grid;place-items:center">Executor</div>
+          <div style="position:absolute;right:0;top:72px;width:58px;height:32px;border:1px solid #ef7878;border-radius:7px;background:#3c1f2a;color:#fee2e2;font-size:10px;display:grid;place-items:center">工具</div>
+        </div>
+        <div style="border-top:1px solid #24324a;padding-top:10px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div style="color:#f8d38c;font-size:11px"><span style="color:#64748b;font-size:9px;display:block">关键通道</span>task_plan</div>
+          <div style="color:#f8d38c;font-size:11px"><span style="color:#64748b;font-size:9px;display:block">验证</span>待验证</div>
+          <div style="color:#dbeafe;font-size:11px"><span style="color:#64748b;font-size:9px;display:block">动作</span>开始测评 →</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>混合带（推荐）</h3><p>在图谱底部只保留关键通道和状态，风险解释与行动按钮放入同一横向带，兼顾连贯与克制。</p></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:22px">
+  <div class="label">两种模式的文案映射</div>
+  <div class="pros-cons" style="margin-top:10px">
+    <div class="pros"><h4>Planner–Executor / R5</h4><ul><li>入口：外部输入</li><li>关键通道：task_plan</li><li>风险：计划污染 → 危险工具</li></ul></div>
+    <div class="pros"><h4>RAG Agent / R6</h4><ul><li>入口：外部文档</li><li>关键通道：retrieval / context</li><li>风险：上下文投毒 → 危险工具</li></ul></div>
+  </div>
+</div>

@@ -1,5 +1,9 @@
-export const TOPOLOGY_RISK_CHAIN_VIEWBOX = { height: 260, width: 920 } as const;
-export const TOPOLOGY_RISK_CHAIN_NODE_SIZE = { height: 86, width: 124 } as const;
+import { createSmoothEdgePath } from "./topology-graph-geometry.ts";
+
+// Keep the chain centered in the taller overview graph row. All node, edge,
+// label, icon, and hit-target coordinates are derived from this same space.
+export const TOPOLOGY_RISK_CHAIN_VIEWBOX = { height: 360, width: 920 } as const;
+export const TOPOLOGY_RISK_CHAIN_NODE_SIZE = { height: 76, width: 132 } as const;
 
 export type TopologyRiskChainLayoutNode = {
   height: number;
@@ -17,27 +21,34 @@ export type TopologyRiskChainLayoutEdge = {
   targetNodeId: string;
 };
 
-export function createTopologyRiskChainLayout(nodeIds: string[]) {
+export function createTopologyRiskChainLayout(
+  nodeIds: string[],
+  edgePairs: Array<{ sourceNodeId: string; targetNodeId: string }> = nodeIds.slice(0, -1).map((_, index) => ({
+    sourceNodeId: nodeIds[index]!,
+    targetNodeId: nodeIds[index + 1]!,
+  })),
+) {
   const count = nodeIds.length;
-  const startX = 82;
-  const endX = 838;
+  const startX = 92;
+  const endX = TOPOLOGY_RISK_CHAIN_VIEWBOX.width - 92;
   const step = count > 1 ? (endX - startX) / (count - 1) : 0;
   const nodes: TopologyRiskChainLayoutNode[] = nodeIds.map((id, index) => ({
     ...TOPOLOGY_RISK_CHAIN_NODE_SIZE,
     id,
     x: count === 1 ? TOPOLOGY_RISK_CHAIN_VIEWBOX.width / 2 : startX + step * index,
-    y: 136,
+    y: 180 + (index % 2 === 0 ? -18 : 18),
   }));
-  const edges: TopologyRiskChainLayoutEdge[] = nodes
-    .slice(0, -1)
-    .map((source, index) => {
-      const target = nodes[index + 1]!;
-      const start = source.x + source.width / 2;
-      const end = target.x - target.width / 2;
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const edges: TopologyRiskChainLayoutEdge[] = edgePairs.flatMap((pair, edgeIndex) => {
+      const source = nodesById.get(pair.sourceNodeId);
+      const target = nodesById.get(pair.targetNodeId);
+      if (!source || !target) return [];
+      const offset = edgeIndex % 2 === 0 ? -10 : 10;
+      const route = createSmoothEdgePath(source, target, offset);
       return {
-        d: `M ${start} ${source.y} L ${end} ${target.y}`,
-        labelX: (start + end) / 2,
-        labelY: source.y - source.height / 2 - 16,
+        d: route.d,
+        labelX: route.labelX,
+        labelY: route.labelY - 4,
         sourceNodeId: source.id,
         targetNodeId: target.id,
       };

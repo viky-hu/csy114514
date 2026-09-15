@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -346,6 +347,21 @@ class TestPersistentRedTeamRuns:
         report_response = client.get(f"/redteam/runs/{run_id}/report", headers=headers("alice"))
         assert report_response.status_code == 200
         assert report_response.json()["conclusion"] == "no_bypass_observed"
+
+        coordinator.store.append_event(run_id, "SENSITIVE_EVENT", {
+            "strategy": "encoding", "variant_id": "variant-1", "verdict": "PASS",
+            "token": "Bearer top-secret", "raw_payload": "do not export",
+            "path": "C:\\private\\server.log", "defense_labels": ["D1\x00:InputFilter"],
+        })
+        evidence_response = client.get(f"/redteam/runs/{run_id}/evidence", headers=headers("alice"))
+        assert evidence_response.status_code == 200
+        evidence = evidence_response.json()
+        sensitive = next(item for item in evidence if item["type"] == "SENSITIVE_EVENT")
+        assert sensitive["payload"] == {
+            "strategy": "encoding", "variant_id": "variant-1", "verdict": "PASS",
+            "defense_labels": ["D1 :InputFilter"],
+        }
+        assert client.get(f"/redteam/runs/{run_id}/evidence", headers=headers("bob")).status_code == 404
 
     def test_fixture_connection_requires_both_debug_and_explicit_fixture_gate(self, tmp_path, monkeypatch):
         from backend.app.config import settings

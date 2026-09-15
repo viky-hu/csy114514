@@ -1,11 +1,12 @@
 """Durable asynchronous coordinator for owner-scoped adaptive red-team runs."""
 from __future__ import annotations
 
+import re
 import threading
-from secrets import randbits
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
+from secrets import randbits
 
 from backend.app.config import settings
 from backend.app.domain.redteam_run import (
@@ -34,6 +35,45 @@ class RedTeamReportNotReadyError(RuntimeError):
 
 class RedTeamConnectionBusyError(RuntimeError):
     pass
+
+
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+_SECRET_VALUE = re.compile(r"\b(bearer|token|api[_-]?key|secret|password)\s*[:=]\s*[^\s,;]+", re.IGNORECASE)
+_SERVER_PATH = re.compile(r"(?:[A-Za-z]:\\|\\\\|/(?:home|root|srv|opt|tmp|var|etc|workspace|app)/)[^\s\"'<>]+")
+
+
+def _safe_event_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = _CONTROL_CHARS.sub(" ", value).strip()
+    text = _SECRET_VALUE.sub(lambda match: f"{match.group(1)}=[removed]", text)
+    text = _SERVER_PATH.sub("[path removed]", text)
+    return text or None
+
+
+def _safe_event_payload(payload: dict) -> dict:
+    allowed = {
+        "round", "strategy", "variant_id", "seed_id", "verdict", "conclusion",
+        "tool_name", "policy", "policy_id", "defense_labels",
+    }
+    safe: dict = {}
+    for key in allowed:
+        if key not in payload:
+            continue
+        value = payload[key]
+        if key == "round":
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                safe[key] = value
+            continue
+        if key == "defense_labels":
+            if isinstance(value, list):
+                labels = [_safe_event_text(item) for item in value[:12]]
+                safe[key] = [item for item in labels if item]
+            continue
+        text = _safe_event_text(value)
+        if text is not None:
+            safe[key] = text
+    return safe
 
 
 class RedTeamCoordinator:
@@ -110,6 +150,23 @@ class RedTeamCoordinator:
     def list_events(self, run_id: str, owner_id: str, after_seq: int):
         self.get_run(run_id, owner_id)
         return self.store.list_events(run_id, after_seq=after_seq, owner_id=owner_id)
+
+    def evidence(self, run_id: str, owner_id: str) -> list[dict]:
+        """Return replayable, allowlisted event facts for report generation."""
+        self.get_run(run_id, owner_id)
+        result: list[dict] = []
+        for event in self.store.list_events(run_id, after_seq=0, owner_id=owner_id):
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            safe_payload = _safe_event_payload(payload)
+            result.append({
+                "event_id": _safe_event_text(event.event_id) or "unknown-event",
+                "run_id": event.run_id,
+                "seq": event.seq,
+                "timestamp": event.timestamp,
+                "type": _safe_event_text(event.type) or "UNKNOWN",
+                "payload": safe_payload,
+            })
+        return result
 
     def get_report(self, run_id: str, owner_id: str) -> dict:
         run = self.get_run(run_id, owner_id)

@@ -22,6 +22,8 @@ type ReadyTopologyRiskChain = Extract<TopologyRiskChain, { dataState: "ready" }>
 type TopologyRiskChainGraphProps = {
   ariaLabel: string;
   chain: ReadyTopologyRiskChain;
+  activeNodeIds?: ReadonlySet<string>;
+  activeEdgeIds?: ReadonlySet<string>;
 };
 
 const ROLE_ICONS = {
@@ -35,6 +37,8 @@ const ROLE_ICONS = {
 } as const;
 
 export function TopologyRiskChainGraph({
+  activeEdgeIds,
+  activeNodeIds,
   ariaLabel,
   chain,
 }: TopologyRiskChainGraphProps) {
@@ -42,8 +46,15 @@ export function TopologyRiskChainGraph({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const layout = useMemo(
-    () => createTopologyRiskChainLayout(chain.nodes.map((node) => node.id)),
-    [chain.nodes],
+    () => createTopologyRiskChainLayout(
+      chain.nodes.map((node) => node.id),
+      chain.edges.map((edge) => ({ sourceNodeId: edge.sourceNodeId, targetNodeId: edge.targetNodeId })),
+    ),
+    [chain.edges, chain.nodes],
+  );
+  const edgesByPair = useMemo(
+    () => new Map(chain.edges.map((edge) => [`${edge.sourceNodeId}->${edge.targetNodeId}`, edge])),
+    [chain.edges],
   );
   const nodeKey = chain.nodes.map((node) => node.id).join("|");
   const relatedEdgeIds = useMemo(
@@ -97,13 +108,13 @@ export function TopologyRiskChainGraph({
         </defs>
 
         <g className="topology-risk-routes" aria-hidden="true">
-          {layout.edges.map((edgeLayout, index) => {
-            const edge = chain.edges[index];
+          {layout.edges.map((edgeLayout) => {
+            const edge = edgesByPair.get(`${edgeLayout.sourceNodeId}->${edgeLayout.targetNodeId}`);
             if (!edge) return null;
             return (
               <g
                 key={edge.id}
-                className={`topology-risk-edge${relatedEdgeIds.has(edge.id) ? " is-active" : ""}`}
+                className={`topology-risk-edge${relatedEdgeIds.has(edge.id) || activeEdgeIds?.has(edge.id) ? " is-active" : ""}`}
                 data-topology-edge-id={edge.id}
               >
                 <path
@@ -138,7 +149,7 @@ export function TopologyRiskChainGraph({
               <g
                 key={node.id}
                 aria-label={`${node.displayName} 节点`}
-                className={`topology-risk-node graph-hover-node is-${node.role}${node.trustBoundary === "external" ? " is-external" : ""}${selectedNodeId === node.id ? " is-selected" : ""}`}
+                className={`topology-risk-node graph-hover-node is-${node.role}${node.trustBoundary === "external" ? " is-external" : ""}${selectedNodeId === node.id ? " is-selected" : ""}${activeNodeIds?.has(node.id) ? " is-rail-active" : ""}`}
                 data-hover-node-id={node.id}
                 data-topology-node-id={node.id}
                 onBlur={() => setHoveredNodeId(null)}

@@ -132,13 +132,15 @@ export function formatRedTeamEvent(event: RedTeamEvent) {
     WEIGHTS_UPDATED: "策略权重已更新",
     RUN_COMPLETED: "演练已完成",
   };
+  const eventType = typeof event.type === "string" ? event.type.trim() || "BACKEND_EVENT" : "BACKEND_EVENT";
   const strategy = strategyLabel(payloadString(event, "strategy"));
   const message = payloadString(event, "message") ?? payloadString(event, "conclusion") ?? payloadString(event, "verdict");
   const round = payloadString(event, "round");
   const detail = [
+    eventType === "ROUND_STARTED" && round ? `第 ${round} 轮开始` : labels[eventType] ?? "后端事件",
     event.type === "STRATEGIES_SELECTED" && round ? `第 ${round} 轮` : null,
     event.type === "VARIANT_CREATED" || event.type === "VARIANT_EVALUATED" ? strategy : null,
     message,
   ].filter(Boolean).join(" · ") || "后端已记录该事件";
-  return { label: event.type === "ROUND_STARTED" && round ? `第 ${round} 轮开始` : labels[event.type] ?? "后端事件", detail, kind: redTeamEventKind(event) };
+  return { label: eventType, detail, kind: redTeamEventKind(event) };
 }

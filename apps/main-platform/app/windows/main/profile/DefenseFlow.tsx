@@ -8,11 +8,13 @@ import { DEFENSE_DISPLAY_ITEMS } from "./defense-visualization-data";
 type DefenseFlowProps = {
   selectedDisplayIndex: number;
   isVisible: boolean;
+  onSelectDisplayIndex: (displayIndex: number) => void;
 };
 
 export function DefenseFlow({
   selectedDisplayIndex,
   isVisible,
+  onSelectDisplayIndex,
 }: DefenseFlowProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -105,8 +107,34 @@ export function DefenseFlow({
       {points.map((point, index) => {
         const item = DEFENSE_DISPLAY_ITEMS[index]!;
         const isActive = selectedDisplayIndex === index;
+        const itemLabel =
+          item.kind === "bridge"
+            ? "BRIDGE LLM 推理"
+            : `${item.displayId} ${item.label}`;
         return (
-          <g key={item.kind === "bridge" ? item.id : item.displayId}>
+          <g
+            key={item.kind === "bridge" ? item.id : item.displayId}
+            role="button"
+            tabIndex={0}
+            aria-label={`切换到${itemLabel}`}
+            aria-current={isActive ? "step" : undefined}
+            onClick={() => onSelectDisplayIndex(index)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onSelectDisplayIndex(index);
+            }}
+          >
+            <rect
+              className="security-defense-flow-hit-area"
+              x={point - pointDistance / 2}
+              y="0"
+              width={pointDistance}
+              height="82"
+              fill="transparent"
+              aria-hidden="true"
+              pointerEvents="all"
+            />
             {item.kind === "bridge" ? (
               <path
                 className={`security-defense-flow-node security-defense-flow-bridge-node${

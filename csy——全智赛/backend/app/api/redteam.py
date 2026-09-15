@@ -165,3 +165,14 @@ async def stream_run_events(
     return EventSourceResponse(generate(), headers={
         "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", "Connection": "keep-alive",
     })
+
+
+@router.get("/runs/{run_id}/evidence")
+async def get_run_evidence(run_id: str, owner_id: str = Depends(_owner_from_bff)):
+    coordinator = _coordinator()
+    if coordinator is None:
+        return _error(503, "REDTEAM_SERVICE_UNAVAILABLE", "Red-team service is unavailable.")
+    try:
+        return await asyncio.to_thread(coordinator.evidence, run_id, owner_id)
+    except redteam_service.RedTeamNotFoundError:
+        return _error(404, "REDTEAM_RUN_NOT_FOUND", "Red-team run was not found.")

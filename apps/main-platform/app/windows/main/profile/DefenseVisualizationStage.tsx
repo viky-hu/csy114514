@@ -126,6 +126,7 @@ export function DefenseVisualizationStage({
         <DefenseFlow
           selectedDisplayIndex={selectedDisplayIndex}
           isVisible={isVisible}
+          onSelectDisplayIndex={moveToDisplayIndex}
         />
         <div className="security-defense-workspace">
           <button

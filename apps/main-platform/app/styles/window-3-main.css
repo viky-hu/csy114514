@@ -235,12 +235,16 @@
   max-width: calc(100vw - var(--main-sidebar-left) - 24px);
   max-height: calc(100dvh - var(--main-sidebar-top) - 32px);
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
   opacity: 0;
   visibility: hidden;
   transform: translate3d(-18px, 0, 0);
   will-change: opacity, transform;
   pointer-events: auto;
+}
+
+.main-window[data-main-window-stage="settled"] .main-line-sidebar {
+  overflow-y: auto;
 }
 
 .main-window[data-sidebar-collapsed="true"] .main-line-sidebar {
@@ -1356,8 +1360,10 @@
 
 /* Compact page-native topology risk chain. */
 .topology-overview-graph {
+  display: grid;
+  grid-template-rows: minmax(252px, 1fr) auto;
   position: relative;
-  min-height: 286px;
+  min-height: 380px;
   overflow: hidden;
   border: 1px solid rgba(49, 82, 244, 0.18);
   background:
@@ -1379,14 +1385,43 @@
 }
 
 .topology-risk-chain-graph {
+  height: 100%;
   width: 100%;
-  min-height: 260px;
+  min-height: 0;
+}
+
+.topology-loading-bar {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  width: 34%;
+  height: 2px;
+  background: linear-gradient(90deg, #3152f4, #7c3aed, #b45cff);
+  animation: topology-loading-sweep 1.15s ease-in-out infinite;
+}
+
+[data-graph-loading="true"] {
+  position: relative;
+}
+
+[data-graph-loading="true"] .overview-grid,
+[data-graph-loading="true"] .security-profile-page-track,
+[data-graph-loading="true"] .anatomy-body {
+  opacity: .72;
+}
+
+@keyframes topology-loading-sweep {
+  0% { transform: translateX(-110%); }
+  50% { transform: translateX(190%); }
+  100% { transform: translateX(320%); }
 }
 
 .topology-risk-chain-svg {
   display: block;
+  height: 100%;
   width: 100%;
-  min-height: 260px;
+  min-height: 0;
   overflow: visible;
 }
 
@@ -1441,10 +1476,21 @@
 .topology-risk-node-icon { color: #3152f4; fill: none; stroke: currentColor; vector-effect: non-scaling-stroke; }
 .topology-risk-node.is-external .topology-risk-node-icon { color: #b84e3e; }
 .topology-risk-node.is-tool .topology-risk-node-icon { color: #7c3aed; }
+.topology-risk-node.is-rail-active .topology-risk-node-surface {
+  fill: rgba(229, 234, 255, .82);
+  stroke: rgba(49, 82, 244, .78);
+  stroke-width: 1.8;
+}
+.topology-risk-node.is-rail-active .topology-risk-node-outline {
+  opacity: 1;
+  visibility: visible;
+  stroke: rgba(124, 58, 237, .66);
+}
 .topology-risk-node-label { fill: rgba(17,22,34,.9); font-family: var(--main-font); font-size: 15px; pointer-events: none; }
 .topology-risk-node-caption { fill: rgba(17,22,34,.48); font-family: var(--main-body-font); font-size: 9px; pointer-events: none; }
 .topology-risk-chain-empty {
-  min-height: 260px;
+  height: 100%;
+  min-height: 0;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -1456,6 +1502,75 @@
 .topology-risk-chain-empty svg { color: #7c3aed; }
 .topology-risk-chain-empty strong { color: rgba(17,22,34,.82); font-family: var(--main-font); font-size: 15px; }
 .topology-risk-chain-empty span { max-width: 340px; font-size: 11px; line-height: 1.55; }
+
+.topology-risk-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: stretch;
+  border-top: 1px solid rgba(49, 82, 244, .18);
+  background: rgba(255, 255, 255, .28);
+  padding: 12px 14px 14px;
+}
+
+.topology-risk-rail-segments {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.topology-risk-rail-segment {
+  appearance: none;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-width: 0;
+  border: 0;
+  border-left: 1px solid rgba(17, 22, 34, .12);
+  background: transparent;
+  color: #111622;
+  cursor: pointer;
+  padding: 2px 12px;
+  text-align: left;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.topology-risk-rail-segment:first-child { border-left: 0; padding-left: 0; }
+.topology-risk-rail-segment:hover,
+.topology-risk-rail-segment:focus-visible { background: rgba(49, 82, 244, .06); }
+.topology-risk-rail-segment:focus-visible { outline: 1px solid rgba(49, 82, 244, .58); outline-offset: -2px; }
+.topology-risk-rail-label {
+  color: rgba(17, 22, 34, .48);
+  font-family: var(--main-body-font);
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+.topology-risk-rail-segment strong {
+  overflow: hidden;
+  color: rgba(17, 22, 34, .86);
+  font-family: var(--main-font);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topology-risk-rail-segment.is-channel strong { color: #8a5b00; }
+.topology-risk-rail-segment.is-danger strong { color: #a13e34; }
+.topology-risk-rail-segment.is-potential strong { color: #8a5b00; }
+.topology-risk-rail-segment.is-verified strong { color: #2d6a4f; }
+.topology-risk-rail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-left: 1px solid rgba(17, 22, 34, .12);
+  padding-left: 14px;
+}
+.topology-risk-rail-actions .overview-icon-command {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
 
 .security-profile-route-control { cursor: pointer; outline: none; }
 .security-profile-route-hitbox { pointer-events: stroke; stroke: transparent; stroke-width: 20; }
@@ -3366,6 +3481,33 @@
     justify-content: flex-end;
   }
 
+  .topology-overview-graph {
+    grid-template-rows: minmax(230px, 1fr) auto;
+    min-height: 410px;
+  }
+
+  .topology-risk-rail {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .topology-risk-rail-segments {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 10px;
+  }
+
+  .topology-risk-rail-segment:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .topology-risk-rail-actions {
+    justify-content: flex-end;
+    border-left: 0;
+    border-top: 1px solid rgba(17, 22, 34, .12);
+    padding: 10px 0 0;
+  }
+
   .topology-summary {
     min-height: clamp(280px, 42vh, 400px);
   }
@@ -4575,6 +4717,16 @@
   height: 100%;
   justify-self: center;
   overflow: visible;
+}
+
+.security-defense-flow [role="button"] {
+  cursor: pointer;
+  outline: none;
+}
+
+.security-defense-flow [role="button"]:focus-visible {
+  outline: 2px solid rgba(49, 82, 244, 0.72);
+  outline-offset: 4px;
 }
 
 .security-defense-flow-segment {

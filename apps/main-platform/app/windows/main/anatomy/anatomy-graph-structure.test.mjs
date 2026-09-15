@@ -185,7 +185,7 @@ test("topology risk paths reuse the anatomy SVG skeleton instead of text cards",
   assert.match(graphSource, /buildTopologyChainSegments\(layouts\)/);
   assert.match(graphSource, /anatomy-topology-channel-label/);
   assert.match(graphSource, /anatomy-svg-node graph-hover-node/);
-  assert.match(graphSource, /data-topology-placeholder="task-plan"/);
+  assert.doesNotMatch(graphSource, /data-topology-placeholder/);
   assert.match(graphSource, /ANATOMY_TOPOLOGY_PHASES/);
   assert.match(graphSource, /ANATOMY_PHASE_RAIL_PATH/);
   assert.match(graphSource, /anatomy-map is-topology is-\$\{status\}/);
@@ -214,7 +214,7 @@ test("topology chain layout stays inside the anatomy five-phase rail", () => {
   assert.match(layoutSource, /export function getTopologyStepPhaseXs/);
   assert.match(layoutSource, /export function createTopologyChainNodeLayout/);
   assert.match(layoutSource, /export function buildTopologyChainSegments/);
-  assert.match(layoutSource, /labelY: y - source\.height \/ 2 - 18/);
+  assert.match(layoutSource, /labelY: Math\.min\(route\.labelY - 8, 138\)/);
   assert.match(layoutSource, /ANATOMY_PHASE_RAIL_PATH/);
 });
 

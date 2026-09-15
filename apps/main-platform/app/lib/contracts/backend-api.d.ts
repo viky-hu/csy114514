@@ -452,6 +452,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/redteam/runs/{run_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run Evidence */
+        get: operations["get_run_evidence_redteam_runs__run_id__evidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/topology/presets": {
         parameters: {
             query?: never;
@@ -2385,6 +2402,40 @@ export interface operations {
             };
             header?: {
                 "Last-Event-ID"?: string | null;
+                "x-redteam-owner"?: string | null;
+                "x-redteam-signature"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_evidence_redteam_runs__run_id__evidence_get: {
+        parameters: {
+            query?: never;
+            header?: {
                 "x-redteam-owner"?: string | null;
                 "x-redteam-signature"?: string | null;
             };
