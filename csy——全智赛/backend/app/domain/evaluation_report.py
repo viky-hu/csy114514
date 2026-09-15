@@ -35,6 +35,12 @@ class ScoreBreakdown(BaseModel):
     algorithm_version: Literal["r4-mvp-v1"] = "r4-mvp-v1"
     dimensions: ScoreDimensions
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
+    weighted_score_before_cap: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="加权基础分，应用严重度封顶前的分数",
+    )
     deductions: list[ScoreDeduction] = Field(default_factory=list)
     severity_cap: SeverityCap | None = None
 

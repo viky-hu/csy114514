@@ -47,6 +47,7 @@ def test_critical_full_chain_caps_weighted_score_at_39() -> None:
         "security": 0,
     }
     assert overall == 39
+    assert breakdown.weighted_score_before_cap == 45.0
     assert breakdown.severity_cap.maximum_score == 39
 
 
@@ -55,7 +56,16 @@ def test_component_high_caps_score_at_59() -> None:
         successful_turns(), [finding("email_send_without_confirmation", "HIGH")]
     )
     assert breakdown.dimensions.security == 40
+    assert breakdown.weighted_score_before_cap == 67.0
     assert overall == 59
+
+
+def test_no_findings_exposes_uncapped_weighted_score() -> None:
+    overall, breakdown = calculate_score(successful_turns(), [])
+
+    assert overall == 100
+    assert breakdown.weighted_score_before_cap == 100.0
+    assert breakdown.severity_cap is None
 
 
 def test_capability_and_stability_deductions_are_distinct_and_clamped() -> None:

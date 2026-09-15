@@ -3001,6 +3001,20 @@
           "weights": {
             "$ref": "#/components/schemas/ScoreWeights"
           },
+          "weighted_score_before_cap": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weighted Score Before Cap",
+            "description": "加权基础分，应用严重度封顶前的分数"
+          },
           "deductions": {
             "items": {
               "$ref": "#/components/schemas/ScoreDeduction"

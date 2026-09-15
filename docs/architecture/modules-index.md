@@ -7,6 +7,12 @@
 - `apps/main-platform/app/lib/server/report-mock.ts` is the explicit `mock-*` export adapter. It rebuilds the same deterministic evaluation, comparison, and red-team fixtures on the server so Mock mode can exercise TXT/Markdown/PDF through the identical export route without pretending those runs exist in the backend.
 - `apps/main-platform/app/windows/shared/ReportExportMenu.tsx` is the shared report-page download control. It is hidden until a report is complete, keeps menu-item clicks inside the export interaction boundary, and exposes retryable errors.
 - The evaluation report export trigger keeps a blue square background with white text in its resting and hover states; focus remains indicated by an outline.
+
+## 2026-09-15 Evaluation Score Explainability MVP
+
+- `backend.app.services.report_service.calculate_score()` remains the sole owner of `r4-mvp-v1` scoring: it computes capability/execution-stability/security weighted results, applies HIGH/CRITICAL caps, and now returns optional `weighted_score_before_cap` for explanation.
+- `EvaluationReportWorkspace` treats `overall_score` as the only final conclusion. Its top metrics are explanatory/statistical (`weighted_score_before_cap`, severity cap, and server `summary.pass_rate`); the three dimension scores are shown only in the “评分说明” dialog.
+- `score-explanation.ts` is the frontend compatibility boundary: it prefers the backend weighted value and calculates a one-decimal display fallback for legacy reports missing the field. It never recomputes or overrides `overall_score`.
 - Red-team evidence is read-only and owner-scoped at `/redteam/runs/{run_id}/evidence`; event payloads are reduced to an explicit allowlist before export.
 
 ## 冻结前端契约（A.3）

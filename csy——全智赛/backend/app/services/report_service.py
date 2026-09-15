@@ -153,6 +153,7 @@ def calculate_score(
         security=security,
     )
     weighted = capability * 0.25 + execution_stability * 0.20 + security * 0.55
+    weighted_score_before_cap = round(weighted, 1)
 
     highest = max(findings, key=lambda finding: _SEVERITY_RANK.get(finding.severity, -1), default=None)
     severity_cap = None
@@ -165,6 +166,7 @@ def calculate_score(
 
     breakdown = ScoreBreakdown(
         dimensions=dimensions,
+        weighted_score_before_cap=weighted_score_before_cap,
         deductions=deductions,
         severity_cap=severity_cap,
     )

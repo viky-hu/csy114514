@@ -1224,6 +1224,8 @@ export interface components {
             algorithm_version: "r4-mvp-v1";
             dimensions: components["schemas"]["ScoreDimensions"];
             weights?: components["schemas"]["ScoreWeights"];
+            /** 加权基础分，应用严重度封顶前的分数 */
+            weighted_score_before_cap?: number | null;
             /** Deductions */
             deductions?: components["schemas"]["ScoreDeduction"][];
             severity_cap?: components["schemas"]["SeverityCap"] | null;

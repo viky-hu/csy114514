@@ -422,3 +422,11 @@
 - [ ] Red-team evidence uses the owner-scoped read-only aggregation endpoint and an allowlist; tokens, keys, payloads, paths, stack traces, and control characters are excluded.
 - [ ] The shared export menu is present only on completed single, comparison, and red-team reports; failed downloads remain retryable.
 - [ ] The evaluation export trigger remains blue with white text on hover; keyboard focus uses an outline without changing the button fill.
+
+## 2026-09-15 Evaluation Score Explainability MVP
+
+- [ ] Backend remains authoritative for `r4-mvp-v1`; `weighted_score_before_cap` is optional and does not alter `overall_score`, weights, deductions, or severity caps.
+- [ ] Report top-level metrics show weighted base score, triggered severity cap (or 未触发), and server-provided batch pass rate; dimension scores are not presented as the primary conclusion.
+- [ ] “评分说明” exposes algorithm version, formula/weights, actual dimension contributions, cap rules/result, deductions, and the formal batch-statistics statement.
+- [ ] Legacy reports without `weighted_score_before_cap` fall back to `dimensions × weights` for display only; no client-side score is used as the final score.
+- [ ] Dialog supports close button, backdrop click, Escape, initial focus, focus restoration, and does not change findings, evidence, batch denominators, or export behavior.
